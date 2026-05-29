@@ -27,23 +27,49 @@ const SCHEDULED_FILE   = path.join(__dirname, "scheduled-emails.json");
 const THREE_DAYS_MS    = 3 * 24 * 60 * 60 * 1000;
 
 // ─── Transporter ──────────────────────────────────────────────────────────────
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false,
-  },
-});
-transporter.verify(err => {
-  if (err) console.error("❌ Gmail failed:", err.message);
-  else     console.log("✅ Gmail ready.");
-});
+const { google } = require("googleapis");
 
+function getGmailAPITransport() {
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI
+  );
+  oauth2Client.setCredentials({
+    refresh_token: process.env.GMAIL_REFRESH_TOKEN,
+  });
+  return oauth2Client;
+}
+
+async function sendViaGmailAPI({ to, subject, html }) {
+  const auth = getGmailAPITransport();
+  const gmail = google.gmail({ version: "v1", auth });
+
+  const rawEmail = [
+    `From: "Anav Bansal" <${process.env.GMAIL_USER}>`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    `MIME-Version: 1.0`,
+    `Content-Type: text/html; charset=utf-8`,
+    ``,
+    html,
+  ].join("\r\n");
+
+  const encoded = Buffer.from(rawEmail)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  const res = await gmail.users.messages.send({
+    userId: "me",
+    requestBody: { raw: encoded },
+  });
+  console.log("✅ Email sent via Gmail API:", res.data.id);
+  return res.data;
+}
+
+console.log("✅ Gmail API transport ready.");
 // ─── Scheduled emails ─────────────────────────────────────────────────────────
 function loadScheduled() {
   try { return JSON.parse(fs.readFileSync(SCHEDULED_FILE, "utf8")); } catch { return []; }
@@ -220,7 +246,7 @@ async function sendApplicationEmail({
       "Return-Receipt-To": process.env.GMAIL_USER,
     };
   }
-  const info = await transporter.sendMail(mailOpts);
+  const info = await sendViaGmailAPI(mailOpts);
   console.log(`📤 Sent → ${hrEmail} | ${info.messageId}`);
   logToSheets([info.messageId, hrEmail, company||"", role||"", new Date().toISOString(), trackRecord.trackingId, "Sent", ""]);
   return { info, trackRecord };
@@ -693,7 +719,7 @@ app.post("/api/send-followup", async (req, res) => {
   }
 
   try {
-    const info = await transporter.sendMail({
+   const info = await sendViaGmailAPI({
       from: `"Anav Bansal" <${process.env.GMAIL_USER}>`,
       to: hrEmail, subject, html, attachments, headers: extraHeaders,
     });
