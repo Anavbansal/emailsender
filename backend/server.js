@@ -45,14 +45,33 @@ async function sendViaGmailAPI({ to, subject, html }) {
   const auth = getGmailAPITransport();
   const gmail = google.gmail({ version: "v1", auth });
 
+  const encodedSubject = `=?UTF-8?B?${Buffer.from(subject).toString("base64")}?=`;
+  
+  const boundary = "boundary_" + Date.now();
+  const resumePath = path.join(__dirname, "ANAV_BANSAL_FullStackDeveloper.pdf");
+  const resumeData = fs.readFileSync(resumePath).toString("base64");
+
   const rawEmail = [
     `From: "Anav Bansal" <${process.env.GMAIL_USER}>`,
     `To: ${to}`,
-    `Subject: ${subject}`,
+    `Subject: ${encodedSubject}`,
     `MIME-Version: 1.0`,
-    `Content-Type: text/html; charset=utf-8`,
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
     ``,
-    html,
+    `--${boundary}`,
+    `Content-Type: text/html; charset=utf-8`,
+    `Content-Transfer-Encoding: base64`,
+    ``,
+    Buffer.from(html).toString("base64"),
+    ``,
+    `--${boundary}`,
+    `Content-Type: application/pdf; name="Anav_Bansal_Resume.pdf"`,
+    `Content-Transfer-Encoding: base64`,
+    `Content-Disposition: attachment; filename="Anav_Bansal_Resume.pdf"`,
+    ``,
+    resumeData,
+    ``,
+    `--${boundary}--`,
   ].join("\r\n");
 
   const encoded = Buffer.from(rawEmail)
