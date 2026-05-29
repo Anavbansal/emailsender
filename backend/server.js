@@ -100,11 +100,28 @@ let sheetsInitialized = false;
 async function getSheetsClient() {
   const { google } = require("googleapis");
   const tokenPath = path.join(__dirname, "tokens.json");
-  if (!fs.existsSync(tokenPath)) throw new Error("No Gmail tokens — connect via /api/gmail/auth");
+  
   const auth = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, process.env.GOOGLE_REDIRECT_URI
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI
   );
-  auth.setCredentials(JSON.parse(fs.readFileSync(tokenPath, "utf8")));
+
+  // File se try karo pehle
+  if (fs.existsSync(tokenPath)) {
+    auth.setCredentials(JSON.parse(fs.readFileSync(tokenPath, "utf8")));
+  }
+  // Env variable se load karo agar file nahi hai
+  else if (process.env.GMAIL_REFRESH_TOKEN) {
+    auth.setCredentials({
+      refresh_token: process.env.GMAIL_REFRESH_TOKEN,
+    });
+  }
+  // Dono nahi hain toh error
+  else {
+    throw new Error("No Gmail tokens — connect via /api/gmail/auth");
+  }
+
   return google.sheets({ version: "v4", auth });
 }
 
