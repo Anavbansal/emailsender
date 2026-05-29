@@ -28,8 +28,16 @@ const THREE_DAYS_MS    = 3 * 24 * 60 * 60 * 1000;
 
 // ─── Transporter ──────────────────────────────────────────────────────────────
 const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_PASS },
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true,
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_PASS,
+  },
+  tls: {
+    rejectUnauthorized: false,
+  },
 });
 transporter.verify(err => {
   if (err) console.error("❌ Gmail failed:", err.message);
