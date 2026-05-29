@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "name": "job-mailer-frontend",
+  "buildCommand": "npm run build",
+  "outputDirectory": "build",
+  "framework": "create-react-app",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/" }
+  ],
+  "env": {
+    "REACT_APP_API_URL": "https://your-render-app.onrender.com"
+  }
+}

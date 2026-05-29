@@ -1,0 +1,92 @@
+[
+  {
+    "trackingId": "814950f9-27b4-45ee-b264-0ffd42d14b23",
+    "hrEmail": "anavbansal6@gmail.com",
+    "company": "Novelvox",
+    "role": "Full Stack Developer",
+    "sentAt": 1780063839013,
+    "opened": false,
+    "openedAt": null
+  },
+  {
+    "trackingId": "acee1140-cb24-47a5-9492-f538a374ac10",
+    "hrEmail": "anavbansal6@gmail.com",
+    "company": "Novelvox",
+    "role": "Full Stack Developer",
+    "sentAt": 1780064094941,
+    "opened": false,
+    "openedAt": null
+  },
+  {
+    "trackingId": "152aef13-b1b6-4530-b95b-08f83e1564ae",
+    "hrEmail": "anavbansal6@gmail.com",
+    "company": "hfhghfh",
+    "role": "",
+    "sentAt": 1780064101000,
+    "opened": false,
+    "openedAt": null
+  },
+  {
+    "trackingId": "07de044f-b0b9-4239-9a76-4bc249a10f7f",
+    "hrEmail": "anavbansal6@gmail.com",
+    "company": "Akka",
+    "role": "",
+    "sentAt": 1780064775218,
+    "opened": false,
+    "openedAt": null
+  },
+  {
+    "trackingId": "6c557319-4d17-49ad-887e-ea9c4c3dcd19",
+    "type": "application",
+    "hrEmail": "anavbansal6@gmail.com",
+    "hrName": "Anav",
+    "company": "avns",
+    "role": "",
+    "subject": "Job Application — Anav Bansal (Senior Full Stack Developer)",
+    "sentAt": 1780076820170,
+    "opened": true,
+    "openedAt": 1780077578282,
+    "ip": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
+  },
+  {
+    "trackingId": "219d14bf-41ac-43ac-8814-d0bbf22cfbeb",
+    "type": "application",
+    "hrEmail": "anavbansal.invest@gmail.com",
+    "hrName": "BansalJI",
+    "company": "gjuuuu",
+    "role": "",
+    "subject": "Job Application — Anav Bansal (Senior Full Stack Developer)",
+    "sentAt": 1780078085470,
+    "opened": true,
+    "openedAt": 1780078259460,
+    "ip": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
+  },
+  {
+    "trackingId": "8f617030-e504-4ee0-8630-d26c219a5bdb",
+    "type": "followup",
+    "hrEmail": "anavbansal.invest@gmail.com",
+    "hrName": "BansalJI",
+    "company": "gjuuuu",
+    "role": "",
+    "subject": "Re: Job Application — Anav Bansal (Senior Full Stack Developer)",
+    "sentAt": 1780078303356,
+    "opened": true,
+    "openedAt": 1780080333125,
+    "ip": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
+  },
+  {
+    "trackingId": "4f38347a-4195-4298-9e7f-b20e99f18c84",
+    "type": "application",
+    "hrEmail": "anavbansal6@gmail.com",
+    "hrName": "",
+    "company": "hfhghfh",
+    "role": "",
+    "subject": "Job Application — Anav Bansal (Senior Full Stack Developer)",
+    "sentAt": 1780082052676,
+    "opened": false,
+    "openedAt": null
+  }
+]
