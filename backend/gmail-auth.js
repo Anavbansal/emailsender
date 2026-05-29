@@ -12,7 +12,6 @@ function getOAuthClient() {
     process.env.GOOGLE_CLIENT_SECRET,
     process.env.GOOGLE_REDIRECT_URI
   );
-  // File se try karo pehle
   if (fs.existsSync(TOKEN_PATH)) {
     try {
       client.setCredentials(
@@ -21,7 +20,6 @@ function getOAuthClient() {
       return client;
     } catch (e) {}
   }
-  // Env variable se refresh token use karo
   if (process.env.GMAIL_REFRESH_TOKEN) {
     client.setCredentials({
       refresh_token: process.env.GMAIL_REFRESH_TOKEN,
