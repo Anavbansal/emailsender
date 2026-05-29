@@ -184,4 +184,13 @@ router.post("/api/gmail/reply", async (req, res) => {
   } catch (e) { return res.status(500).json({ success: false, message: e.message }); }
 });
 
+router.get("/api/gmail/debug-tokens", (req, res) => {
+  if (fs.existsSync(TOKEN_PATH)) {
+    const tokens = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf8"));
+    res.json({ success: true, refresh_token: tokens.refresh_token });
+  } else {
+    res.json({ success: false, message: "No tokens found" });
+  }
+});
+
 module.exports = router;
