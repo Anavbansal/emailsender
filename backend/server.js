@@ -162,8 +162,18 @@ cron.schedule("* * * * *", async () => {
   for (const job of jobs) {
     if (job.status === "pending" && parseScheduledTime(job.scheduledTime) <= now) {
       try {
-        await sendApplicationEmail(job.emailData);
-        await updateJobStatus(job.jobId, "sent");
+        const { info, trackRecord } = await sendApplicationEmail(job.emailData);
+        logToSheets([
+          info.messageId,
+          job.emailData.hrEmail,
+          job.emailData.company || "",
+          job.emailData.role    || "",
+          new Date().toISOString(),
+          trackRecord.trackingId,
+          "Scheduled-Sent",
+          "",
+        ]);
+        await deleteJob(job.jobId);
       } catch (e) {
         await updateJobStatus(job.jobId, "failed", e.message);
       }
