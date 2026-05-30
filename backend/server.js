@@ -149,11 +149,18 @@ async function deleteJob(jobId) {
   }
 }
 
+function parseScheduledTime(scheduledTime) {
+  // If no timezone info, treat as IST (UTC+5:30)
+  if (!scheduledTime.includes("Z") && !scheduledTime.includes("+"))
+    return new Date(scheduledTime + "+05:30").getTime();
+  return new Date(scheduledTime).getTime();
+}
+
 cron.schedule("* * * * *", async () => {
   const jobs = await loadScheduled();
   const now  = Date.now();
   for (const job of jobs) {
-    if (job.status === "pending" && new Date(job.scheduledTime).getTime() <= now) {
+    if (job.status === "pending" && parseScheduledTime(job.scheduledTime) <= now) {
       try {
         await sendApplicationEmail(job.emailData);
         await updateJobStatus(job.jobId, "sent");
