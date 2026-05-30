@@ -6,20 +6,15 @@
     "orientation": "portrait",
     "android": {
       "package": "com.anavbansal.jobmailer",
-      "versionCode": 1
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#2563eb"
+      }
     },
     "extra": {
       "eas": {
         "projectId": "240866e8-8687-4951-9f8d-673f2de1b7f7"
       }
-    },
-    "plugins": [
-      [
-        "expo-notifications",
-        {
-          "color": "#2563eb"
-        }
-      ]
-    ]
+    }
   }
 }

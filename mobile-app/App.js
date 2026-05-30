@@ -9,6 +9,7 @@ import { Text, Platform } from "react-native";
 
 import ApplyScreen from "./src/screens/ApplyScreen";
 import FollowUpScreen from "./src/screens/FollowUpScreen";
+import ReferralScreen from "./src/screens/ReferralScreen";
 import SentLogScreen from "./src/screens/SentLogScreen";
 import RemindersScreen from "./src/screens/RemindersScreen";
 
@@ -30,6 +31,7 @@ function TabIcon({ name, focused, color }) {
   const icons = {
     Apply: focused ? "✉" : "✉",
     FollowUp: focused ? "🔁" : "🔁",
+    Referral: focused ? "🤝" : "🤝",
     SentLog: focused ? "📋" : "📋",
     Reminders: focused ? "🔔" : "🔔",
   };
@@ -101,6 +103,11 @@ export default function App() {
           name="FollowUp"
           component={FollowUpScreen}
           options={{ title: "Follow-up", headerTitle: "Send Follow-up" }}
+        />
+        <Tab.Screen
+          name="Referral"
+          component={ReferralScreen}
+          options={{ title: "Referral", headerTitle: "Request Referral" }}
         />
         <Tab.Screen
           name="SentLog"

@@ -7,6 +7,9 @@
     "apk": {
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "NODE_ENV": "production"
       }
     }
   }

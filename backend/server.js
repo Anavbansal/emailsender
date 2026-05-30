@@ -6,6 +6,7 @@ const path = require("path");
 const fs = require("fs");
 const https = require("https");
 const cron = require("node-cron");
+const mongoose = require("mongoose");
 const gmailAuthRoutes = require("./gmail-auth");
 const {
   createTrackingRecord, markTrackingOpened,
@@ -23,8 +24,27 @@ app.use(gmailAuthRoutes);
 
 const RESUME_PATH      = path.join(__dirname, "ANAV_BANSAL_FullStackDeveloper.pdf");
 const RESUME_DRIVE_LINK = "https://drive.google.com/file/d/1LKc-w9Ggd5I1eZ3t7Wvm9psU-4ITxHxr/view?usp=sharing";
-const SCHEDULED_FILE   = path.join(__dirname, "scheduled-emails.json");
 const THREE_DAYS_MS    = 3 * 24 * 60 * 60 * 1000;
+
+// ─── MongoDB connection ────────────────────────────────────────────────────────
+if (process.env.MONGODB_URI) {
+  mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log("✅ MongoDB connected"))
+    .catch(e => console.error("❌ MongoDB error:", e.message));
+} else {
+  console.warn("⚠️  MONGODB_URI not set — scheduled emails will use local JSON fallback");
+}
+
+const ScheduledEmailSchema = new mongoose.Schema({
+  jobId:         { type: String, required: true, unique: true },
+  scheduledTime: { type: String, required: true },
+  status:        { type: String, default: "pending" },
+  emailData:     { type: mongoose.Schema.Types.Mixed },
+  error:         { type: String },
+}, { timestamps: true });
+
+const ScheduledEmail = mongoose.models.ScheduledEmail ||
+  mongoose.model("ScheduledEmail", ScheduledEmailSchema);
 
 // ─── Transporter ──────────────────────────────────────────────────────────────
 const { google } = require("googleapis");
@@ -89,25 +109,59 @@ async function sendViaGmailAPI({ to, subject, html }) {
 }
 
 console.log("✅ Gmail API transport ready.");
-// ─── Scheduled emails ─────────────────────────────────────────────────────────
-function loadScheduled() {
+// ─── Scheduled emails helpers ─────────────────────────────────────────────────
+const SCHEDULED_FILE = path.join(__dirname, "scheduled-emails.json");
+
+async function loadScheduled() {
+  if (mongoose.connection.readyState === 1) {
+    return ScheduledEmail.find().lean();
+  }
   try { return JSON.parse(fs.readFileSync(SCHEDULED_FILE, "utf8")); } catch { return []; }
 }
-function saveScheduled(jobs) {
-  fs.writeFileSync(SCHEDULED_FILE, JSON.stringify(jobs, null, 2), "utf8");
+
+async function addScheduledJob(job) {
+  if (mongoose.connection.readyState === 1) {
+    await ScheduledEmail.create(job);
+  } else {
+    const jobs = await loadScheduled();
+    jobs.push(job);
+    fs.writeFileSync(SCHEDULED_FILE, JSON.stringify(jobs, null, 2), "utf8");
+  }
 }
+
+async function updateJobStatus(jobId, status, error) {
+  if (mongoose.connection.readyState === 1) {
+    await ScheduledEmail.updateOne({ jobId }, { status, ...(error && { error }) });
+  } else {
+    const jobs = await loadScheduled();
+    const j = jobs.find(x => x.jobId === jobId);
+    if (j) { j.status = status; if (error) j.error = error; }
+    fs.writeFileSync(SCHEDULED_FILE, JSON.stringify(jobs, null, 2), "utf8");
+  }
+}
+
+async function deleteJob(jobId) {
+  if (mongoose.connection.readyState === 1) {
+    await ScheduledEmail.deleteOne({ jobId });
+  } else {
+    const jobs = (await loadScheduled()).filter(j => j.jobId !== jobId);
+    fs.writeFileSync(SCHEDULED_FILE, JSON.stringify(jobs, null, 2), "utf8");
+  }
+}
+
 cron.schedule("* * * * *", async () => {
-  const jobs = loadScheduled();
+  const jobs = await loadScheduled();
   const now  = Date.now();
-  let changed = false;
   for (const job of jobs) {
     if (job.status === "pending" && new Date(job.scheduledTime).getTime() <= now) {
-      try { await sendApplicationEmail(job.emailData); job.status = "sent"; }
-      catch (e) { job.status = "failed"; job.error = e.message; }
-      changed = true;
+      try {
+        await sendApplicationEmail(job.emailData);
+        await updateJobStatus(job.jobId, "sent");
+      } catch (e) {
+        await updateJobStatus(job.jobId, "failed", e.message);
+      }
     }
   }
-  if (changed) saveScheduled(jobs);
 });
 
 // ─── Google Sheets ────────────────────────────────────────────────────────────
@@ -472,6 +526,75 @@ function buildFollowUpHTML({ hrName, company, role, originalDate, customNote, tr
 </div>${pixel}</body></html>`;
 }
 
+// ─── HTML: Referral Request ───────────────────────────────────────────────────
+function buildReferralHTML({ employeeName, company, role, customNote, trackUrl = "" }) {
+  const greeting  = employeeName ? `Hi ${employeeName},` : "Hi,";
+  const noteBlock = customNote ? `<p style="color:#374151;line-height:1.8;margin:16px 0;">${customNote}</p>` : "";
+  const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',sans-serif;">
+<div style="max-width:620px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+  <div style="background:linear-gradient(135deg,#4c1d95 0%,#7c3aed 100%);padding:36px 40px;">
+    <p style="margin:0 0 6px;color:#ddd6fe;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Referral Request</p>
+    <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Anav Bansal</h1>
+    <p style="margin:6px 0 0;color:#ddd6fe;font-size:14px;">Senior Full Stack Developer · Node.js · Angular · AWS</p>
+  </div>
+  <div style="padding:36px 40px;">
+    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
+    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">
+      I hope you don't mind me reaching out. I came across your profile and noticed you work at
+      <strong>${company || "your organization"}</strong>. I'm very interested in the
+      <strong>${role}</strong> role there and was hoping you might be open to referring me.
+    </p>
+    ${noteBlock}
+    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">
+      A quick background — I have <strong>4.7+ years of experience</strong> in full-stack development
+      with Node.js, Angular, AWS serverless, and enterprise CTI/Telephony integrations. I'd love the
+      opportunity to contribute to your team.
+    </p>
+    <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:18px 24px;margin-bottom:24px;">
+      <p style="margin:0 0 10px;font-weight:600;color:#5b21b6;font-size:14px;">📄 Resume</p>
+      <a href="${RESUME_DRIVE_LINK}" style="color:#7c3aed;text-decoration:none;font-weight:500;font-size:14px;">🔗 View Resume on Google Drive →</a>
+      <p style="margin:10px 0 0;font-size:13px;color:#6b7280;">
+        LinkedIn: <a href="https://linkedin.com/in/anavbansal-51b191162" style="color:#7c3aed;text-decoration:none;">linkedin.com/in/anavbansal-51b191162</a>
+      </p>
+    </div>
+    <p style="color:#374151;line-height:1.8;margin:0;">
+      No pressure at all — even a quick internal recommendation or a heads-up to the hiring team would
+      mean a lot. Thank you so much for your time!
+    </p>
+  </div>
+  ${footer("#7c3aed")}
+</div>${pixel}</body></html>`;
+}
+
+// ─── POST /api/send-referral ──────────────────────────────────────────────────
+app.post("/api/send-referral", async (req, res) => {
+  const { employeeEmail, employeeName = "", company, role, customNote } = req.body;
+  if (!employeeEmail || !company || !role)
+    return res.status(400).json({ success: false, message: "employeeEmail, company, and role are required." });
+
+  const subject    = `Referral Request — ${role} at ${company}`;
+  const trackRecord = createTrackingRecord({ hrEmail: employeeEmail, hrName: employeeName, company, role, subject, type: "referral" });
+  const trackUrl   = `${BASE_URL}/api/track/${trackRecord.trackingId}`;
+  const html       = buildReferralHTML({ employeeName, company, role, customNote, trackUrl });
+
+  storeEmailHtml(trackRecord.trackingId, html);
+
+  try {
+    const info = await sendViaGmailAPI({ to: employeeEmail, subject, html });
+    logToSheets([info.messageId, employeeEmail, company, role, new Date().toISOString(), trackRecord.trackingId, "Referral-Sent", ""]);
+    return res.status(200).json({
+      success: true,
+      message: `Referral request sent to ${employeeEmail}!`,
+      messageId: info.messageId,
+      trackingId: trackRecord.trackingId,
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // ─── Jooble helper ────────────────────────────────────────────────────────────
 // ─── Jooble search (accepts full body for advanced filters) ──────────────────
 function joobleSearch(bodyObj) {
@@ -767,19 +890,24 @@ app.post("/api/send-followup", async (req, res) => {
 });
 
 // ─── POST /api/schedule-email ─────────────────────────────────────────────────
-app.post("/api/schedule-email", (req, res) => {
+app.post("/api/schedule-email", async (req, res) => {
   const { hrEmail, company, scheduledTime, ...rest } = req.body;
   if (!hrEmail || !company || !scheduledTime)
     return res.status(400).json({ success: false, message: "hrEmail, company, scheduledTime required." });
-  const jobs  = loadScheduled();
   const jobId = Date.now().toString();
-  jobs.push({ jobId, scheduledTime, status: "pending", emailData: { hrEmail, company, ...rest } });
-  saveScheduled(jobs);
+  await addScheduledJob({ jobId, scheduledTime, status: "pending", emailData: { hrEmail, company, ...rest } });
   return res.json({ success: true, message: `Scheduled for ${new Date(scheduledTime).toLocaleString("en-IN")}`, jobId });
 });
 
-app.get("/api/scheduled-emails",           (req, res) => res.json({ success: true, jobs: loadScheduled() }));
-app.delete("/api/scheduled-emails/:jobId", (req, res) => { saveScheduled(loadScheduled().filter(j => j.jobId !== req.params.jobId)); res.json({ success: true }); });
+app.get("/api/scheduled-emails", async (req, res) => {
+  const jobs = await loadScheduled();
+  res.json({ success: true, jobs });
+});
+
+app.delete("/api/scheduled-emails/:jobId", async (req, res) => {
+  await deleteJob(req.params.jobId);
+  res.json({ success: true });
+});
 
 // ─── GET /api/jobs/search ─────────────────────────────────────────────────────
 app.get("/api/jobs/search", async (req, res) => {
