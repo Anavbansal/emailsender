@@ -1378,6 +1378,97 @@ function ProspectPage({ onFillApply }) {
   );
 }
 
+// ─── Referral Page ───────────────────────────────────────────────────────────
+function ReferralPage() {
+  const [form, setForm]     = useState({ employeeEmail: "", employeeName: "", company: "", role: "", customNote: "" });
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus]   = useState(null);
+
+  const handle = e => { setForm(p => ({ ...p, [e.target.name]: e.target.value })); setStatus(null); };
+
+  const submit = async e => {
+    e.preventDefault();
+    setLoading(true); setStatus(null);
+    try {
+      const res = await axios.post(`${API}/api/send-referral`, form);
+      setStatus({ type: "success", text: res.data.message });
+      setForm({ employeeEmail: "", employeeName: "", company: "", role: "", customNote: "" });
+    } catch (err) {
+      setStatus({ type: "error", text: err.response?.data?.message || "Failed to send." });
+    } finally { setLoading(false); }
+  };
+
+  const valid = form.employeeEmail && form.company && form.role;
+
+  return (
+    <div className="page">
+      <div className="preview-card" style={{ marginBottom: 16 }}>
+        <p className="preview-title">🤝 How it works</p>
+        <p className="preview-line">A short, personal email is sent to a company employee requesting a referral. Includes your resume Drive link and LinkedIn profile.</p>
+      </div>
+
+      <form onSubmit={submit} noValidate className="app-form">
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label" htmlFor="rf-email"><span className="lbadge">Required</span> Employee Email</label>
+            <input id="rf-email" name="employeeEmail" type="email" value={form.employeeEmail} onChange={handle}
+              placeholder="employee@company.com" className="form-input" required disabled={loading} />
+          </div>
+          <div className="form-group">
+            <label className="form-label" htmlFor="rf-name"><span className="lbadge lbadge-opt">Optional</span> Employee Name</label>
+            <input id="rf-name" name="employeeName" type="text" value={form.employeeName} onChange={handle}
+              placeholder="e.g. Rahul Sharma" className="form-input" disabled={loading} />
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label" htmlFor="rf-company"><span className="lbadge">Required</span> Company</label>
+            <input id="rf-company" name="company" type="text" value={form.company} onChange={handle}
+              placeholder="e.g. Google, Flipkart" className="form-input" required disabled={loading} />
+          </div>
+          <div className="form-group">
+            <label className="form-label" htmlFor="rf-role"><span className="lbadge">Required</span> Role</label>
+            <input id="rf-role" name="role" type="text" value={form.role} onChange={handle}
+              placeholder="e.g. Senior Full Stack Developer" className="form-input" required disabled={loading} />
+          </div>
+        </div>
+        <div className="form-group">
+          <label className="form-label" htmlFor="rf-note"><span className="lbadge lbadge-opt">Optional</span> Personal Note
+            <span className="label-hint">Mention a mutual connection or why this company</span>
+          </label>
+          <textarea id="rf-note" name="customNote" value={form.customNote} onChange={handle}
+            className="form-textarea" rows={3} disabled={loading}
+            placeholder="e.g. We connected on LinkedIn last week, I'm very excited about the work your team is doing…" />
+        </div>
+
+        <div className="preview-card">
+          <p className="preview-title">✉ Message Preview</p>
+          <p className="preview-line"><strong>Subject:</strong> {form.role && form.company ? `Referral Request — ${form.role} at ${form.company}` : "Referral Request — (fill role & company)"}</p>
+          <p className="preview-line"><strong>To:</strong> {form.employeeEmail || "—"}{form.employeeName ? ` (${form.employeeName})` : ""}</p>
+          <p className="preview-line"><strong>Includes:</strong> Resume Drive link + LinkedIn profile</p>
+        </div>
+
+        {status && (
+          <div className={`alert alert-${status.type}`}>
+            <span className="alert-icon">{status.type === "success" ? "✓" : "✕"}</span>
+            <span>{status.text}</span>
+          </div>
+        )}
+
+        <div className="form-footer">
+          <button type="submit" className={`btn-primary ${loading ? "loading" : ""}`} disabled={loading || !valid}>
+            {loading ? <><span className="spinner" /> Sending…</> : <><span className="btn-arrow">🤝</span> Send Referral Request</>}
+          </button>
+          <button type="button" className="btn-ghost" disabled={loading}
+            onClick={() => { setForm({ employeeEmail: "", employeeName: "", company: "", role: "", customNote: "" }); setStatus(null); }}>
+            Clear
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 // ─── Scheduled Page ───────────────────────────────────────────────────────────
 function ScheduledPage() {
   const [jobs, setJobs] = useState([]);
@@ -1452,6 +1543,7 @@ export default function App() {
     { id: "prospect",  icon: "🎯", label: "Find HR Emails" },
     { id: "inbox",     icon: "📥", label: "Inbox",            badge: replyCount || null },
     { id: "messages",  icon: "💬", label: "Messages" },
+    { id: "referral",  icon: "🤝", label: "Referral" },
     { id: "jobs",      icon: "🔍", label: "Find Jobs" },
     { id: "scheduled", icon: "🗓", label: "Scheduled" },
   ];
@@ -1527,6 +1619,7 @@ export default function App() {
           {page === "send"      && <SendApplicationPage onContactsRefresh={fetchContacts} prefill={prefillSend} onPrefillConsumed={() => setPrefillSend(null)} />}
           {page === "inbox"     && <InboxPage />}
           {page === "messages"  && <MessagesPage contacts={contacts} />}
+          {page === "referral"  && <ReferralPage />}
           {page === "prospect"  && <ProspectPage onFillApply={goToSendPrefilled} />}
           {page === "jobs"      && <FindJobsPage onFillApply={goToSendPrefilled} />}
           {page === "scheduled" && <ScheduledPage />}
