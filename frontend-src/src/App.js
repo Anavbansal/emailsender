@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import "./App.css";
 
-const API = "http://localhost:5000";
+const API = "https://emailsender-v8a4.onrender.com";
 const DRIVE_LINK = "https://drive.google.com/file/d/1LKc-w9Ggd5I1eZ3t7Wvm9psU-4ITxHxr/view?usp=sharing";
 
 const EMAIL_TEMPLATES = [
@@ -611,7 +611,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
           <div>
             <strong>Google Sheet not syncing:</strong> {sheetError}
             <div className="sheet-error-hint">
-              Open <code>http://localhost:5000/api/sheets/debug</code> to diagnose. Once fixed, click ↻ Refresh.
+              Open <code>https://emailsender-v8a4.onrender.com/api/sheets/debug</code> to diagnose. Once fixed, click ↻ Refresh.
             </div>
           </div>
           <button className="btn-ghost btn-sm" onClick={onRefresh}>↻ Refresh</button>
