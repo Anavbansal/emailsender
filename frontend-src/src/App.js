@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import "./App.css";
 
-const API = "https://emailsender-v8a4.onrender.com";
+const API = "http://localhost:5000";
 const DRIVE_LINK = "https://drive.google.com/file/d/1LKc-w9Ggd5I1eZ3t7Wvm9psU-4ITxHxr/view?usp=sharing";
 
 const EMAIL_TEMPLATES = [
@@ -56,6 +56,25 @@ function relativeTime(ts) {
   return new Date(ts).toLocaleDateString("en-IN");
 }
 
+// Returns integer day count since timestamp (0 = today)
+function daysSince(ts) {
+  if (!ts) return null;
+  return Math.floor((Date.now() - ts) / (1000 * 60 * 60 * 24));
+}
+
+// Pill showing "Today", "2d ago", "10d ago" — color shifts green→amber→red
+function DaysBadge({ ts }) {
+  const d = daysSince(ts);
+  if (d === null) return null;
+  const color = d === 0 ? "var(--green)" : d <= 3 ? "var(--green)" : d <= 7 ? "var(--amber)" : "var(--red)";
+  const label = d === 0 ? "Today" : d === 1 ? "1 day ago" : `${d} days ago`;
+  return (
+    <span className="days-badge" style={{ borderColor: color, color }}>
+      📅 {label}
+    </span>
+  );
+}
+
 function getInitials(name, email) {
   if (name) return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
   return (email || "HR")[0].toUpperCase();
@@ -83,6 +102,142 @@ function DarkModeToggle({ dark, onToggle }) {
     <button className={`dmtoggle${dark ? " dmtoggle-on" : ""}`} onClick={onToggle} title="Toggle dark mode">
       {dark ? "🌙" : "☀️"}
     </button>
+  );
+}
+
+// ─── Toast Notification System ────────────────────────────────────────────────
+function ToastContainer({ toasts }) {
+  return (
+    <div className="toast-stack">
+      {toasts.map(t => (
+        <div key={t.id} className={`toast toast-${t.type}`}>
+          <span className="toast-icon">
+            {t.type === "success" ? "✓" : t.type === "error" ? "✕" : "ℹ"}
+          </span>
+          <span className="toast-msg">{t.message}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+function StatCard({ icon, label, value, sub, color = "blue", onClick }) {
+  return (
+    <div className={`stat-card stat-${color}${onClick ? " stat-clickable" : ""}`} onClick={onClick}>
+      <div className="stat-icon-wrap">{icon}</div>
+      <div className="stat-body">
+        <div className="stat-value">{value}</div>
+        <div className="stat-label">{label}</div>
+        {sub && <div className="stat-sub">{sub}</div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Dashboard Page ───────────────────────────────────────────────────────────
+function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
+  const totalSent   = contacts.reduce((s, c) => s + (c.totalSent || 1), 0);
+  const openedCount = contacts.filter(c => c.opened).length;
+  const replyCount  = replies.length;
+  const followDue   = contacts.filter(c => c.needsFollowUp).length;
+  const scheduled   = scheduledJobs.filter(j => j.status === "pending").length;
+  const openRate    = contacts.length > 0 ? Math.round(openedCount / contacts.length * 100) : 0;
+  const replyRate   = contacts.length > 0 ? Math.round(replyCount  / contacts.length * 100) : 0;
+
+  const health = Math.min(100, Math.round(
+    (Math.min(contacts.length, 30) / 30) * 40 +
+    openRate  * 0.3 +
+    replyRate * 0.3
+  ));
+  const healthLabel = health >= 70 ? "Strong 🔥" : health >= 40 ? "Building 📈" : "Getting started 🚀";
+  const healthColor = health >= 70 ? "var(--green)" : health >= 40 ? "var(--amber)" : "var(--blue)";
+
+  const recent = [...contacts].sort((a, b) => b.lastSentAt - a.lastSentAt).slice(0, 6);
+
+  const QUICK = [
+    { icon: "✉",  label: "Send Application", id: "send",     cls: "qb-blue"   },
+    { icon: "📥", label: "Check Inbox",        id: "inbox",    cls: "qb-purple" },
+    { icon: "🎯", label: "Find HR Emails",     id: "prospect", cls: "qb-green"  },
+    { icon: "🔍", label: "Find Jobs",           id: "jobs",     cls: "qb-amber"  },
+  ];
+
+  return (
+    <div className="page dashboard-page">
+      {/* Welcome + health pill */}
+      <div className="dash-welcome">
+        <div>
+          <h2 className="dash-welcome-title">Welcome back, Anav 👋</h2>
+          <p className="dash-welcome-sub">Here's your job search at a glance</p>
+        </div>
+        <div className="health-pill" style={{ borderColor: healthColor, color: healthColor }}>
+          <span className="health-dot" style={{ background: healthColor }} />
+          {healthLabel}
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="health-bar-wrap">
+        <div className="health-bar-track">
+          <div className="health-bar-fill" style={{ width: `${Math.max(health, 4)}%`, background: healthColor }} />
+        </div>
+        <span className="health-bar-label">Job search health · {health}/100</span>
+      </div>
+
+      {/* Stats grid */}
+      <div className="stats-grid">
+        <StatCard icon="📤" label="Applications Sent"  value={totalSent}   color="blue"   onClick={() => onNavigate("contacts")} />
+        <StatCard icon="👁" label="Emails Opened"       value={openedCount} sub={`${openRate}% open rate`}  color="purple" />
+        <StatCard icon="↩" label="Replies Received"    value={replyCount}  sub={replyRate > 0 ? `${replyRate}% reply rate` : ""}  color="green"  onClick={() => onNavigate("inbox")} />
+        <StatCard icon="⏰" label="Follow-up Due"       value={followDue}   color="amber"  onClick={() => onNavigate("contacts")} />
+        <StatCard icon="🗓" label="Scheduled"           value={scheduled}   color="blue"   onClick={() => onNavigate("scheduled")} />
+        <StatCard icon="👥" label="Companies Reached"  value={contacts.length} color="purple" onClick={() => onNavigate("contacts")} />
+      </div>
+
+      {/* Quick actions */}
+      <div className="dash-section-title">Quick Actions</div>
+      <div className="quick-actions-grid">
+        {QUICK.map(q => (
+          <button key={q.id} className={`quick-btn ${q.cls}`} onClick={() => onNavigate(q.id)}>
+            <span className="quick-icon">{q.icon}</span>
+            <span className="quick-label">{q.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Recent activity */}
+      <div className="dash-section-title">Recent Applications</div>
+      {recent.length === 0 ? (
+        <div className="dash-empty">
+          <span className="dash-empty-icon">📭</span>
+          <p>No applications yet. Send your first application!</p>
+          <button className="btn-primary btn-sm" style={{ marginTop: 14 }} onClick={() => onNavigate("send")}>
+            ✉ Send Application
+          </button>
+        </div>
+      ) : (
+        <div className="activity-feed">
+          {recent.map((c, i) => (
+            <div key={i} className="activity-row">
+              <div className="activity-avatar">{getInitials(c.hrName, c.hrEmail)}</div>
+              <div className="activity-body">
+                <span className="activity-company">{c.company}</span>
+                {c.role && <span className="activity-role">{c.role}</span>}
+                <span className="activity-email">{c.hrEmail}</span>
+              </div>
+              <div className="activity-right">
+                <DaysBadge ts={c.lastSentAt} />
+                {c.opened        && <span className="badge badge-opened"   style={{ fontSize: 10 }}>👁 Opened</span>}
+                {c.needsFollowUp && <span className="badge badge-reminder" style={{ fontSize: 10 }}>⏰ Follow-up</span>}
+              </div>
+            </div>
+          ))}
+          <button className="activity-view-all" onClick={() => onNavigate("contacts")}>
+            View all contacts →
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -391,10 +546,25 @@ function DuplicateWarningModal({ info, onClose, onConfirm }) {
 }
 
 // ─── HR Contacts Page ─────────────────────────────────────────────────────────
+const PIPELINE_STAGES = [
+  { key: "applied",  label: "Applied",       icon: "📤", color: "#2563eb" },
+  { key: "opened",   label: "Opened",        icon: "👁", color: "#7c3aed" },
+  { key: "followup", label: "Follow-up Due", icon: "⏰", color: "#d97706" },
+  { key: "replied",  label: "Replied",       icon: "↩", color: "#059669" },
+];
+
 function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail, onFollowUp, onMessage, onRefresh }) {
-  const [search, setSearch]   = useState("");
-  const [clearing, setClearing] = useState(null); // trackingId being cleared
+  const [search,   setSearch]   = useState("");
+  const [view,     setView]     = useState("list"); // "list" | "kanban"
+  const [clearing, setClearing] = useState(null);
   const replyEmails = new Set((replies || []).map(r => r.fromEmail.toLowerCase()));
+
+  const getStage = (c) => {
+    if (replyEmails.has(c.hrEmail.toLowerCase())) return "replied";
+    if (c.opened) return "opened";
+    if (c.needsFollowUp) return "followup";
+    return "applied";
+  };
 
   const filtered = contacts.filter(c =>
     !search ||
@@ -410,7 +580,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
     setClearing(trackingId);
     try {
       await axios.post(`${API}/api/track/reset/${trackingId}`);
-      onRefresh(); // reload contacts to reflect change
+      onRefresh();
     } catch {}
     finally { setClearing(null); }
   };
@@ -422,32 +592,26 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
       return (
         <span className="badge badge-opened" title={`Opened ${relativeTime(c.openedAt)}`}>
           👁 Opened
-          <button
-            className="badge-clear-btn"
-            title="Mark as not opened (false positive)"
+          <button className="badge-clear-btn" title="Mark as not opened"
             onClick={e => { e.stopPropagation(); clearOpened(c.lastTrackingId); }}
-            disabled={clearing === c.lastTrackingId}
-          >
+            disabled={clearing === c.lastTrackingId}>
             {clearing === c.lastTrackingId ? "…" : "✕"}
           </button>
         </span>
       );
-    if (c.needsFollowUp)
-      return <span className="badge badge-reminder">⏰ Follow-up Due</span>;
+    if (c.needsFollowUp) return <span className="badge badge-reminder">⏰ Follow-up Due</span>;
     return <span className="badge badge-sent">📤 Sent</span>;
   }
 
   return (
     <div className="page">
-      {/* Sheet connection error banner */}
       {sheetError && contacts.length === 0 && (
         <div className="sheet-error-banner">
           <span>⚠️</span>
           <div>
             <strong>Google Sheet not syncing:</strong> {sheetError}
             <div className="sheet-error-hint">
-              Open <code>http://localhost:5000/api/sheets/debug</code> in your browser to diagnose.
-              Once fixed, click ↻ Refresh.
+              Open <code>http://localhost:5000/api/sheets/debug</code> to diagnose. Once fixed, click ↻ Refresh.
             </div>
           </div>
           <button className="btn-ghost btn-sm" onClick={onRefresh}>↻ Refresh</button>
@@ -469,6 +633,11 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
           {search && <button className="search-clear" onClick={() => setSearch("")}>✕</button>}
         </div>
         <div className="toolbar-right">
+          {/* View toggle */}
+          <div className="view-toggle">
+            <button className={`view-btn ${view === "list"   ? "view-btn-active" : ""}`} onClick={() => setView("list")}>   ☰ List</button>
+            <button className={`view-btn ${view === "kanban" ? "view-btn-active" : ""}`} onClick={() => setView("kanban")}>▦ Pipeline</button>
+          </div>
           {fetchedAt && <span className="fetched-at">↻ {relativeTime(fetchedAt)}</span>}
           <button className="btn-ghost btn-sm" onClick={onRefresh}>↻ Refresh</button>
         </div>
@@ -479,7 +648,45 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
           <span className="empty-icon">📭</span>
           <p>{search ? `No results for "${search}"` : "No applications yet. Go to Send Application to get started."}</p>
         </div>
+      ) : view === "kanban" ? (
+        /* ── Kanban pipeline view ── */
+        <div className="kanban-board">
+          {PIPELINE_STAGES.map(stage => {
+            const cards = filtered.filter(c => getStage(c) === stage.key);
+            return (
+              <div key={stage.key} className="kanban-col">
+                <div className="kanban-col-head" style={{ borderTopColor: stage.color }}>
+                  <span style={{ color: stage.color }}>{stage.icon} {stage.label}</span>
+                  <span className="kanban-count" style={{ background: stage.color }}>{cards.length}</span>
+                </div>
+                <div className="kanban-cards">
+                  {cards.length === 0
+                    ? <div className="kanban-empty">No contacts here</div>
+                    : cards.map((c, i) => (
+                      <div key={i} className="kanban-card">
+                        <div className="kanban-card-top">
+                          <div className="kanban-avatar">{getInitials(c.hrName, c.hrEmail)}</div>
+                          <div>
+                            <div className="kanban-company">{c.company}</div>
+                            {c.role && <div className="kanban-role">{c.role}</div>}
+                          </div>
+                        </div>
+                        <div className="kanban-email">{c.hrEmail}</div>
+                        <div className="kanban-meta"><DaysBadge ts={c.lastSentAt} /></div>
+                        <div className="kanban-actions">
+                          <button className="btn-ghost btn-sm" onClick={() => onViewEmail(c.lastTrackingId)} disabled={!c.lastTrackingId} title="View email">📧</button>
+                          <button className="btn-followup btn-sm" onClick={() => onFollowUp(c)} title="Follow up">🔁 Follow-up</button>
+                        </div>
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+            );
+          })}
+        </div>
       ) : (
+        /* ── List view ── */
         <div className="contacts-list">
           {filtered.map((c, i) => (
             <div key={i} className={`contact-card ${c.needsFollowUp ? "contact-card-reminder" : ""}`}>
@@ -489,16 +696,16 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
                   <span className="contact-company">{c.company}</span>
                   {c.role && <span className="contact-role">{c.role}</span>}
                   {statusBadge(c)}
-                  {c.source === "sheet" && <span className="badge badge-sheet">📊 Sheet</span>}
+                  <DaysBadge ts={c.lastSentAt} />
                 </div>
                 <p className="contact-email">
                   {c.hrEmail}
                   {c.hrName && <span className="contact-hrname"> · {c.hrName}</span>}
                 </p>
                 <div className="contact-meta">
-                  <span>📤 {relativeTime(c.lastSentAt)}</span>
                   {c.followupCount > 0 && <span>🔁 {c.followupCount} follow-up{c.followupCount > 1 ? "s" : ""}</span>}
                   {c.opened && c.openedAt && <span>👁 opened {relativeTime(c.openedAt)}</span>}
+                  {c.totalSent > 1 && <span>✉ {c.totalSent} sent</span>}
                 </div>
               </div>
               <div className="contact-actions">
@@ -876,25 +1083,57 @@ function ThreadView({ threadId, onBack }) {
 }
 
 // ─── Inbox Page ───────────────────────────────────────────────────────────────
-function InboxPage() {
-  const [messages,    setMessages]    = useState([]);
-  const [loading,     setLoading]     = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeThread, setActiveThread] = useState(null); // threadId
+function InboxPage({ contacts = [], onFollowUp }) {
+  const [activeTab,    setActiveTab]    = useState("inbox"); // "inbox" | "sent"
+  const [messages,     setMessages]     = useState([]);
+  const [loading,      setLoading]      = useState(false);
+  const [loadingMore,  setLoadingMore]  = useState(false);
+  const [searchQuery,  setSearchQuery]  = useState("");
+  const [nextPageToken,setNextPage]     = useState(null);
+  const [activeThread, setActiveThread] = useState(null);
 
-  const doFetch = useCallback(async (q) => {
-    setLoading(true);
+  const baseQ = (tab) => tab === "sent" ? "in:sent" : "in:inbox";
+
+  const doFetch = useCallback(async (q, pageToken, append) => {
+    if (append) setLoadingMore(true);
+    else { setLoading(true); setMessages([]); setNextPage(null); }
     try {
-      const r = await axios.get(`${API}/api/gmail/inbox`, { params: { q: q || "in:inbox", max: 40 } });
-      setMessages(r.data.messages || []);
+      const params = { q: q || baseQ(activeTab), max: 30 };
+      if (pageToken) params.pageToken = pageToken;
+      const r = await axios.get(`${API}/api/gmail/inbox`, { params });
+      const msgs = r.data.messages || [];
+      setNextPage(r.data.nextPageToken || null);
+      if (append) setMessages(prev => [...prev, ...msgs]);
+      else        setMessages(msgs);
     } catch {}
-    finally { setLoading(false); }
+    finally {
+      if (append) setLoadingMore(false);
+      else        setLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { doFetch("in:inbox"); }, [doFetch]);
+  useEffect(() => {
+    setSearchQuery("");
+    setNextPage(null);
+    doFetch(baseQ(activeTab));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
-  const search = (e) => { e.preventDefault(); doFetch(searchQuery || "in:inbox"); };
+  const search = (e) => { e.preventDefault(); doFetch(searchQuery || baseQ(activeTab)); };
   const applyKeyword = (kw) => { setSearchQuery(kw.q); doFetch(kw.q); };
+  const loadMore = () => { if (nextPageToken) doFetch(searchQuery || baseQ(activeTab), nextPageToken, true); };
+
+  // Extract plain email address from "Name <email>" format
+  const extractEmail = (str = "") => { const m = str.match(/<(.+?)>/); return m ? m[1] : str.trim(); };
+  const displayName  = (str = "") => str.replace(/<[^>]+>/, "").trim() || str;
+
+  const handleFollowUp = (m) => {
+    const emailStr = activeTab === "sent" ? m.to : m.from;
+    const email    = extractEmail(emailStr);
+    const matched  = contacts.find(c => c.hrEmail.toLowerCase() === email.toLowerCase());
+    onFollowUp(matched || { hrEmail: email, hrName: displayName(emailStr), company: "", role: "" });
+  };
 
   // Thread view replaces the list
   if (activeThread) {
@@ -905,8 +1144,20 @@ function InboxPage() {
     );
   }
 
+  const isSent = activeTab === "sent";
+
   return (
     <div className="page">
+      {/* Inbox / Sent tabs */}
+      <div className="inbox-tab-bar">
+        <button className={`inbox-tab-btn ${!isSent ? "inbox-tab-active" : ""}`} onClick={() => setActiveTab("inbox")}>
+          📥 Inbox
+        </button>
+        <button className={`inbox-tab-btn ${isSent ? "inbox-tab-active" : ""}`} onClick={() => setActiveTab("sent")}>
+          📤 Sent
+        </button>
+      </div>
+
       {/* Search bar */}
       <form onSubmit={search} className="inbox-search-form">
         <div className="search-bar-wrap" style={{ flex: 1 }}>
@@ -914,58 +1165,80 @@ function InboxPage() {
           <input
             className="search-input"
             type="text"
-            placeholder="Search Gmail… e.g. from:naukri.com OR subject:interview"
+            placeholder={isSent ? "Search sent… e.g. to:hr@company.com subject:application" : "Search Gmail… e.g. from:naukri.com OR subject:interview"}
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
           />
-          {searchQuery && <button type="button" className="search-clear" onClick={() => { setSearchQuery(""); doFetch("in:inbox"); }}>✕</button>}
+          {searchQuery && (
+            <button type="button" className="search-clear" onClick={() => { setSearchQuery(""); doFetch(baseQ(activeTab)); }}>✕</button>
+          )}
         </div>
-        <button type="submit" className="btn-primary btn-sm" disabled={loading}>
-          {loading ? "…" : "Search"}
-        </button>
-        <button type="button" className="btn-ghost btn-sm" onClick={() => window.location.href = `${API}/api/gmail/auth`}>
-          Connect Gmail
-        </button>
-        <button type="button" className="btn-ghost btn-sm" onClick={() => doFetch(searchQuery || "in:inbox")} disabled={loading}>↻</button>
+        <button type="submit" className="btn-primary btn-sm" disabled={loading}>{loading ? "…" : "Search"}</button>
+        <button type="button" className="btn-ghost btn-sm" onClick={() => window.location.href = `${API}/api/gmail/auth`}>Connect Gmail</button>
+        <button type="button" className="btn-ghost btn-sm" onClick={() => doFetch(searchQuery || baseQ(activeTab))} disabled={loading}>↻</button>
       </form>
 
-      {/* Job keyword shortcuts */}
-      <div className="keyword-shortcuts">
-        <span className="keyword-label">Quick filters:</span>
-        {JOB_KEYWORDS.map(kw => (
-          <button key={kw.label} className="keyword-chip" onClick={() => applyKeyword(kw)}>
-            {kw.label}
-          </button>
-        ))}
-      </div>
+      {/* Job keyword shortcuts — inbox only */}
+      {!isSent && (
+        <div className="keyword-shortcuts">
+          <span className="keyword-label">Quick filters:</span>
+          {JOB_KEYWORDS.map(kw => (
+            <button key={kw.label} className="keyword-chip" onClick={() => applyKeyword(kw)}>{kw.label}</button>
+          ))}
+        </div>
+      )}
 
       {/* Email list */}
       {messages.length === 0 ? (
         <div className="empty-state">
-          <span className="empty-icon">📥</span>
-          <p>{loading ? "Loading…" : "No messages found. Connect Gmail or try a different search."}</p>
+          <span className="empty-icon">{isSent ? "📤" : "📥"}</span>
+          <p>{loading ? "Loading…" : `No ${isSent ? "sent" : ""} messages found. Connect Gmail or try a different search.`}</p>
         </div>
       ) : (
-        <div className="inbox-list">
-          {messages.map((m, i) => (
-            <div
-              key={i}
-              className={`inbox-row ${!m.isRead ? "inbox-row-unread" : ""}`}
-              onClick={() => setActiveThread(m.threadId)}
-            >
-              <div className="inbox-row-avatar">{(m.from || "?")[0].toUpperCase()}</div>
-              <div className="inbox-row-body">
-                <div className="inbox-row-top">
-                  <span className="inbox-row-from">{m.from.replace(/<[^>]+>/, "").trim() || m.from}</span>
-                  <span className="inbox-row-date">{m.date ? new Date(m.date).toLocaleDateString("en-IN") : ""}</span>
+        <>
+          <div className="inbox-list">
+            {messages.map((m, i) => {
+              const name = isSent ? displayName(m.to) : displayName(m.from);
+              return (
+                <div key={i} className={`inbox-row ${!m.isRead && !isSent ? "inbox-row-unread" : ""}`}>
+                  <div className="inbox-row-avatar" onClick={() => setActiveThread(m.threadId)}>
+                    {(name || "?")[0].toUpperCase()}
+                  </div>
+                  <div className="inbox-row-body" onClick={() => setActiveThread(m.threadId)}>
+                    <div className="inbox-row-top">
+                      <span className="inbox-row-from">{isSent ? `To: ${name}` : name}</span>
+                      <span className="inbox-row-date">{m.date ? new Date(m.date).toLocaleDateString("en-IN") : ""}</span>
+                    </div>
+                    <p className="inbox-row-subject">{m.subject}</p>
+                    <p className="inbox-row-snippet">{m.snippet}</p>
+                  </div>
+                  <div className="inbox-row-actions">
+                    {onFollowUp && (
+                      <button
+                        className="btn-followup btn-sm"
+                        title="Send follow-up"
+                        onClick={e => { e.stopPropagation(); handleFollowUp(m); }}
+                      >
+                        🔁 Follow Up
+                      </button>
+                    )}
+                  </div>
+                  {!m.isRead && !isSent && <span className="inbox-unread-dot" />}
                 </div>
-                <p className="inbox-row-subject">{m.subject}</p>
-                <p className="inbox-row-snippet">{m.snippet}</p>
-              </div>
-              {!m.isRead && <span className="inbox-unread-dot" />}
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+
+          {/* Load more / pagination */}
+          <div className="inbox-footer">
+            <span className="inbox-count">{messages.length} message{messages.length !== 1 ? "s" : ""} loaded</span>
+            {nextPageToken && (
+              <button className="btn-ghost btn-sm" onClick={loadMore} disabled={loadingMore}>
+                {loadingMore ? <><span className="spinner" /> Loading…</> : "Load More ↓"}
+              </button>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
@@ -1215,6 +1488,78 @@ function FindJobsPage({ onFillApply }) {
   );
 }
 
+// ─── Schedule Apply Modal (from Prospect/Referral page) ──────────────────────
+function ScheduleApplyModal({ data, onClose, onSendNow }) {
+  const [mode, setMode]               = useState("now");
+  const [scheduledTime, setSched]     = useState("");
+  const [loading, setLoading]         = useState(false);
+  const [status, setStatus]           = useState(null);
+  useLockBodyScroll();
+
+  const submit = async () => {
+    if (mode === "now") { onSendNow(data); return; }
+    if (!scheduledTime) { setStatus({ type: "error", text: "Choose a date and time." }); return; }
+    setLoading(true); setStatus(null);
+    try {
+      const res = await axios.post(`${API}/api/schedule-email`, {
+        hrEmail: data.hrEmail, hrName: data.hrName || "",
+        company: data.company, role: data.role || "",
+        scheduledTime, templateType: "fullstack",
+      });
+      setStatus({ type: "success", text: res.data.message });
+    } catch (e) {
+      setStatus({ type: "error", text: e.response?.data?.message || "Failed to schedule." });
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box-sm" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title-row">
+            <span>✉</span>
+            <h3 className="modal-title">Apply to {data.company}</h3>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-pad">
+          <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--text-muted)" }}>{data.hrEmail}</p>
+          <div className="form-group">
+            <label className="form-label">Delivery</label>
+            <div className="chip-row">
+              <button type="button" className={`chip ${mode === "now" ? "chip-active" : ""}`} onClick={() => setMode("now")}>⚡ Send Now</button>
+              <button type="button" className={`chip ${mode === "schedule" ? "chip-active" : ""}`} onClick={() => setMode("schedule")}>🗓 Schedule</button>
+            </div>
+          </div>
+          {mode === "schedule" && (
+            <div className="form-group">
+              <label className="form-label">Date &amp; Time</label>
+              <input type="datetime-local"
+                min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                value={scheduledTime} onChange={e => setSched(e.target.value)} className="form-input" />
+            </div>
+          )}
+          {status && (
+            <div className={`alert alert-${status.type}`}>
+              <span className="alert-icon">{status.type === "success" ? "✓" : "✕"}</span>
+              <span>{status.text}</span>
+            </div>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={submit}
+            disabled={loading || status?.type === "success"}>
+            {loading
+              ? <><span className="spinner" /> Scheduling…</>
+              : mode === "schedule" ? "🗓 Schedule Email" : "→ Go to Send Form"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Prospect Page (find HR emails by company) ────────────────────────────────
 function guessDomain(companyName) {
   if (!companyName) return "";
@@ -1232,6 +1577,7 @@ function ProspectPage({ onFillApply }) {
   const [results,    setResults]  = useState(null); // null = not searched yet
   const [loading,    setLoading]  = useState(false);
   const [copiedIdx,  setCopied]   = useState(null);
+  const [schedModal, setSchedModal] = useState(null); // data for ScheduleApplyModal
 
   const handleCompanyChange = (val) => {
     setCompany(val);
@@ -1364,7 +1710,7 @@ function ProspectPage({ onFillApply }) {
                       <a href={e.linkedin} target="_blank" rel="noreferrer" className="btn-ghost btn-sm">🔗 LinkedIn</a>
                     )}
                     <button className="btn-primary btn-sm"
-                      onClick={() => onFillApply({ hrEmail: e.email, hrName: e.name, company: results.organization || company, role: "" })}>
+                      onClick={() => setSchedModal({ hrEmail: e.email, hrName: e.name, company: results.organization || company, role: "" })}>
                       ✉ Apply
                     </button>
                   </div>
@@ -1374,97 +1720,14 @@ function ProspectPage({ onFillApply }) {
           )}
         </>
       )}
-    </div>
-  );
-}
 
-// ─── Referral Page ───────────────────────────────────────────────────────────
-function ReferralPage() {
-  const [form, setForm]     = useState({ employeeEmail: "", employeeName: "", company: "", role: "", customNote: "" });
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus]   = useState(null);
-
-  const handle = e => { setForm(p => ({ ...p, [e.target.name]: e.target.value })); setStatus(null); };
-
-  const submit = async e => {
-    e.preventDefault();
-    setLoading(true); setStatus(null);
-    try {
-      const res = await axios.post(`${API}/api/send-referral`, form);
-      setStatus({ type: "success", text: res.data.message });
-      setForm({ employeeEmail: "", employeeName: "", company: "", role: "", customNote: "" });
-    } catch (err) {
-      setStatus({ type: "error", text: err.response?.data?.message || "Failed to send." });
-    } finally { setLoading(false); }
-  };
-
-  const valid = form.employeeEmail && form.company && form.role;
-
-  return (
-    <div className="page">
-      <div className="preview-card" style={{ marginBottom: 16 }}>
-        <p className="preview-title">🤝 How it works</p>
-        <p className="preview-line">A short, personal email is sent to a company employee requesting a referral. Includes your resume Drive link and LinkedIn profile.</p>
-      </div>
-
-      <form onSubmit={submit} noValidate className="app-form">
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label" htmlFor="rf-email"><span className="lbadge">Required</span> Employee Email</label>
-            <input id="rf-email" name="employeeEmail" type="email" value={form.employeeEmail} onChange={handle}
-              placeholder="employee@company.com" className="form-input" required disabled={loading} />
-          </div>
-          <div className="form-group">
-            <label className="form-label" htmlFor="rf-name"><span className="lbadge lbadge-opt">Optional</span> Employee Name</label>
-            <input id="rf-name" name="employeeName" type="text" value={form.employeeName} onChange={handle}
-              placeholder="e.g. Rahul Sharma" className="form-input" disabled={loading} />
-          </div>
-        </div>
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label" htmlFor="rf-company"><span className="lbadge">Required</span> Company</label>
-            <input id="rf-company" name="company" type="text" value={form.company} onChange={handle}
-              placeholder="e.g. Google, Flipkart" className="form-input" required disabled={loading} />
-          </div>
-          <div className="form-group">
-            <label className="form-label" htmlFor="rf-role"><span className="lbadge">Required</span> Role</label>
-            <input id="rf-role" name="role" type="text" value={form.role} onChange={handle}
-              placeholder="e.g. Senior Full Stack Developer" className="form-input" required disabled={loading} />
-          </div>
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor="rf-note"><span className="lbadge lbadge-opt">Optional</span> Personal Note
-            <span className="label-hint">Mention a mutual connection or why this company</span>
-          </label>
-          <textarea id="rf-note" name="customNote" value={form.customNote} onChange={handle}
-            className="form-textarea" rows={3} disabled={loading}
-            placeholder="e.g. We connected on LinkedIn last week, I'm very excited about the work your team is doing…" />
-        </div>
-
-        <div className="preview-card">
-          <p className="preview-title">✉ Message Preview</p>
-          <p className="preview-line"><strong>Subject:</strong> {form.role && form.company ? `Referral Request — ${form.role} at ${form.company}` : "Referral Request — (fill role & company)"}</p>
-          <p className="preview-line"><strong>To:</strong> {form.employeeEmail || "—"}{form.employeeName ? ` (${form.employeeName})` : ""}</p>
-          <p className="preview-line"><strong>Includes:</strong> Resume Drive link + LinkedIn profile</p>
-        </div>
-
-        {status && (
-          <div className={`alert alert-${status.type}`}>
-            <span className="alert-icon">{status.type === "success" ? "✓" : "✕"}</span>
-            <span>{status.text}</span>
-          </div>
-        )}
-
-        <div className="form-footer">
-          <button type="submit" className={`btn-primary ${loading ? "loading" : ""}`} disabled={loading || !valid}>
-            {loading ? <><span className="spinner" /> Sending…</> : <><span className="btn-arrow">🤝</span> Send Referral Request</>}
-          </button>
-          <button type="button" className="btn-ghost" disabled={loading}
-            onClick={() => { setForm({ employeeEmail: "", employeeName: "", company: "", role: "", customNote: "" }); setStatus(null); }}>
-            Clear
-          </button>
-        </div>
-      </form>
+      {schedModal && (
+        <ScheduleApplyModal
+          data={schedModal}
+          onClose={() => setSchedModal(null)}
+          onSendNow={(d) => { setSchedModal(null); onFillApply(d); }}
+        />
+      )}
     </div>
   );
 }
@@ -1505,14 +1768,22 @@ function ScheduledPage() {
 // ═══════════════════════════════ MAIN APP ════════════════════════════════════
 
 export default function App() {
-  const [page,        setPage]        = useState("contacts");
-  const [contacts,    setContacts]    = useState([]);
-  const [replies,     setReplies]     = useState([]);
-  const [fetchedAt,   setFetchedAt]   = useState(null);
-  const [darkMode,    setDarkMode]    = useState(() => localStorage.getItem("darkMode") === "true");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [modal,       setModal]       = useState(null);
-  const [sheetError,  setSheetError]  = useState(null);
+  const [page,          setPage]          = useState("dashboard");
+  const [contacts,      setContacts]      = useState([]);
+  const [replies,       setReplies]       = useState([]);
+  const [scheduledJobs, setScheduledJobs] = useState([]);
+  const [fetchedAt,     setFetchedAt]     = useState(null);
+  const [darkMode,      setDarkMode]      = useState(() => localStorage.getItem("darkMode") === "true");
+  const [sidebarOpen,   setSidebarOpen]   = useState(false);
+  const [modal,         setModal]         = useState(null);
+  const [sheetError,    setSheetError]    = useState(null);
+  const [toasts,        setToasts]        = useState([]);
+
+  const addToast = useCallback((message, type = "success") => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3800);
+  }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
@@ -1532,27 +1803,34 @@ export default function App() {
     try { const r = await axios.get(`${API}/api/gmail/replies`); setReplies(r.data.replies || []); } catch {}
   }, []);
 
-  useEffect(() => { fetchContacts(); fetchReplies(); }, [fetchContacts, fetchReplies]);
+  const fetchScheduled = useCallback(async () => {
+    try { const r = await axios.get(`${API}/api/scheduled-emails`); setScheduledJobs(r.data.jobs || []); } catch {}
+  }, []);
 
-  const reminderCount = contacts.filter(c => c.needsFollowUp).length;
-  const replyCount    = replies.length;
+  useEffect(() => { fetchContacts(); fetchReplies(); fetchScheduled(); }, [fetchContacts, fetchReplies, fetchScheduled]);
+
+  const reminderCount  = contacts.filter(c => c.needsFollowUp).length;
+  const replyCount     = replies.length;
+  const scheduledCount = scheduledJobs.filter(j => j.status === "pending").length;
 
   const NAV = [
-    { id: "contacts",  icon: "👥", label: "HR Contacts",      badge: reminderCount || null },
+    { id: "dashboard", icon: "🏠", label: "Dashboard" },
+    { id: "contacts",  icon: "👥", label: "HR Contacts",      badge: reminderCount  || null },
     { id: "send",      icon: "✉",  label: "Send Application" },
     { id: "prospect",  icon: "🎯", label: "Find HR Emails" },
-    { id: "inbox",     icon: "📥", label: "Inbox",            badge: replyCount || null },
+    { id: "inbox",     icon: "📥", label: "Inbox",            badge: replyCount     || null },
     { id: "messages",  icon: "💬", label: "Messages" },
-    { id: "referral",  icon: "🤝", label: "Referral" },
     { id: "jobs",      icon: "🔍", label: "Find Jobs" },
-    { id: "scheduled", icon: "🗓", label: "Scheduled" },
+    { id: "scheduled", icon: "🗓", label: "Scheduled",        badge: scheduledCount || null },
   ];
 
-  // prefillSend stores data passed from ProspectPage / FindJobsPage to pre-fill the send form
   const [prefillSend, setPrefillSend] = React.useState(null);
 
   const navigate = id => { setPage(id); setSidebarOpen(false); };
   const goToSendPrefilled = (data) => { setPrefillSend(data); setPage("send"); setSidebarOpen(false); };
+
+  // Sidebar mini stats
+  const openedCount = contacts.filter(c => c.opened).length;
 
   return (
     <div className="app-shell">
@@ -1573,6 +1851,12 @@ export default function App() {
             </button>
           ))}
         </nav>
+        {/* Mini stats in sidebar */}
+        <div className="sidebar-stats">
+          <div className="sidebar-stat"><span className="ss-val">{contacts.length}</span><span className="ss-lbl">Applied</span></div>
+          <div className="sidebar-stat"><span className="ss-val">{openedCount}</span><span className="ss-lbl">Opened</span></div>
+          <div className="sidebar-stat"><span className="ss-val">{replyCount}</span><span className="ss-lbl">Replies</span></div>
+        </div>
         <div className="sidebar-footer">
           <DarkModeToggle dark={darkMode} onToggle={() => setDarkMode(d => !d)} />
         </div>
@@ -1604,6 +1888,14 @@ export default function App() {
             <h2 className="page-title">{NAV.find(n => n.id === page)?.icon} {NAV.find(n => n.id === page)?.label}</h2>
           </div>
 
+          {page === "dashboard" && (
+            <DashboardPage
+              contacts={contacts}
+              replies={replies}
+              scheduledJobs={scheduledJobs}
+              onNavigate={navigate}
+            />
+          )}
           {page === "contacts" && (
             <HRContactsPage
               contacts={contacts}
@@ -1616,18 +1908,19 @@ export default function App() {
               onRefresh={() => { fetchContacts(); fetchReplies(); }}
             />
           )}
-          {page === "send"      && <SendApplicationPage onContactsRefresh={fetchContacts} prefill={prefillSend} onPrefillConsumed={() => setPrefillSend(null)} />}
-          {page === "inbox"     && <InboxPage />}
+          {page === "send"      && <SendApplicationPage onContactsRefresh={fetchContacts} prefill={prefillSend} onPrefillConsumed={() => setPrefillSend(null)} addToast={addToast} />}
+          {page === "inbox"     && <InboxPage contacts={contacts} onFollowUp={contact => setModal({ type: "followUp", contact })} />}
           {page === "messages"  && <MessagesPage contacts={contacts} />}
-          {page === "referral"  && <ReferralPage />}
-          {page === "prospect"  && <ProspectPage onFillApply={goToSendPrefilled} />}
+          {page === "prospect"  && <ProspectPage onFillApply={goToSendPrefilled} addToast={addToast} />}
           {page === "jobs"      && <FindJobsPage onFillApply={goToSendPrefilled} />}
-          {page === "scheduled" && <ScheduledPage />}
+          {page === "scheduled" && <ScheduledPage onRefresh={fetchScheduled} />}
         </main>
       </div>
 
       {modal?.type === "emailBody" && <EmailBodyModal trackingId={modal.trackingId} onClose={() => setModal(null)} />}
-      {modal?.type === "followUp"  && <FollowUpModal  contact={modal.contact} onClose={() => setModal(null)} onSent={() => { setModal(null); fetchContacts(); }} />}
+      {modal?.type === "followUp"  && <FollowUpModal  contact={modal.contact} onClose={() => setModal(null)} onSent={() => { setModal(null); fetchContacts(); addToast("Follow-up sent!"); }} />}
+
+      <ToastContainer toasts={toasts} />
     </div>
   );
 }
