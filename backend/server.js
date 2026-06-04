@@ -1025,5 +1025,76 @@ app.post("/api/preview-email", (req, res) => {
   res.json({ success: true, html });
 });
 
+// ─── LinkedIn Connections Sheet ───────────────────────────────────────────────
+const LINKEDIN_SHEET_ID = "1xQAzAY8hRjmfYhMXB2R7oaw5HPqJZf13BjXM33wWQ5Q";
+const LINKEDIN_TAB      = "Connections";
+
+// GET /api/linkedin/connections?q=search&filter=hr|sent|replied|all
+app.get("/api/linkedin/connections", async (req, res) => {
+  try {
+    const sheets = await getSheetsClient();
+    const resp   = await sheets.spreadsheets.values.get({
+      spreadsheetId: LINKEDIN_SHEET_ID,
+      range: `${LINKEDIN_TAB}!A2:I5000`,
+    });
+    const rows = resp.data.values || [];
+    let connections = rows
+      .filter(row => (row[0] || row[1] || "").trim())
+      .map((row, i) => ({
+        rowIndex:    i + 2,  // actual sheet row (for updates)
+        firstName:   (row[0] || "").trim(),
+        lastName:    (row[1] || "").trim(),
+        name:        `${(row[0] || "").trim()} ${(row[1] || "").trim()}`.trim(),
+        url:         (row[2] || "").trim(),
+        email:       (row[3] || "").trim(),
+        company:     (row[4] || "").trim(),
+        position:    (row[5] || "").trim(),
+        connectedOn: (row[6] || "").trim(),
+        sent:        String(row[7] || "").toUpperCase() === "TRUE",
+        replied:     String(row[8] || "").toUpperCase() === "TRUE",
+      }));
+
+    const { q, filter } = req.query;
+    if (q) {
+      const lq = q.toLowerCase();
+      connections = connections.filter(c =>
+        c.name.toLowerCase().includes(lq) ||
+        c.company.toLowerCase().includes(lq) ||
+        c.position.toLowerCase().includes(lq) ||
+        c.email.toLowerCase().includes(lq)
+      );
+    }
+    const HR_REGEX = /\b(hr|human.?resource|recruit|talent|hiring|people|staffing|placement|acquisition|manpower)\b/i;
+    if (filter === "hr")      connections = connections.filter(c => HR_REGEX.test(c.position));
+    else if (filter === "sent")    connections = connections.filter(c => c.sent);
+    else if (filter === "replied") connections = connections.filter(c => c.replied);
+    else if (filter === "notsent") connections = connections.filter(c => !c.sent);
+
+    return res.json({ success: true, connections, total: connections.length });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: e.message, connections: [] });
+  }
+});
+
+// POST /api/linkedin/update-connection  — toggle Sent / Replied checkbox in sheet
+app.post("/api/linkedin/update-connection", async (req, res) => {
+  const { rowIndex, field, value } = req.body;
+  if (!rowIndex || !field) return res.status(400).json({ success: false, message: "rowIndex and field required" });
+  const col = field === "sent" ? "H" : field === "replied" ? "I" : null;
+  if (!col) return res.status(400).json({ success: false, message: "field must be 'sent' or 'replied'" });
+  try {
+    const sheets = await getSheetsClient();
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: LINKEDIN_SHEET_ID,
+      range: `${LINKEDIN_TAB}!${col}${rowIndex}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [[value ? "TRUE" : "FALSE"]] },
+    });
+    return res.json({ success: true });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 app.get("/", (req, res) => res.json({ status: "ok" }));
 app.listen(PORT, () => console.log(`\n🚀 Job Mailer API → http://localhost:${PORT}\n`));

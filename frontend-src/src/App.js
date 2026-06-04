@@ -1964,6 +1964,171 @@ Bahut helpful hoga agar refer kar sako! 😊`;
   );
 }
 
+// ─── LinkedIn Connections Page ────────────────────────────────────────────────
+const LI_FILTERS = [
+  { key: "all",     label: "All"           },
+  { key: "hr",      label: "HR / Recruiter" },
+  { key: "notsent", label: "Not Sent"       },
+  { key: "sent",    label: "Applied ✓"      },
+  { key: "replied", label: "Replied ✓"      },
+];
+
+function LinkedInConnectionsPage({ onFillApply, addToast }) {
+  const [connections, setConnections] = useState([]);
+  const [loading,     setLoading]     = useState(false);
+  const [search,      setSearch]      = useState("");
+  const [filter,      setFilter]      = useState("all");
+  const [total,       setTotal]       = useState(0);
+  const [updating,    setUpdating]    = useState({}); // rowIndex -> field being updated
+
+  const fetchConnections = useCallback(async (q, f) => {
+    setLoading(true);
+    try {
+      const r = await axios.get(`${API}/api/linkedin/connections`, {
+        params: { q: q || undefined, filter: f || "all" },
+      });
+      setConnections(r.data.connections || []);
+      setTotal(r.data.total || 0);
+    } catch (e) {
+      addToast && addToast("Failed to load connections", "error");
+    } finally { setLoading(false); }
+  }, [addToast]);
+
+  useEffect(() => { fetchConnections("", "all"); }, [fetchConnections]);
+
+  const doSearch = (e) => { e.preventDefault(); fetchConnections(search, filter); };
+  const applyFilter = (f) => { setFilter(f); fetchConnections(search, f); };
+
+  const toggle = async (conn, field) => {
+    const key = `${conn.rowIndex}-${field}`;
+    setUpdating(p => ({ ...p, [key]: true }));
+    const newVal = !conn[field];
+    try {
+      await axios.post(`${API}/api/linkedin/update-connection`, {
+        rowIndex: conn.rowIndex, field, value: newVal,
+      });
+      setConnections(prev => prev.map(c =>
+        c.rowIndex === conn.rowIndex ? { ...c, [field]: newVal } : c
+      ));
+      addToast && addToast(`${field === "sent" ? "Applied" : "Replied"} status updated!`);
+    } catch {
+      addToast && addToast("Update failed", "error");
+    } finally { setUpdating(p => ({ ...p, [key]: false })); }
+  };
+
+  // Stats from ALL connections (not filtered)
+  const hrCount      = connections.filter(c => /\b(hr|recruit|talent|hiring|people|staffing|acquisition)\b/i.test(c.position)).length;
+  const sentCount    = connections.filter(c => c.sent).length;
+  const repliedCount = connections.filter(c => c.replied).length;
+
+  const initials = (c) => {
+    const n = c.name || "?";
+    return n.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  };
+  const avatarColor = (c) => {
+    const colors = ["#2563eb","#7c3aed","#059669","#d97706","#dc2626","#0d9488"];
+    let h = 0; for (const ch of (c.company || c.name || "")) h = (h * 31 + ch.charCodeAt(0)) % colors.length;
+    return colors[Math.abs(h)];
+  };
+
+  return (
+    <div className="page">
+      {/* Stats row */}
+      <div className="li-stats-row">
+        <div className="li-stat"><span className="li-stat-val">{total}</span><span className="li-stat-lbl">Shown</span></div>
+        <div className="li-stat"><span className="li-stat-val" style={{ color: "var(--purple)" }}>{hrCount}</span><span className="li-stat-lbl">HR/Recruiter</span></div>
+        <div className="li-stat"><span className="li-stat-val" style={{ color: "var(--blue)" }}>{sentCount}</span><span className="li-stat-lbl">Applied</span></div>
+        <div className="li-stat"><span className="li-stat-val" style={{ color: "var(--green)" }}>{repliedCount}</span><span className="li-stat-lbl">Replied</span></div>
+      </div>
+
+      {/* Search */}
+      <form onSubmit={doSearch} className="li-search-row">
+        <div className="search-bar-wrap" style={{ flex: 1 }}>
+          <span className="search-icon">🔍</span>
+          <input className="search-input" type="text" placeholder="Search name, company, position, email…"
+            value={search} onChange={e => setSearch(e.target.value)} />
+          {search && <button type="button" className="search-clear" onClick={() => { setSearch(""); fetchConnections("", filter); }}>✕</button>}
+        </div>
+        <button type="submit" className="btn-primary btn-sm" disabled={loading}>{loading ? "…" : "Search"}</button>
+        <button type="button" className="btn-ghost btn-sm" onClick={() => fetchConnections(search, filter)} disabled={loading}>↻</button>
+      </form>
+
+      {/* Filter chips */}
+      <div className="chip-row" style={{ marginBottom: 12 }}>
+        {LI_FILTERS.map(f => (
+          <button key={f.key} type="button"
+            className={`chip ${filter === f.key ? "chip-active" : ""}`}
+            onClick={() => applyFilter(f.key)}>{f.label}</button>
+        ))}
+      </div>
+
+      {/* Connection count */}
+      {!loading && <p className="li-count">{connections.length} connection{connections.length !== 1 ? "s" : ""}</p>}
+
+      {/* Grid */}
+      {connections.length === 0 ? (
+        <div className="empty-state">
+          <span className="empty-icon">🔗</span>
+          <p>{loading ? "Loading connections…" : "No connections found. Try a different search or filter."}</p>
+        </div>
+      ) : (
+        <div className="li-grid">
+          {connections.map((c, i) => (
+            <div key={i} className={`li-card ${c.sent ? "li-card-sent" : ""} ${c.replied ? "li-card-replied" : ""}`}>
+              {/* Avatar */}
+              <div className="li-avatar" style={{ background: avatarColor(c) }}>{initials(c)}</div>
+
+              {/* Body */}
+              <div className="li-body">
+                <div className="li-name">{c.name || "—"}</div>
+                {c.position && <div className="li-position">{c.position}</div>}
+                {c.company  && <div className="li-company">🏢 {c.company}</div>}
+                {c.email    && <div className="li-email">✉ {c.email}</div>}
+                <div className="li-meta">
+                  {c.connectedOn && <span>🔗 Connected {c.connectedOn}</span>}
+                </div>
+
+                {/* Sent / Replied toggles */}
+                <div className="li-toggles">
+                  <button
+                    className={`li-toggle-btn ${c.sent ? "li-toggle-on" : ""}`}
+                    disabled={updating[`${c.rowIndex}-sent`]}
+                    onClick={() => toggle(c, "sent")}
+                    title="Mark as Applied"
+                  >
+                    {updating[`${c.rowIndex}-sent`] ? "…" : c.sent ? "✓ Applied" : "Mark Applied"}
+                  </button>
+                  <button
+                    className={`li-toggle-btn ${c.replied ? "li-toggle-replied" : ""}`}
+                    disabled={updating[`${c.rowIndex}-replied`]}
+                    onClick={() => toggle(c, "replied")}
+                    title="Mark as Replied"
+                  >
+                    {updating[`${c.rowIndex}-replied`] ? "…" : c.replied ? "↩ Replied" : "Mark Replied"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="li-actions">
+                {c.url && (
+                  <a href={c.url} target="_blank" rel="noreferrer" className="btn-linkedin btn-sm" title="Open LinkedIn profile">
+                    🔗
+                  </a>
+                )}
+                <button className="btn-primary btn-sm" title="Send Application"
+                  onClick={() => onFillApply({ hrEmail: c.email || "", hrName: c.name, company: c.company, role: "" })}>
+                  ✉ Apply
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Scheduled Page ───────────────────────────────────────────────────────────
 function ScheduledPage() {
   const [jobs, setJobs] = useState([]);
@@ -2046,15 +2211,16 @@ export default function App() {
   const scheduledCount = scheduledJobs.filter(j => j.status === "pending").length;
 
   const NAV = [
-    { id: "dashboard", icon: "🏠", label: "Dashboard" },
-    { id: "contacts",  icon: "👥", label: "HR Contacts",      badge: reminderCount  || null },
-    { id: "send",      icon: "✉",  label: "Send Application" },
-    { id: "referral",  icon: "🤝", label: "Referral" },
-    { id: "prospect",  icon: "🎯", label: "Find HR Emails" },
-    { id: "inbox",     icon: "📥", label: "Inbox",            badge: replyCount     || null },
-    { id: "messages",  icon: "💬", label: "Messages" },
-    { id: "jobs",      icon: "🔍", label: "Find Jobs" },
-    { id: "scheduled", icon: "🗓", label: "Scheduled",        badge: scheduledCount || null },
+    { id: "dashboard",   icon: "🏠", label: "Dashboard" },
+    { id: "contacts",    icon: "👥", label: "HR Contacts",      badge: reminderCount  || null },
+    { id: "send",        icon: "✉",  label: "Send Application" },
+    { id: "linkedin",    icon: "🔗", label: "Connections" },
+    { id: "referral",    icon: "🤝", label: "Referral" },
+    { id: "prospect",    icon: "🎯", label: "Find HR Emails" },
+    { id: "inbox",       icon: "📥", label: "Inbox",            badge: replyCount     || null },
+    { id: "messages",    icon: "💬", label: "Messages" },
+    { id: "jobs",        icon: "🔍", label: "Find Jobs" },
+    { id: "scheduled",   icon: "🗓", label: "Scheduled",        badge: scheduledCount || null },
   ];
 
   const [prefillSend, setPrefillSend] = React.useState(null);
@@ -2142,6 +2308,7 @@ export default function App() {
             />
           )}
           {page === "send"      && <SendApplicationPage onContactsRefresh={fetchContacts} prefill={prefillSend} onPrefillConsumed={() => setPrefillSend(null)} addToast={addToast} />}
+          {page === "linkedin"  && <LinkedInConnectionsPage onFillApply={goToSendPrefilled} addToast={addToast} />}
           {page === "referral"  && <ReferralPage addToast={addToast} />}
           {page === "inbox"     && <InboxPage contacts={contacts} onFollowUp={contact => setModal({ type: "followUp", contact })} />}
           {page === "messages"  && <MessagesPage contacts={contacts} />}
