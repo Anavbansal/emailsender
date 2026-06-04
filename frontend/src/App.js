@@ -1732,6 +1732,238 @@ function ProspectPage({ onFillApply }) {
   );
 }
 
+// ─── Referral Page ────────────────────────────────────────────────────────────
+const REFERRAL_STATUSES = ["Not Contacted", "Message Sent", "Agreed to Refer", "Referred", "No Response"];
+const STATUS_COLORS = {
+  "Not Contacted": "var(--text-400)",
+  "Message Sent":  "var(--blue)",
+  "Agreed to Refer": "var(--amber)",
+  "Referred":      "var(--green)",
+  "No Response":   "var(--red)",
+};
+const RELATION_OPTIONS = ["Ex-Colleague", "Friend", "LinkedIn Connection", "College Friend", "Other"];
+
+function ReferralPage({ addToast }) {
+  // ── Form state
+  const [name,     setName]     = useState("");
+  const [company,  setCompany]  = useState("");
+  const [role,     setRole]     = useState("");
+  const [relation, setRelation] = useState("Ex-Colleague");
+  const [tab,      setTab]      = useState("linkedin");
+  const [copied,   setCopied]   = useState(false);
+
+  // ── Schedule state
+  const [schedMode,  setSchedMode]  = useState("now");
+  const [schedTime,  setSchedTime]  = useState("");
+  const [scheduling, setScheduling] = useState(false);
+
+  // ── Tracker (localStorage)
+  const [referrals, setReferrals] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("referrals") || "[]"); } catch { return []; }
+  });
+  const saveReferrals = (list) => { setReferrals(list); localStorage.setItem("referrals", JSON.stringify(list)); };
+
+  // ── Message builders
+  const linkedinMsg = `Hi ${name || "Name"},
+
+Hope you're doing well! I saw that ${company || "your company"} has an opening for ${role || "a relevant position"} and I'm really excited about it.
+
+I have 4.7+ years of experience as a Senior Full Stack Developer with expertise in:
+• Node.js, ReactJS, AngularJS, AWS Lambda
+• CTI Integrations: Avaya, Genesys, Webex, Amazon Connect
+• CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics
+
+Given our connection as ${relation.toLowerCase()}s, I was hoping you could refer me for this role. It would genuinely mean a lot!
+
+📎 Resume: https://drive.google.com/file/d/1LKc-w9Ggd5I1eZ3t7Wvm9psU-4ITxHxr/view?usp=sharing
+
+Thank you so much in advance! 🙏
+
+Best regards,
+Anav Bansal
+📞 +91 7827855635 | anavbansal06@gmail.com`;
+
+  const whatsappMsg = `Hi ${name || "Name"}! 👋
+
+Kya haal hai? Hope sab badhiya chal raha hai!
+
+Maine dekha ki *${company || "tumhari company"}* mein *${role || "ek role"}* ka opening hai aur main bahut interested hun apply karne ke liye.
+
+Kya tum mujhe refer kar sakte ho? Tumhare jaise *${relation.toLowerCase()}* ka referral bahut valuable hoga! 🙏
+
+*Meri profile:*
+• 4.7+ years — Node.js, ReactJS, AWS Lambda
+• CTI Expert: Avaya, Genesys, Webex, Amazon Connect
+• CRM: ServiceNow, Salesforce, Freshdesk
+
+📄 *Resume:* https://drive.google.com/file/d/1LKc-w9Ggd5I1eZ3t7Wvm9psU-4ITxHxr/view?usp=sharing
+
+Bahut helpful hoga agar refer kar sako! 😊`;
+
+  const currentMsg = tab === "linkedin" ? linkedinMsg : whatsappMsg;
+
+  const [editedMsg, setEditedMsg] = useState(linkedinMsg);
+  useEffect(() => setEditedMsg(currentMsg), [tab, name, company, role, relation]); // eslint-disable-line
+
+  const copy = () => {
+    navigator.clipboard.writeText(editedMsg).then(() => {
+      setCopied(true); setTimeout(() => setCopied(false), 2000);
+      addToast && addToast("Message copied!");
+    });
+  };
+
+  // ── Add to tracker
+  const addToTracker = () => {
+    if (!name || !company) { addToast && addToast("Name aur Company required hai!", "error"); return; }
+    const already = referrals.find(r => r.name === name && r.company === company);
+    if (already) { addToast && addToast("Yeh contact already tracker mein hai!", "error"); return; }
+    const entry = { id: Date.now(), name, company, role, relation, status: "Message Sent", addedAt: Date.now(), scheduledAt: null };
+    saveReferrals([entry, ...referrals]);
+    addToast && addToast(`${name} tracker mein add ho gaya!`);
+  };
+
+  // ── Schedule follow-up
+  const scheduleFollowup = async () => {
+    if (!name || !company) { addToast && addToast("Name aur Company required!", "error"); return; }
+    if (!schedTime) { addToast && addToast("Date & time choose karo!", "error"); return; }
+    setScheduling(true);
+    try {
+      await axios.post(`${API}/api/schedule-email`, {
+        hrEmail: `referral-${Date.now()}@placeholder.com`,
+        hrName: name, company, role,
+        scheduledTime: schedTime, type: "referral",
+        customNote: `Referral follow-up to ${name} at ${company}`,
+      });
+      addToast && addToast(`Follow-up scheduled for ${new Date(schedTime).toLocaleString("en-IN")}`);
+      setSchedMode("now"); setSchedTime("");
+    } catch (e) {
+      addToast && addToast("Schedule failed!", "error");
+    } finally { setScheduling(false); }
+  };
+
+  const updateStatus = (id, status) => {
+    saveReferrals(referrals.map(r => r.id === id ? { ...r, status } : r));
+  };
+  const deleteReferral = (id) => {
+    saveReferrals(referrals.filter(r => r.id !== id));
+    addToast && addToast("Removed from tracker");
+  };
+
+  return (
+    <div className="page">
+      {/* ── Contact form ── */}
+      <div className="ref-form-card">
+        <h3 className="ref-section-title">🤝 Referral Request Generator</h3>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Contact Name</label>
+            <input className="form-input" placeholder="Rahul Sharma" value={name} onChange={e => setName(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Their Company</label>
+            <input className="form-input" placeholder="Google, Microsoft…" value={company} onChange={e => setCompany(e.target.value)} />
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Role You Want</label>
+            <input className="form-input" placeholder="Senior Full Stack Developer" value={role} onChange={e => setRole(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Your Relation</label>
+            <select className="form-input form-select" value={relation} onChange={e => setRelation(e.target.value)}>
+              {RELATION_OPTIONS.map(o => <option key={o}>{o}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Message tabs ── */}
+      <div className="msg-tabs">
+        <button className={`msg-tab ${tab === "linkedin" ? "msg-tab-active" : ""}`} onClick={() => setTab("linkedin")}>🔗 LinkedIn DM</button>
+        <button className={`msg-tab ${tab === "whatsapp" ? "msg-tab-active whatsapp-active" : ""}`} onClick={() => setTab("whatsapp")}>💚 WhatsApp</button>
+      </div>
+
+      <div className="msg-char-count">{editedMsg.length} characters</div>
+      <textarea className="msg-textarea" rows={14} value={editedMsg} onChange={e => setEditedMsg(e.target.value)} spellCheck={false} />
+
+      {/* ── Actions ── */}
+      <div className="ref-actions-row">
+        <button className={`btn-primary btn-sm ${copied ? "btn-copied" : ""}`} onClick={copy}>
+          {copied ? "✓ Copied!" : "📋 Copy Message"}
+        </button>
+        {tab === "whatsapp" ? (
+          <button className="btn-whatsapp" onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(editedMsg)}`, "_blank")}>
+            💚 Open in WhatsApp
+          </button>
+        ) : (
+          <button className="btn-linkedin" onClick={() => window.open(`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(`${name} ${company}`)}`, "_blank")}>
+            🔗 Find on LinkedIn ↗
+          </button>
+        )}
+        <button className="btn-ghost btn-sm" onClick={() => setEditedMsg(currentMsg)}>↺ Reset</button>
+        <button className="btn-primary btn-sm" style={{ background: "var(--green)" }} onClick={addToTracker}>
+          + Add to Tracker
+        </button>
+      </div>
+
+      {/* ── Schedule follow-up ── */}
+      <div className="ref-schedule-box">
+        <div className="ref-section-title" style={{ marginBottom: 12 }}>🗓 Schedule Follow-up Reminder</div>
+        <div className="chip-row" style={{ marginBottom: 12 }}>
+          <button type="button" className={`chip ${schedMode === "now" ? "chip-active" : ""}`} onClick={() => setSchedMode("now")}>No Reminder</button>
+          <button type="button" className={`chip ${schedMode === "schedule" ? "chip-active" : ""}`} onClick={() => setSchedMode("schedule")}>🗓 Set Reminder</button>
+        </div>
+        {schedMode === "schedule" && (
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <input type="datetime-local" className="form-input" style={{ maxWidth: 240 }}
+              min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+              value={schedTime} onChange={e => setSchedTime(e.target.value)} />
+            <button className="btn-primary btn-sm" onClick={scheduleFollowup} disabled={scheduling || !schedTime}>
+              {scheduling ? <><span className="spinner" /> Scheduling…</> : "Schedule Follow-up"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Referral Tracker ── */}
+      {referrals.length > 0 && (
+        <>
+          <div className="ref-section-title" style={{ marginTop: 8 }}>📋 Referral Tracker ({referrals.length})</div>
+          <div className="ref-tracker">
+            {referrals.map(r => (
+              <div key={r.id} className="ref-card">
+                <div className="ref-card-avatar">{getInitials(r.name, "")}</div>
+                <div className="ref-card-body">
+                  <div className="ref-card-top">
+                    <span className="ref-card-name">{r.name}</span>
+                    <span className="ref-card-company">{r.company}</span>
+                    {r.role && <span className="contact-role">{r.role}</span>}
+                  </div>
+                  <div className="ref-card-meta">
+                    <span className="ref-relation">{r.relation}</span>
+                    <DaysBadge ts={r.addedAt} />
+                  </div>
+                </div>
+                <div className="ref-card-right">
+                  <select
+                    className="ref-status-select"
+                    style={{ color: STATUS_COLORS[r.status] }}
+                    value={r.status}
+                    onChange={e => updateStatus(r.id, e.target.value)}>
+                    {REFERRAL_STATUSES.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                  <button className="btn-ghost btn-sm" onClick={() => deleteReferral(r.id)}>✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Scheduled Page ───────────────────────────────────────────────────────────
 function ScheduledPage() {
   const [jobs, setJobs] = useState([]);
@@ -1817,6 +2049,7 @@ export default function App() {
     { id: "dashboard", icon: "🏠", label: "Dashboard" },
     { id: "contacts",  icon: "👥", label: "HR Contacts",      badge: reminderCount  || null },
     { id: "send",      icon: "✉",  label: "Send Application" },
+    { id: "referral",  icon: "🤝", label: "Referral" },
     { id: "prospect",  icon: "🎯", label: "Find HR Emails" },
     { id: "inbox",     icon: "📥", label: "Inbox",            badge: replyCount     || null },
     { id: "messages",  icon: "💬", label: "Messages" },
@@ -1909,6 +2142,7 @@ export default function App() {
             />
           )}
           {page === "send"      && <SendApplicationPage onContactsRefresh={fetchContacts} prefill={prefillSend} onPrefillConsumed={() => setPrefillSend(null)} addToast={addToast} />}
+          {page === "referral"  && <ReferralPage addToast={addToast} />}
           {page === "inbox"     && <InboxPage contacts={contacts} onFollowUp={contact => setModal({ type: "followUp", contact })} />}
           {page === "messages"  && <MessagesPage contacts={contacts} />}
           {page === "prospect"  && <ProspectPage onFillApply={goToSendPrefilled} addToast={addToast} />}
