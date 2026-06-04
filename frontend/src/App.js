@@ -1,0 +1,1926 @@
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import axios from "axios";
+import "./App.css";
+
+const API = "http://localhost:5000";
+const DRIVE_LINK = "https://drive.google.com/file/d/1LKc-w9Ggd5I1eZ3t7Wvm9psU-4ITxHxr/view?usp=sharing";
+
+const EMAIL_TEMPLATES = [
+  { id: "fullstack", name: "Full Stack", icon: "⚡", accent: "#2563eb",
+    customNote: "I am excited to apply for this opportunity. My full-stack expertise in Node.js, ReactJS, and AWS Lambda makes me an ideal candidate for building scalable, production-ready applications." },
+  { id: "cti",      name: "CTI Expert", icon: "📞", accent: "#7c3aed",
+    customNote: "With 4.7+ years specializing in CTI/telephony integrations, I have architected enterprise-grade solutions across Avaya AACC, Genesys, Webex, and Amazon Connect." },
+  { id: "formal",   name: "Formal",     icon: "🎯", accent: "#1d4ed8",
+    customNote: "I am respectfully submitting my application for this position. I am confident that my technical background aligns closely with your requirements." },
+  { id: "startup",  name: "Startup",    icon: "🚀", accent: "#059669",
+    customNote: "I build fast, ship quality, and love environments where impact matters. My Node.js + AWS stack has powered real-time enterprise solutions." },
+];
+const BACKEND_TEMPLATE_MAP = { fullstack: "fullstack", cti: "cti", formal: "formal", startup: "fullstack" };
+
+const HEADER_THEMES = [
+  { id: "blue",   label: "Blue",   color: "#2563eb" },
+  { id: "purple", label: "Purple", color: "#7c3aed" },
+  { id: "green",  label: "Green",  color: "#059669" },
+  { id: "dark",   label: "Dark",   color: "#374151" },
+  { id: "teal",   label: "Teal",   color: "#0d9488" },
+  { id: "orange", label: "Orange", color: "#d97706" },
+];
+
+const DEFAULT_TEMPLATE = {
+  headerTheme: "blue",
+  customIntro: "",
+  highlights: [
+    "4.7+ years · Node.js, AngularJS, ReactJS, Express.js",
+    "AWS Lambda · DynamoDB · S3 · Amazon Connect",
+    "10+ enterprise CTI integrations (Avaya, Genesys, Webex, Zoom)",
+    "CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics, CDK Global",
+    "AI-assisted: Claude, GitHub Copilot, ChatGPT",
+  ],
+};
+
+function loadCustomTemplate() {
+  try { return JSON.parse(localStorage.getItem("customEmailTemplate") || "null") || DEFAULT_TEMPLATE; }
+  catch { return DEFAULT_TEMPLATE; }
+}
+
+function relativeTime(ts) {
+  if (!ts) return "—";
+  const diff = Date.now() - ts;
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}d ago`;
+  return new Date(ts).toLocaleDateString("en-IN");
+}
+
+// Returns integer day count since timestamp (0 = today)
+function daysSince(ts) {
+  if (!ts) return null;
+  return Math.floor((Date.now() - ts) / (1000 * 60 * 60 * 24));
+}
+
+// Pill showing "Today", "2d ago", "10d ago" — color shifts green→amber→red
+function DaysBadge({ ts }) {
+  const d = daysSince(ts);
+  if (d === null) return null;
+  const color = d === 0 ? "var(--green)" : d <= 3 ? "var(--green)" : d <= 7 ? "var(--amber)" : "var(--red)";
+  const label = d === 0 ? "Today" : d === 1 ? "1 day ago" : `${d} days ago`;
+  return (
+    <span className="days-badge" style={{ borderColor: color, color }}>
+      📅 {label}
+    </span>
+  );
+}
+
+function getInitials(name, email) {
+  if (name) return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  return (email || "HR")[0].toUpperCase();
+}
+
+function useDebounce(value, delay) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+
+function useLockBodyScroll() {
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+}
+
+// ─── Dark Mode Toggle ─────────────────────────────────────────────────────────
+function DarkModeToggle({ dark, onToggle }) {
+  return (
+    <button className={`dmtoggle${dark ? " dmtoggle-on" : ""}`} onClick={onToggle} title="Toggle dark mode">
+      {dark ? "🌙" : "☀️"}
+    </button>
+  );
+}
+
+// ─── Toast Notification System ────────────────────────────────────────────────
+function ToastContainer({ toasts }) {
+  return (
+    <div className="toast-stack">
+      {toasts.map(t => (
+        <div key={t.id} className={`toast toast-${t.type}`}>
+          <span className="toast-icon">
+            {t.type === "success" ? "✓" : t.type === "error" ? "✕" : "ℹ"}
+          </span>
+          <span className="toast-msg">{t.message}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+function StatCard({ icon, label, value, sub, color = "blue", onClick }) {
+  return (
+    <div className={`stat-card stat-${color}${onClick ? " stat-clickable" : ""}`} onClick={onClick}>
+      <div className="stat-icon-wrap">{icon}</div>
+      <div className="stat-body">
+        <div className="stat-value">{value}</div>
+        <div className="stat-label">{label}</div>
+        {sub && <div className="stat-sub">{sub}</div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Dashboard Page ───────────────────────────────────────────────────────────
+function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
+  const totalSent   = contacts.reduce((s, c) => s + (c.totalSent || 1), 0);
+  const openedCount = contacts.filter(c => c.opened).length;
+  const replyCount  = replies.length;
+  const followDue   = contacts.filter(c => c.needsFollowUp).length;
+  const scheduled   = scheduledJobs.filter(j => j.status === "pending").length;
+  const openRate    = contacts.length > 0 ? Math.round(openedCount / contacts.length * 100) : 0;
+  const replyRate   = contacts.length > 0 ? Math.round(replyCount  / contacts.length * 100) : 0;
+
+  const health = Math.min(100, Math.round(
+    (Math.min(contacts.length, 30) / 30) * 40 +
+    openRate  * 0.3 +
+    replyRate * 0.3
+  ));
+  const healthLabel = health >= 70 ? "Strong 🔥" : health >= 40 ? "Building 📈" : "Getting started 🚀";
+  const healthColor = health >= 70 ? "var(--green)" : health >= 40 ? "var(--amber)" : "var(--blue)";
+
+  const recent = [...contacts].sort((a, b) => b.lastSentAt - a.lastSentAt).slice(0, 6);
+
+  const QUICK = [
+    { icon: "✉",  label: "Send Application", id: "send",     cls: "qb-blue"   },
+    { icon: "📥", label: "Check Inbox",        id: "inbox",    cls: "qb-purple" },
+    { icon: "🎯", label: "Find HR Emails",     id: "prospect", cls: "qb-green"  },
+    { icon: "🔍", label: "Find Jobs",           id: "jobs",     cls: "qb-amber"  },
+  ];
+
+  return (
+    <div className="page dashboard-page">
+      {/* Welcome + health pill */}
+      <div className="dash-welcome">
+        <div>
+          <h2 className="dash-welcome-title">Welcome back, Anav 👋</h2>
+          <p className="dash-welcome-sub">Here's your job search at a glance</p>
+        </div>
+        <div className="health-pill" style={{ borderColor: healthColor, color: healthColor }}>
+          <span className="health-dot" style={{ background: healthColor }} />
+          {healthLabel}
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="health-bar-wrap">
+        <div className="health-bar-track">
+          <div className="health-bar-fill" style={{ width: `${Math.max(health, 4)}%`, background: healthColor }} />
+        </div>
+        <span className="health-bar-label">Job search health · {health}/100</span>
+      </div>
+
+      {/* Stats grid */}
+      <div className="stats-grid">
+        <StatCard icon="📤" label="Applications Sent"  value={totalSent}   color="blue"   onClick={() => onNavigate("contacts")} />
+        <StatCard icon="👁" label="Emails Opened"       value={openedCount} sub={`${openRate}% open rate`}  color="purple" />
+        <StatCard icon="↩" label="Replies Received"    value={replyCount}  sub={replyRate > 0 ? `${replyRate}% reply rate` : ""}  color="green"  onClick={() => onNavigate("inbox")} />
+        <StatCard icon="⏰" label="Follow-up Due"       value={followDue}   color="amber"  onClick={() => onNavigate("contacts")} />
+        <StatCard icon="🗓" label="Scheduled"           value={scheduled}   color="blue"   onClick={() => onNavigate("scheduled")} />
+        <StatCard icon="👥" label="Companies Reached"  value={contacts.length} color="purple" onClick={() => onNavigate("contacts")} />
+      </div>
+
+      {/* Quick actions */}
+      <div className="dash-section-title">Quick Actions</div>
+      <div className="quick-actions-grid">
+        {QUICK.map(q => (
+          <button key={q.id} className={`quick-btn ${q.cls}`} onClick={() => onNavigate(q.id)}>
+            <span className="quick-icon">{q.icon}</span>
+            <span className="quick-label">{q.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Recent activity */}
+      <div className="dash-section-title">Recent Applications</div>
+      {recent.length === 0 ? (
+        <div className="dash-empty">
+          <span className="dash-empty-icon">📭</span>
+          <p>No applications yet. Send your first application!</p>
+          <button className="btn-primary btn-sm" style={{ marginTop: 14 }} onClick={() => onNavigate("send")}>
+            ✉ Send Application
+          </button>
+        </div>
+      ) : (
+        <div className="activity-feed">
+          {recent.map((c, i) => (
+            <div key={i} className="activity-row">
+              <div className="activity-avatar">{getInitials(c.hrName, c.hrEmail)}</div>
+              <div className="activity-body">
+                <span className="activity-company">{c.company}</span>
+                {c.role && <span className="activity-role">{c.role}</span>}
+                <span className="activity-email">{c.hrEmail}</span>
+              </div>
+              <div className="activity-right">
+                <DaysBadge ts={c.lastSentAt} />
+                {c.opened        && <span className="badge badge-opened"   style={{ fontSize: 10 }}>👁 Opened</span>}
+                {c.needsFollowUp && <span className="badge badge-reminder" style={{ fontSize: 10 }}>⏰ Follow-up</span>}
+              </div>
+            </div>
+          ))}
+          <button className="activity-view-all" onClick={() => onNavigate("contacts")}>
+            View all contacts →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Email Body Modal ─────────────────────────────────────────────────────────
+function EmailBodyModal({ trackingId, onClose }) {
+  const [html, setHtml]       = useState("");
+  const [loading, setLoading] = useState(true);
+  useLockBodyScroll();
+
+  useEffect(() => {
+    if (!trackingId) return;
+    axios.get(`${API}/api/emails/${trackingId}`)
+      .then(r => setHtml(r.data.html || ""))
+      .catch(() => setHtml(`<div style="padding:32px;font-family:sans-serif;color:#374151;">
+        <p style="font-size:16px;font-weight:700;margin-bottom:8px;">⚠️ Email not found</p>
+        <p style="font-size:14px;color:#6b7280;">Make sure the backend is running at localhost:5000.</p>
+      </div>`))
+      .finally(() => setLoading(false));
+  }, [trackingId]);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title-row"><span>📧</span><h3 className="modal-title">Sent Email Body</h3></div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          {loading
+            ? <div className="modal-loading"><span className="spinner spinner-dark" /> Loading…</div>
+            : <iframe srcDoc={html} className="email-iframe" title="Email Preview" sandbox="allow-same-origin" />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Template Editor Modal ────────────────────────────────────────────────────
+function TemplateEditorModal({ templateType, onClose, onSave }) {
+  const [tpl, setTpl]           = useState(() => loadCustomTemplate());
+  const [previewHtml, setPreview] = useState("");
+  const [previewLoading, setPL] = useState(false);
+  const [saved, setSaved]       = useState(false);
+  useLockBodyScroll();
+
+  const debouncedTpl = useDebounce(tpl, 600);
+
+  useEffect(() => {
+    setPL(true);
+    axios.post(`${API}/api/preview-email`, {
+      hrName: "Priya Sharma", company: "Your Company", role: "Senior Full Stack Developer",
+      customNote: "I am very excited about this opportunity.",
+      templateType: BACKEND_TEMPLATE_MAP[templateType] || "fullstack",
+      customIntro:  debouncedTpl.customIntro || undefined,
+      customHighlights: debouncedTpl.highlights.length ? debouncedTpl.highlights : undefined,
+      headerTheme: debouncedTpl.headerTheme,
+    })
+      .then(r => setPreview(r.data.html || ""))
+      .catch(() => {})
+      .finally(() => setPL(false));
+  }, [debouncedTpl, templateType]);
+
+  const setHighlight = (idx, val) => setTpl(p => ({
+    ...p, highlights: p.highlights.map((h, i) => i === idx ? val : h),
+  }));
+  const removeHighlight = (idx) => setTpl(p => ({
+    ...p, highlights: p.highlights.filter((_, i) => i !== idx),
+  }));
+  const addHighlight = () => setTpl(p => ({ ...p, highlights: [...p.highlights, ""] }));
+
+  const save = () => {
+    localStorage.setItem("customEmailTemplate", JSON.stringify(tpl));
+    onSave(tpl);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const reset = () => {
+    setTpl(DEFAULT_TEMPLATE);
+    localStorage.removeItem("customEmailTemplate");
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box-editor" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title-row"><span>🎨</span><h3 className="modal-title">Visual Template Editor</h3><span className="modal-hint">Changes apply to all sent emails</span></div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="editor-body">
+          {/* ── Left: controls ── */}
+          <div className="editor-left">
+            <div className="form-group">
+              <label className="form-label">Header Colour Theme</label>
+              <div className="color-swatches">
+                {HEADER_THEMES.map(th => (
+                  <button key={th.id} title={th.label}
+                    className={`color-swatch ${tpl.headerTheme === th.id ? "swatch-active" : ""}`}
+                    style={{ background: th.color }}
+                    onClick={() => setTpl(p => ({ ...p, headerTheme: th.id }))}>
+                    {tpl.headerTheme === th.id && <span className="swatch-check">✓</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">
+                Introduction Paragraph
+                <span className="label-hint">Leave blank to use the default</span>
+              </label>
+              <textarea
+                className="form-textarea"
+                rows={5}
+                placeholder="e.g. I am writing to express my strong interest in joining…"
+                value={tpl.customIntro}
+                onChange={e => setTpl(p => ({ ...p, customIntro: e.target.value }))}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Highlights / Bullet Points</label>
+              <div className="hl-list">
+                {tpl.highlights.map((h, i) => (
+                  <div key={i} className="hl-row">
+                    <span className="hl-bullet">•</span>
+                    <input className="form-input hl-input" value={h}
+                      onChange={e => setHighlight(i, e.target.value)}
+                      placeholder="Add a highlight…" />
+                    <button className="hl-remove" onClick={() => removeHighlight(i)}>✕</button>
+                  </div>
+                ))}
+              </div>
+              <button className="btn-ghost btn-sm" style={{ marginTop: 6 }} onClick={addHighlight}>
+                + Add Highlight
+              </button>
+            </div>
+
+            <div className="editor-footer-btns">
+              <button className="btn-ghost btn-sm" onClick={reset}>↺ Reset Default</button>
+              <button className={`btn-primary btn-sm ${saved ? "btn-copied" : ""}`} onClick={save}>
+                {saved ? "✓ Saved!" : "💾 Save Template"}
+              </button>
+            </div>
+          </div>
+
+          {/* ── Right: live preview ── */}
+          <div className="editor-right">
+            <div className="editor-preview-label">
+              Live Preview {previewLoading && <span className="preview-loading-dot" />}
+            </div>
+            <iframe
+              srcDoc={previewHtml || "<p style='padding:24px;color:#6b7280;font-family:sans-serif;'>Loading preview…</p>"}
+              className="editor-iframe"
+              title="Template Preview"
+              sandbox="allow-same-origin"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Follow-up Modal ──────────────────────────────────────────────────────────
+function FollowUpModal({ contact, onClose, onSent }) {
+  const [form, setForm] = useState({
+    hrEmail: contact.hrEmail,
+    hrName: contact.hrName || "",
+    company: contact.company || "",
+    role: contact.role || "",
+    originalDate: contact.lastSentAt ? new Date(contact.lastSentAt).toLocaleDateString("en-IN") : "",
+    customNote: "",
+    originalMessageId: "",
+    originalSubject: contact.originalSubject || "",
+  });
+  const [mode, setMode]           = useState("now");
+  const [scheduledTime, setSched] = useState("");
+  const [loading, setLoading]     = useState(false);
+  const [status, setStatus]       = useState(null);
+  useLockBodyScroll();
+
+  const handle = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
+
+  const submit = async e => {
+    e.preventDefault();
+    setLoading(true); setStatus(null);
+    try {
+      if (mode === "schedule") {
+        if (!scheduledTime) throw new Error("Choose a date and time.");
+        const res = await axios.post(`${API}/api/schedule-email`, { ...form, type: "followup", scheduledTime });
+        setStatus({ type: "success", text: res.data.message });
+      } else {
+        const res = await axios.post(`${API}/api/send-followup`, form);
+        setStatus({ type: "success", text: res.data.message });
+        onSent && onSent();
+      }
+    } catch (err) {
+      setStatus({ type: "error", text: err.response?.data?.message || "Failed." });
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box-form" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title-row">
+            <span>🔁</span><h3 className="modal-title">Send Follow-up</h3>
+            <span className="modal-hint">{contact.company}</span>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-scroll">
+          <form onSubmit={submit} className="modal-form" noValidate>
+            <div className="form-group">
+              <label className="form-label">Delivery</label>
+              <div className="chip-row">
+                <button type="button" className={`chip ${mode === "now" ? "chip-active" : ""}`} onClick={() => setMode("now")}>⚡ Send Now</button>
+                <button type="button" className={`chip ${mode === "schedule" ? "chip-active" : ""}`} onClick={() => setMode("schedule")}>🗓 Schedule</button>
+              </div>
+            </div>
+            {mode === "schedule" && (
+              <div className="form-group">
+                <label className="form-label" htmlFor="fu-sched"><span className="lbadge">Required</span> Date &amp; Time</label>
+                <input id="fu-sched" type="datetime-local"
+                  min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                  value={scheduledTime} onChange={e => setSched(e.target.value)} className="form-input" />
+              </div>
+            )}
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label"><span className="lbadge">Required</span> HR Email</label>
+                <input name="hrEmail" type="email" value={form.hrEmail} onChange={handle} className="form-input" required disabled={loading} />
+              </div>
+              <div className="form-group">
+                <label className="form-label"><span className="lbadge lbadge-opt">Optional</span> HR Name</label>
+                <input name="hrName" type="text" value={form.hrName} onChange={handle} className="form-input" disabled={loading} />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label"><span className="lbadge">Required</span> Company</label>
+                <input name="company" type="text" value={form.company} onChange={handle} className="form-input" required disabled={loading} />
+              </div>
+              <div className="form-group">
+                <label className="form-label"><span className="lbadge lbadge-opt">Optional</span> Role</label>
+                <input name="role" type="text" value={form.role} onChange={handle} className="form-input" disabled={loading} />
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label"><span className="lbadge lbadge-opt">Optional</span> Original Application Date</label>
+              <input name="originalDate" type="text" value={form.originalDate} onChange={handle} className="form-input" disabled={loading} />
+            </div>
+            <div className="form-group">
+              <label className="form-label"><span className="lbadge lbadge-opt">Optional</span> Custom Note</label>
+              <textarea name="customNote" value={form.customNote} onChange={handle}
+                placeholder="Add a personalised follow-up line…" className="form-textarea" rows={3} disabled={loading} />
+            </div>
+            {status && (
+              <div className={`alert alert-${status.type}`}>
+                <span className="alert-icon">{status.type === "success" ? "✓" : "✕"}</span>
+                <span>{status.text}</span>
+              </div>
+            )}
+            <div className="modal-footer">
+              <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
+              <button type="submit" className={`btn-followup ${loading ? "loading" : ""}`}
+                disabled={loading || !form.hrEmail || !form.company}>
+                {loading ? <><span className="spinner" /> Sending…</> : <><span className="btn-arrow">↑</span> {mode === "schedule" ? "Schedule Follow-up" : "Send Follow-up"}</>}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Duplicate Warning Modal ──────────────────────────────────────────────────
+function DuplicateWarningModal({ info, onClose, onConfirm }) {
+  useLockBodyScroll();
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box-sm" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title-row"><span>⚠️</span><h3 className="modal-title">Already Contacted</h3></div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-pad">
+          <p className="dup-text">You already sent an application email to</p>
+          <p className="dup-email">{info.hrEmail}</p>
+          {info.lastCompany && <p className="dup-company">at <strong>{info.lastCompany}</strong></p>}
+          <div className="dup-date-box">
+            <span>📅</span>
+            <span>{new Date(info.lastSentAt).toLocaleString("en-IN", { dateStyle: "full", timeStyle: "short" })}</span>
+          </div>
+          <p className="dup-question">Do you want to send another application email anyway?</p>
+        </div>
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={onConfirm}>Send Anyway</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── HR Contacts Page ─────────────────────────────────────────────────────────
+const PIPELINE_STAGES = [
+  { key: "applied",  label: "Applied",       icon: "📤", color: "#2563eb" },
+  { key: "opened",   label: "Opened",        icon: "👁", color: "#7c3aed" },
+  { key: "followup", label: "Follow-up Due", icon: "⏰", color: "#d97706" },
+  { key: "replied",  label: "Replied",       icon: "↩", color: "#059669" },
+];
+
+function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail, onFollowUp, onMessage, onRefresh }) {
+  const [search,   setSearch]   = useState("");
+  const [view,     setView]     = useState("list"); // "list" | "kanban"
+  const [clearing, setClearing] = useState(null);
+  const replyEmails = new Set((replies || []).map(r => r.fromEmail.toLowerCase()));
+
+  const getStage = (c) => {
+    if (replyEmails.has(c.hrEmail.toLowerCase())) return "replied";
+    if (c.opened) return "opened";
+    if (c.needsFollowUp) return "followup";
+    return "applied";
+  };
+
+  const filtered = contacts.filter(c =>
+    !search ||
+    c.company?.toLowerCase().includes(search.toLowerCase()) ||
+    c.hrEmail?.toLowerCase().includes(search.toLowerCase()) ||
+    c.role?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const reminders = filtered.filter(c => c.needsFollowUp);
+
+  const clearOpened = async (trackingId) => {
+    if (!trackingId) return;
+    setClearing(trackingId);
+    try {
+      await axios.post(`${API}/api/track/reset/${trackingId}`);
+      onRefresh();
+    } catch {}
+    finally { setClearing(null); }
+  };
+
+  function statusBadge(c) {
+    if (replyEmails.has(c.hrEmail.toLowerCase()))
+      return <span className="badge badge-reply">↩ Replied</span>;
+    if (c.opened)
+      return (
+        <span className="badge badge-opened" title={`Opened ${relativeTime(c.openedAt)}`}>
+          👁 Opened
+          <button className="badge-clear-btn" title="Mark as not opened"
+            onClick={e => { e.stopPropagation(); clearOpened(c.lastTrackingId); }}
+            disabled={clearing === c.lastTrackingId}>
+            {clearing === c.lastTrackingId ? "…" : "✕"}
+          </button>
+        </span>
+      );
+    if (c.needsFollowUp) return <span className="badge badge-reminder">⏰ Follow-up Due</span>;
+    return <span className="badge badge-sent">📤 Sent</span>;
+  }
+
+  return (
+    <div className="page">
+      {sheetError && contacts.length === 0 && (
+        <div className="sheet-error-banner">
+          <span>⚠️</span>
+          <div>
+            <strong>Google Sheet not syncing:</strong> {sheetError}
+            <div className="sheet-error-hint">
+              Open <code>http://localhost:5000/api/sheets/debug</code> to diagnose. Once fixed, click ↻ Refresh.
+            </div>
+          </div>
+          <button className="btn-ghost btn-sm" onClick={onRefresh}>↻ Refresh</button>
+        </div>
+      )}
+
+      {reminders.length > 0 && (
+        <div className="reminder-banner">
+          <span className="reminder-icon">🔔</span>
+          <span><strong>{reminders.length} contact{reminders.length > 1 ? "s" : ""}</strong> sent 3+ days ago with no follow-up.</span>
+        </div>
+      )}
+
+      <div className="page-toolbar">
+        <div className="search-bar-wrap search-bar-inline">
+          <span className="search-icon">🔍</span>
+          <input className="search-input" type="text" placeholder="Search by company, email, role…"
+            value={search} onChange={e => setSearch(e.target.value)} />
+          {search && <button className="search-clear" onClick={() => setSearch("")}>✕</button>}
+        </div>
+        <div className="toolbar-right">
+          {/* View toggle */}
+          <div className="view-toggle">
+            <button className={`view-btn ${view === "list"   ? "view-btn-active" : ""}`} onClick={() => setView("list")}>   ☰ List</button>
+            <button className={`view-btn ${view === "kanban" ? "view-btn-active" : ""}`} onClick={() => setView("kanban")}>▦ Pipeline</button>
+          </div>
+          {fetchedAt && <span className="fetched-at">↻ {relativeTime(fetchedAt)}</span>}
+          <button className="btn-ghost btn-sm" onClick={onRefresh}>↻ Refresh</button>
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="empty-state">
+          <span className="empty-icon">📭</span>
+          <p>{search ? `No results for "${search}"` : "No applications yet. Go to Send Application to get started."}</p>
+        </div>
+      ) : view === "kanban" ? (
+        /* ── Kanban pipeline view ── */
+        <div className="kanban-board">
+          {PIPELINE_STAGES.map(stage => {
+            const cards = filtered.filter(c => getStage(c) === stage.key);
+            return (
+              <div key={stage.key} className="kanban-col">
+                <div className="kanban-col-head" style={{ borderTopColor: stage.color }}>
+                  <span style={{ color: stage.color }}>{stage.icon} {stage.label}</span>
+                  <span className="kanban-count" style={{ background: stage.color }}>{cards.length}</span>
+                </div>
+                <div className="kanban-cards">
+                  {cards.length === 0
+                    ? <div className="kanban-empty">No contacts here</div>
+                    : cards.map((c, i) => (
+                      <div key={i} className="kanban-card">
+                        <div className="kanban-card-top">
+                          <div className="kanban-avatar">{getInitials(c.hrName, c.hrEmail)}</div>
+                          <div>
+                            <div className="kanban-company">{c.company}</div>
+                            {c.role && <div className="kanban-role">{c.role}</div>}
+                          </div>
+                        </div>
+                        <div className="kanban-email">{c.hrEmail}</div>
+                        <div className="kanban-meta"><DaysBadge ts={c.lastSentAt} /></div>
+                        <div className="kanban-actions">
+                          <button className="btn-ghost btn-sm" onClick={() => onViewEmail(c.lastTrackingId)} disabled={!c.lastTrackingId} title="View email">📧</button>
+                          <button className="btn-followup btn-sm" onClick={() => onFollowUp(c)} title="Follow up">🔁 Follow-up</button>
+                        </div>
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* ── List view ── */
+        <div className="contacts-list">
+          {filtered.map((c, i) => (
+            <div key={i} className={`contact-card ${c.needsFollowUp ? "contact-card-reminder" : ""}`}>
+              <div className="contact-avatar">{getInitials(c.hrName, c.hrEmail)}</div>
+              <div className="contact-body">
+                <div className="contact-top">
+                  <span className="contact-company">{c.company}</span>
+                  {c.role && <span className="contact-role">{c.role}</span>}
+                  {statusBadge(c)}
+                  <DaysBadge ts={c.lastSentAt} />
+                </div>
+                <p className="contact-email">
+                  {c.hrEmail}
+                  {c.hrName && <span className="contact-hrname"> · {c.hrName}</span>}
+                </p>
+                <div className="contact-meta">
+                  {c.followupCount > 0 && <span>🔁 {c.followupCount} follow-up{c.followupCount > 1 ? "s" : ""}</span>}
+                  {c.opened && c.openedAt && <span>👁 opened {relativeTime(c.openedAt)}</span>}
+                  {c.totalSent > 1 && <span>✉ {c.totalSent} sent</span>}
+                </div>
+              </div>
+              <div className="contact-actions">
+                <button className="btn-ghost btn-sm" onClick={() => onViewEmail(c.lastTrackingId)} disabled={!c.lastTrackingId}>📧 View</button>
+                <button className="btn-ghost btn-sm" onClick={() => onMessage(c)}>💬 Message</button>
+                <button className="btn-followup btn-sm" onClick={() => onFollowUp(c)}>🔁 Follow-up</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Send Application Page ────────────────────────────────────────────────────
+function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed }) {
+  const [form, setForm]           = useState({ hrEmail: "", hrName: "", company: "", role: "", customNote: "" });
+
+  // Apply prefill from Prospect / Find Jobs page
+  useEffect(() => {
+    if (!prefill) return;
+    setForm(p => ({
+      ...p,
+      hrEmail:  prefill.hrEmail  || p.hrEmail,
+      hrName:   prefill.hrName   || p.hrName,
+      company:  prefill.company  || p.company,
+      role:     prefill.role     || p.role,
+    }));
+    onPrefillConsumed && onPrefillConsumed();
+  }, [prefill, onPrefillConsumed]);
+  const [templateId, setTemplateId] = useState("fullstack");
+  const [mode, setMode]           = useState("now");
+  const [scheduledTime, setSched] = useState("");
+  const [readReceipt, setRR]      = useState(false);
+  const [loading, setLoading]     = useState(false);
+  const [status, setStatus]       = useState(null);
+  const [dupModal, setDupModal]   = useState(null);
+  const [previewHtml, setPreview] = useState(null);
+  const [showEditor, setShowEditor] = useState(false);
+  const [customTpl, setCustomTpl] = useState(loadCustomTemplate);
+  const pendingPayload = useRef(null);
+
+  const handle = e => { setForm(p => ({ ...p, [e.target.name]: e.target.value })); setStatus(null); };
+
+  const selectTemplate = t => {
+    setTemplateId(t.id);
+    setForm(p => ({ ...p, customNote: t.customNote }));
+  };
+
+  const buildPayload = useCallback(() => ({
+    ...form,
+    templateType: BACKEND_TEMPLATE_MAP[templateId] || "fullstack",
+    readReceipt,
+    headerTheme: customTpl.headerTheme,
+    customIntro: customTpl.customIntro || undefined,
+    customHighlights: customTpl.highlights.length ? customTpl.highlights : undefined,
+  }), [form, templateId, readReceipt, customTpl]);
+
+  const doSend = useCallback(async (payload) => {
+    setLoading(true); setStatus(null);
+    try {
+      if (mode === "schedule") {
+        if (!scheduledTime) throw new Error("Choose a date and time.");
+        const res = await axios.post(`${API}/api/schedule-email`, { ...payload, scheduledTime });
+        setStatus({ type: "success", text: res.data.message });
+      } else {
+        const res = await axios.post(`${API}/api/send-application`, payload);
+        if (res.data.isDuplicate) {
+          setDupModal({ hrEmail: payload.hrEmail, lastSentAt: res.data.lastSentAt, lastCompany: res.data.lastCompany });
+          pendingPayload.current = payload;
+          setLoading(false);
+          return;
+        }
+        setStatus({ type: "success", text: res.data.message });
+        setForm({ hrEmail: "", hrName: "", company: "", role: "", customNote: "" });
+        setSched("");
+        onContactsRefresh();
+      }
+    } catch (err) {
+      setStatus({ type: "error", text: err.response?.data?.message || "Failed." });
+    } finally { setLoading(false); }
+  }, [mode, scheduledTime, onContactsRefresh]);
+
+  const submit = e => { e.preventDefault(); doSend(buildPayload()); };
+  const confirmDup = () => { setDupModal(null); if (pendingPayload.current) doSend({ ...pendingPayload.current, force: true }); };
+
+  const openPreview = async () => {
+    try {
+      const res = await axios.post(`${API}/api/preview-email`, buildPayload());
+      setPreview(res.data.html);
+    } catch {}
+  };
+
+  const valid = form.hrEmail && form.company;
+  const activeTemplate = EMAIL_TEMPLATES.find(t => t.id === templateId);
+
+  return (
+    <div className="page">
+      {dupModal && <DuplicateWarningModal info={dupModal} onClose={() => setDupModal(null)} onConfirm={confirmDup} />}
+      {previewHtml && (
+        <div className="modal-overlay" onClick={() => setPreview(null)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title-row"><span>📧</span><h3 className="modal-title">Email Preview</h3></div>
+              <button className="modal-close" onClick={() => setPreview(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <iframe srcDoc={previewHtml} className="email-iframe" title="Preview" sandbox="allow-same-origin" />
+            </div>
+          </div>
+        </div>
+      )}
+      {showEditor && (
+        <TemplateEditorModal
+          templateType={templateId}
+          onClose={() => setShowEditor(false)}
+          onSave={saved => { setCustomTpl(saved); setShowEditor(false); }}
+        />
+      )}
+
+      <div className="page-toolbar" style={{ justifyContent: "space-between" }}>
+        <span className="page-section-title">Email Template</span>
+        <button className="btn-ghost btn-sm" onClick={() => setShowEditor(true)}>🎨 Edit Template</button>
+      </div>
+
+      <div className="template-grid">
+        {EMAIL_TEMPLATES.map(t => (
+          <button key={t.id} type="button"
+            className={`template-card ${templateId === t.id ? "template-card-active" : ""}`}
+            style={templateId === t.id ? { borderColor: t.accent } : {}}
+            onClick={() => selectTemplate(t)}>
+            <span className="tcard-icon">{t.icon}</span>
+            <span className="tcard-name">{t.name}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Custom template indicator */}
+      {(customTpl.customIntro || customTpl.headerTheme !== "blue") && (
+        <div className="custom-tpl-badge">
+          🎨 Custom template active —
+          <span style={{ color: HEADER_THEMES.find(h => h.id === customTpl.headerTheme)?.color }}>
+            {" "}{customTpl.headerTheme} header
+          </span>
+          {customTpl.customIntro && ", custom intro"}
+          <button className="tpl-reset-link" onClick={() => {
+            setCustomTpl(DEFAULT_TEMPLATE);
+            localStorage.removeItem("customEmailTemplate");
+          }}>Reset</button>
+        </div>
+      )}
+
+      <form onSubmit={submit} noValidate className="app-form">
+        <div className="form-group">
+          <label className="form-label">Delivery Mode</label>
+          <div className="chip-row">
+            <button type="button" className={`chip ${mode === "now" ? "chip-active" : ""}`} onClick={() => setMode("now")}>⚡ Send Now</button>
+            <button type="button" className={`chip ${mode === "schedule" ? "chip-active" : ""}`} onClick={() => setMode("schedule")}>🗓 Schedule</button>
+          </div>
+        </div>
+        {mode === "schedule" && (
+          <div className="form-group">
+            <label className="form-label" htmlFor="ap-sched"><span className="lbadge">Required</span> Date &amp; Time</label>
+            <input id="ap-sched" type="datetime-local" min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+              value={scheduledTime} onChange={e => setSched(e.target.value)} className="form-input" />
+          </div>
+        )}
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label" htmlFor="ap-email"><span className="lbadge">Required</span> HR / Recruiter Email</label>
+            <input id="ap-email" name="hrEmail" type="email" value={form.hrEmail} onChange={handle}
+              placeholder="recruiter@company.com" className="form-input" required disabled={loading} />
+          </div>
+          <div className="form-group">
+            <label className="form-label" htmlFor="ap-name"><span className="lbadge lbadge-opt">Optional</span> HR Name</label>
+            <input id="ap-name" name="hrName" type="text" value={form.hrName} onChange={handle}
+              placeholder="e.g. Priya Sharma" className="form-input" disabled={loading} />
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label" htmlFor="ap-company"><span className="lbadge">Required</span> Company Name</label>
+            <input id="ap-company" name="company" type="text" value={form.company} onChange={handle}
+              placeholder="e.g. Google, Infosys" className="form-input" required disabled={loading} />
+          </div>
+          <div className="form-group">
+            <label className="form-label" htmlFor="ap-role"><span className="lbadge lbadge-opt">Optional</span> Role</label>
+            <input id="ap-role" name="role" type="text" value={form.role} onChange={handle}
+              placeholder="e.g. Senior Full Stack Developer" className="form-input" disabled={loading} />
+          </div>
+        </div>
+        <div className="form-group">
+          <label className="form-label" htmlFor="ap-note">
+            <span className="lbadge lbadge-opt">Optional</span> Custom Note
+            <span className="label-hint">Auto-filled from template · editable</span>
+          </label>
+          <textarea id="ap-note" name="customNote" value={form.customNote} onChange={handle}
+            className="form-textarea" rows={3} disabled={loading} />
+        </div>
+        <label className="toggle-label">
+          <span className="toggle-switch-wrap">
+            <input type="checkbox" checked={readReceipt} onChange={e => setRR(e.target.checked)} className="toggle-checkbox" />
+            <span className="toggle-switch" />
+          </span>
+          <span className="toggle-text">Request Read Receipt</span>
+        </label>
+        <div className="preview-card">
+          <div className="preview-card-header">
+            <p className="preview-title">📧 Preview</p>
+            <button type="button" className="btn-preview" onClick={openPreview}>View Full Email ↗</button>
+          </div>
+          <p className="preview-subject"><strong>Subject:</strong> {form.role ? `Application for ${form.role} Position — Anav Bansal` : "Job Application — Anav Bansal"}</p>
+          <p className="preview-line"><strong>To:</strong> {form.hrEmail || "—"}{form.hrName && ` (${form.hrName})`}</p>
+          <p className="preview-line"><strong>Template:</strong> <span style={{ color: activeTemplate?.accent }}>{activeTemplate?.icon} {activeTemplate?.name}</span></p>
+        </div>
+        {status && (
+          <div className={`alert alert-${status.type}`}>
+            <span className="alert-icon">{status.type === "success" ? "✓" : "✕"}</span>
+            <span>{status.text}</span>
+          </div>
+        )}
+        <div className="form-footer">
+          <button type="submit" className={`btn-primary ${loading ? "loading" : ""}`} disabled={loading || !valid}>
+            {loading ? <><span className="spinner" /> Sending…</> : <><span className="btn-arrow">↑</span> {mode === "schedule" ? "Schedule Email" : "Send Application"}</>}
+          </button>
+          <button type="button" className="btn-ghost" disabled={loading}
+            onClick={() => { setForm({ hrEmail: "", hrName: "", company: "", role: "", customNote: "" }); setStatus(null); }}>
+            Clear
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ─── Job-related keyword shortcuts for inbox search ──────────────────────────
+const JOB_KEYWORDS = [
+  { label: "Job Opportunity", q: '"job opportunity"' },
+  { label: "Naukri",          q: "from:naukri.com OR from:mailer.naukri.com" },
+  { label: "LinkedIn",        q: "from:linkedin.com OR from:jobalerts-noreply@linkedin.com" },
+  { label: "Interview",       q: "interview" },
+  { label: "Offer Letter",    q: '"offer letter" OR "job offer"' },
+  { label: "Shortlisted",     q: "shortlisted OR shortlist" },
+  { label: "Application",     q: '"job application" OR "applied"' },
+  { label: "Recruiter",       q: "recruiter OR hiring" },
+];
+
+// ─── Thread View ──────────────────────────────────────────────────────────────
+function ThreadView({ threadId, onBack }) {
+  const [messages, setMessages] = useState([]);
+  const [subject,  setSubject]  = useState("");
+  const [loading,  setLoading]  = useState(true);
+  const [expanded, setExpanded] = useState(null);   // message id that is expanded
+  const [replying, setReplying] = useState(false);
+  const [replyBody,setReplyBody]= useState("");
+  const [sending,  setSending]  = useState(false);
+  const [sendStatus, setSendStatus] = useState(null);
+
+  useEffect(() => {
+    setLoading(true);
+    axios.get(`${API}/api/gmail/thread/${threadId}`)
+      .then(r => {
+        const msgs = r.data.messages || [];
+        setMessages(msgs);
+        setSubject(r.data.subject || msgs[0]?.subject || "");
+        // Auto-expand last message
+        if (msgs.length) setExpanded(msgs[msgs.length - 1].id);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [threadId]);
+
+  const sendReply = async () => {
+    if (!replyBody.trim()) return;
+    setSending(true); setSendStatus(null);
+    try {
+      const last = messages[messages.length - 1];
+      await axios.post(`${API}/api/gmail/reply`, {
+        threadId,
+        messageId: last?.msgId || last?.id,
+        to: last?.from || "",
+        subject,
+        body: replyBody,
+      });
+      setSendStatus({ type: "success", text: "Reply sent!" });
+      setReplyBody("");
+      setReplying(false);
+      // Reload thread
+      const r = await axios.get(`${API}/api/gmail/thread/${threadId}`);
+      setMessages(r.data.messages || []);
+    } catch (e) {
+      setSendStatus({ type: "error", text: e.response?.data?.message || "Failed to send." });
+    } finally { setSending(false); }
+  };
+
+  if (loading) return <div className="thread-loading"><span className="spinner spinner-dark" /> Loading thread…</div>;
+
+  return (
+    <div className="thread-wrap">
+      {/* Header */}
+      <div className="thread-header">
+        <button className="thread-back" onClick={onBack}>← Back</button>
+        <div className="thread-subject">{subject || "(No Subject)"}</div>
+        <span className="thread-count">{messages.length} message{messages.length !== 1 ? "s" : ""}</span>
+      </div>
+
+      {/* Messages */}
+      <div className="thread-messages">
+        {messages.map((msg, i) => {
+          const isOpen = expanded === msg.id;
+          const senderName = msg.from.replace(/<[^>]+>/, "").trim() || msg.from;
+          return (
+            <div key={msg.id} className={`thread-msg ${isOpen ? "thread-msg-open" : ""} ${!msg.isRead ? "thread-msg-unread" : ""}`}>
+              <div className="thread-msg-header" onClick={() => setExpanded(isOpen ? null : msg.id)}>
+                <div className="thread-msg-avatar">{senderName[0]?.toUpperCase() || "?"}</div>
+                <div className="thread-msg-meta">
+                  <span className="thread-msg-from">{senderName}</span>
+                  {!msg.isRead && <span className="badge badge-sent" style={{ fontSize: 9 }}>Unread</span>}
+                </div>
+                <span className="thread-msg-date">{msg.date ? new Date(msg.date).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" }) : ""}</span>
+                <span className="thread-msg-chevron">{isOpen ? "▲" : "▼"}</span>
+              </div>
+              {isOpen && (
+                <div className="thread-msg-body">
+                  {msg.body
+                    ? <iframe srcDoc={msg.body} className="thread-iframe" title={`msg-${msg.id}`} sandbox="allow-same-origin" />
+                    : <p className="thread-msg-snippet">{msg.snippet}</p>
+                  }
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Reply area */}
+      <div className="thread-reply-area">
+        {!replying ? (
+          <button className="btn-primary btn-sm thread-reply-btn" onClick={() => setReplying(true)}>
+            ↩ Reply
+          </button>
+        ) : (
+          <div className="thread-compose">
+            <div className="thread-compose-to">
+              To: <strong>{messages[messages.length - 1]?.from || ""}</strong>
+            </div>
+            <textarea
+              className="form-textarea thread-compose-body"
+              rows={5}
+              placeholder="Write your reply…"
+              value={replyBody}
+              onChange={e => setReplyBody(e.target.value)}
+              autoFocus
+            />
+            {sendStatus && (
+              <div className={`alert alert-${sendStatus.type}`}>
+                <span className="alert-icon">{sendStatus.type === "success" ? "✓" : "✕"}</span>
+                <span>{sendStatus.text}</span>
+              </div>
+            )}
+            <div className="form-footer">
+              <button className={`btn-primary btn-sm ${sending ? "loading" : ""}`} onClick={sendReply} disabled={sending || !replyBody.trim()}>
+                {sending ? <><span className="spinner" /> Sending…</> : "↩ Send Reply"}
+              </button>
+              <button className="btn-ghost btn-sm" onClick={() => { setReplying(false); setReplyBody(""); setSendStatus(null); }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Inbox Page ───────────────────────────────────────────────────────────────
+function InboxPage({ contacts = [], onFollowUp }) {
+  const [activeTab,    setActiveTab]    = useState("inbox"); // "inbox" | "sent"
+  const [messages,     setMessages]     = useState([]);
+  const [loading,      setLoading]      = useState(false);
+  const [loadingMore,  setLoadingMore]  = useState(false);
+  const [searchQuery,  setSearchQuery]  = useState("");
+  const [nextPageToken,setNextPage]     = useState(null);
+  const [activeThread, setActiveThread] = useState(null);
+
+  const baseQ = (tab) => tab === "sent" ? "in:sent" : "in:inbox";
+
+  const doFetch = useCallback(async (q, pageToken, append) => {
+    if (append) setLoadingMore(true);
+    else { setLoading(true); setMessages([]); setNextPage(null); }
+    try {
+      const params = { q: q || baseQ(activeTab), max: 30 };
+      if (pageToken) params.pageToken = pageToken;
+      const r = await axios.get(`${API}/api/gmail/inbox`, { params });
+      const msgs = r.data.messages || [];
+      setNextPage(r.data.nextPageToken || null);
+      if (append) setMessages(prev => [...prev, ...msgs]);
+      else        setMessages(msgs);
+    } catch {}
+    finally {
+      if (append) setLoadingMore(false);
+      else        setLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    setSearchQuery("");
+    setNextPage(null);
+    doFetch(baseQ(activeTab));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  const search = (e) => { e.preventDefault(); doFetch(searchQuery || baseQ(activeTab)); };
+  const applyKeyword = (kw) => { setSearchQuery(kw.q); doFetch(kw.q); };
+  const loadMore = () => { if (nextPageToken) doFetch(searchQuery || baseQ(activeTab), nextPageToken, true); };
+
+  // Extract plain email address from "Name <email>" format
+  const extractEmail = (str = "") => { const m = str.match(/<(.+?)>/); return m ? m[1] : str.trim(); };
+  const displayName  = (str = "") => str.replace(/<[^>]+>/, "").trim() || str;
+
+  const handleFollowUp = (m) => {
+    const emailStr = activeTab === "sent" ? m.to : m.from;
+    const email    = extractEmail(emailStr);
+    const matched  = contacts.find(c => c.hrEmail.toLowerCase() === email.toLowerCase());
+    onFollowUp(matched || { hrEmail: email, hrName: displayName(emailStr), company: "", role: "" });
+  };
+
+  // Thread view replaces the list
+  if (activeThread) {
+    return (
+      <div className="page">
+        <ThreadView threadId={activeThread} onBack={() => setActiveThread(null)} />
+      </div>
+    );
+  }
+
+  const isSent = activeTab === "sent";
+
+  return (
+    <div className="page">
+      {/* Inbox / Sent tabs */}
+      <div className="inbox-tab-bar">
+        <button className={`inbox-tab-btn ${!isSent ? "inbox-tab-active" : ""}`} onClick={() => setActiveTab("inbox")}>
+          📥 Inbox
+        </button>
+        <button className={`inbox-tab-btn ${isSent ? "inbox-tab-active" : ""}`} onClick={() => setActiveTab("sent")}>
+          📤 Sent
+        </button>
+      </div>
+
+      {/* Search bar */}
+      <form onSubmit={search} className="inbox-search-form">
+        <div className="search-bar-wrap" style={{ flex: 1 }}>
+          <span className="search-icon">🔍</span>
+          <input
+            className="search-input"
+            type="text"
+            placeholder={isSent ? "Search sent… e.g. to:hr@company.com subject:application" : "Search Gmail… e.g. from:naukri.com OR subject:interview"}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button type="button" className="search-clear" onClick={() => { setSearchQuery(""); doFetch(baseQ(activeTab)); }}>✕</button>
+          )}
+        </div>
+        <button type="submit" className="btn-primary btn-sm" disabled={loading}>{loading ? "…" : "Search"}</button>
+        <button type="button" className="btn-ghost btn-sm" onClick={() => window.location.href = `${API}/api/gmail/auth`}>Connect Gmail</button>
+        <button type="button" className="btn-ghost btn-sm" onClick={() => doFetch(searchQuery || baseQ(activeTab))} disabled={loading}>↻</button>
+      </form>
+
+      {/* Job keyword shortcuts — inbox only */}
+      {!isSent && (
+        <div className="keyword-shortcuts">
+          <span className="keyword-label">Quick filters:</span>
+          {JOB_KEYWORDS.map(kw => (
+            <button key={kw.label} className="keyword-chip" onClick={() => applyKeyword(kw)}>{kw.label}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Email list */}
+      {messages.length === 0 ? (
+        <div className="empty-state">
+          <span className="empty-icon">{isSent ? "📤" : "📥"}</span>
+          <p>{loading ? "Loading…" : `No ${isSent ? "sent" : ""} messages found. Connect Gmail or try a different search.`}</p>
+        </div>
+      ) : (
+        <>
+          <div className="inbox-list">
+            {messages.map((m, i) => {
+              const name = isSent ? displayName(m.to) : displayName(m.from);
+              return (
+                <div key={i} className={`inbox-row ${!m.isRead && !isSent ? "inbox-row-unread" : ""}`}>
+                  <div className="inbox-row-avatar" onClick={() => setActiveThread(m.threadId)}>
+                    {(name || "?")[0].toUpperCase()}
+                  </div>
+                  <div className="inbox-row-body" onClick={() => setActiveThread(m.threadId)}>
+                    <div className="inbox-row-top">
+                      <span className="inbox-row-from">{isSent ? `To: ${name}` : name}</span>
+                      <span className="inbox-row-date">{m.date ? new Date(m.date).toLocaleDateString("en-IN") : ""}</span>
+                    </div>
+                    <p className="inbox-row-subject">{m.subject}</p>
+                    <p className="inbox-row-snippet">{m.snippet}</p>
+                  </div>
+                  <div className="inbox-row-actions">
+                    {onFollowUp && (
+                      <button
+                        className="btn-followup btn-sm"
+                        title="Send follow-up"
+                        onClick={e => { e.stopPropagation(); handleFollowUp(m); }}
+                      >
+                        🔁 Follow Up
+                      </button>
+                    )}
+                  </div>
+                  {!m.isRead && !isSent && <span className="inbox-unread-dot" />}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Load more / pagination */}
+          <div className="inbox-footer">
+            <span className="inbox-count">{messages.length} message{messages.length !== 1 ? "s" : ""} loaded</span>
+            {nextPageToken && (
+              <button className="btn-ghost btn-sm" onClick={loadMore} disabled={loadingMore}>
+                {loadingMore ? <><span className="spinner" /> Loading…</> : "Load More ↓"}
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Messages Page (LinkedIn + WhatsApp generator, standalone) ───────────────
+function MessagesPage({ contacts }) {
+  const [selectedContact, setSelectedContact] = useState(null);
+  const [manualName,    setManualName]    = useState("");
+  const [manualCompany, setManualCompany] = useState("");
+  const [manualRole,    setManualRole]    = useState("");
+  const [tab, setTab]   = useState("linkedin");
+  const [copied, setCopied] = useState(false);
+
+  const name    = selectedContact ? (selectedContact.hrName || "Hiring Manager") : (manualName || "Hiring Manager");
+  const company = selectedContact ? (selectedContact.company || "your company")   : (manualCompany || "your company");
+  const role    = selectedContact ? (selectedContact.role    || "the open position") : (manualRole || "the open position");
+
+  const buildMsg = useCallback((t) => {
+    if (t === "linkedin")
+      return `Hi ${name},\n\nI recently applied for the ${role} position at ${company} and wanted to connect personally.\n\nI'm a Senior Full Stack Developer with 4.7+ years of experience in Node.js, AWS Lambda, and enterprise CTI integrations (Avaya, Genesys, Webex, Amazon Connect). I've delivered 10+ production systems and published apps on ServiceNow, Freshdesk, and Webex marketplaces.\n\nWould love to connect and discuss how I can contribute to ${company}!\n\nBest regards,\nAnav Bansal`;
+    return `Hello ${name},\n\nI'm Anav Bansal, a Senior Full Stack Developer with 4.7+ years of experience. I've applied for the *${role}* role at *${company}* and wanted to follow up personally.\n\n*My expertise:*\n• Node.js, ReactJS, AngularJS, AWS Lambda\n• CTI Integrations: Avaya, Genesys, Webex, Amazon Connect\n• CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics\n\nI'd love to discuss the opportunity at your convenience!\n\n📞 +91 7827855635\n📧 anavbansal06@gmail.com\n🔗 linkedin.com/in/anavbansal-51b191162`;
+  }, [name, company, role]);
+
+  const [editedMsg, setEditedMsg] = useState(() => buildMsg("linkedin"));
+  useEffect(() => setEditedMsg(buildMsg(tab)), [tab, buildMsg]);
+
+  const copy = () => {
+    navigator.clipboard.writeText(editedMsg).then(() => {
+      setCopied(true); setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div className="page">
+      {/* Contact picker */}
+      <div className="msg-page-picker">
+        <div className="form-group" style={{ flex: 1 }}>
+          <label className="form-label">Pick from HR Contacts</label>
+          <select className="form-input form-select"
+            value={selectedContact ? selectedContact.hrEmail : ""}
+            onChange={e => {
+              const c = contacts.find(x => x.hrEmail === e.target.value) || null;
+              setSelectedContact(c);
+            }}>
+            <option value="">— Enter manually below —</option>
+            {contacts.map((c, i) => (
+              <option key={i} value={c.hrEmail}>{c.company} · {c.hrEmail}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {!selectedContact && (
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">HR Name</label>
+            <input className="form-input" placeholder="Priya Sharma" value={manualName} onChange={e => setManualName(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Company</label>
+            <input className="form-input" placeholder="Google" value={manualCompany} onChange={e => setManualCompany(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Role</label>
+            <input className="form-input" placeholder="Senior Full Stack Developer" value={manualRole} onChange={e => setManualRole(e.target.value)} />
+          </div>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="msg-tabs">
+        <button className={`msg-tab ${tab === "linkedin" ? "msg-tab-active" : ""}`} onClick={() => setTab("linkedin")}>🔗 LinkedIn DM</button>
+        <button className={`msg-tab ${tab === "whatsapp" ? "msg-tab-active whatsapp-active" : ""}`} onClick={() => setTab("whatsapp")}>💚 WhatsApp</button>
+      </div>
+
+      <div className="msg-char-count">{editedMsg.length} characters</div>
+      <textarea className="msg-textarea" value={editedMsg} onChange={e => setEditedMsg(e.target.value)} rows={14} spellCheck={false} />
+
+      <div className="msg-actions">
+        <button className={`btn-primary btn-sm ${copied ? "btn-copied" : ""}`} onClick={copy}>
+          {copied ? "✓ Copied!" : "📋 Copy Message"}
+        </button>
+        {tab === "whatsapp" ? (
+          <button className="btn-whatsapp" onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(editedMsg)}`, "_blank")}>
+            💚 Open in WhatsApp
+          </button>
+        ) : (
+          <button className="btn-linkedin" onClick={() => window.open(`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(`${name} ${company}`)}`, "_blank")}>
+            🔗 Find on LinkedIn
+          </button>
+        )}
+        <button className="btn-ghost btn-sm" onClick={() => setEditedMsg(buildMsg(tab))}>↺ Reset</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Find Jobs Page (with advanced filters) ──────────────────────────────────
+const DATE_OPTIONS = [
+  { label: "Any time", value: "0" },
+  { label: "Today",    value: "1" },
+  { label: "3 Days",   value: "3" },
+  { label: "1 Week",   value: "7" },
+  { label: "1 Month",  value: "30" },
+];
+const JOB_TYPE_OPTIONS = [
+  { label: "Any type",   value: "any" },
+  { label: "Full-time",  value: "Full_Time" },
+  { label: "Part-time",  value: "Part_Time" },
+  { label: "Contract",   value: "Contract" },
+  { label: "Internship", value: "Internship" },
+];
+
+function FindJobsPage({ onFillApply }) {
+  const [keywords, setKw]         = useState("Node.js Developer");
+  const [location, setLoc]        = useState("India");
+  const [datePosted, setDate]     = useState("0");
+  const [employment, setEmp]      = useState("any");
+  const [showFilters, setShowF]   = useState(false);
+  const [jobs, setJobs]           = useState([]);
+  const [searchLinks, setLinks]   = useState(null);
+  const [loading, setLoading]     = useState(false);
+  const [searched, setSearched]   = useState(false);
+  const [totalCount, setTotal]    = useState(0);
+
+  const search = async e => {
+    if (e) e.preventDefault();
+    setLoading(true);
+    try {
+      const res = await axios.get(`${API}/api/jobs/search`, {
+        params: { keywords, location, datePosted, employment },
+      });
+      setJobs(res.data.jobs || []);
+      setLinks(res.data.searchLinks || null);
+      setTotal(res.data.totalCount || 0);
+      setSearched(true);
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="page">
+      <form onSubmit={search} className="app-form">
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label" htmlFor="jKw">Keywords / Role</label>
+            <input id="jKw" type="text" className="form-input" value={keywords}
+              onChange={e => setKw(e.target.value)} placeholder="e.g. CTI Developer, Avaya, Node.js" />
+          </div>
+          <div className="form-group">
+            <label className="form-label" htmlFor="jLoc">Location</label>
+            <input id="jLoc" type="text" className="form-input" value={location}
+              onChange={e => setLoc(e.target.value)} placeholder="India, Bangalore, Remote" />
+          </div>
+        </div>
+
+        {/* Advanced filter toggle */}
+        <button type="button" className="filter-toggle" onClick={() => setShowF(f => !f)}>
+          ⚙ Filters {showFilters ? "▲" : "▼"}
+          {(datePosted !== "0" || employment !== "any") && <span className="filter-active-dot" />}
+        </button>
+
+        {showFilters && (
+          <div className="filter-panel">
+            <div className="filter-group">
+              <span className="filter-label">📅 Date Posted</span>
+              <div className="chip-row">
+                {DATE_OPTIONS.map(o => (
+                  <button key={o.value} type="button"
+                    className={`chip ${datePosted === o.value ? "chip-active" : ""}`}
+                    onClick={() => setDate(o.value)}>{o.label}</button>
+                ))}
+              </div>
+            </div>
+            <div className="filter-group">
+              <span className="filter-label">💼 Job Type</span>
+              <div className="chip-row">
+                {JOB_TYPE_OPTIONS.map(o => (
+                  <button key={o.value} type="button"
+                    className={`chip ${employment === o.value ? "chip-active" : ""}`}
+                    onClick={() => setEmp(o.value)}>{o.label}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="form-footer">
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? <><span className="spinner" /> Searching…</> : "🔍 Search Jobs"}
+          </button>
+          {(datePosted !== "0" || employment !== "any") && (
+            <button type="button" className="btn-ghost btn-sm" onClick={() => { setDate("0"); setEmp("any"); }}>
+              ✕ Clear filters
+            </button>
+          )}
+        </div>
+      </form>
+
+      {/* Portal links */}
+      {searchLinks && (
+        <div className="portal-box">
+          <p className="preview-title">Search on Job Portals</p>
+          <div className="portal-links">
+            <a href={searchLinks.naukri}    target="_blank" rel="noreferrer" className="portal-btn portal-naukri">Naukri.com ↗</a>
+            <a href={searchLinks.indeed}    target="_blank" rel="noreferrer" className="portal-btn portal-indeed">Indeed India ↗</a>
+            <a href={searchLinks.linkedin}  target="_blank" rel="noreferrer" className="portal-btn portal-linkedin">LinkedIn ↗</a>
+            <a href={searchLinks.glassdoor} target="_blank" rel="noreferrer" className="portal-btn portal-glassdoor">Glassdoor ↗</a>
+            <a href={searchLinks.instahyre} target="_blank" rel="noreferrer" className="portal-btn portal-instahyre">Instahyre ↗</a>
+          </div>
+        </div>
+      )}
+
+      {/* Results */}
+      {jobs.length > 0 && (
+        <>
+          <p className="jobs-count">{totalCount > jobs.length ? `Showing ${jobs.length} of ${totalCount.toLocaleString()}` : `${jobs.length}`} jobs</p>
+          <div className="contacts-list">
+            {jobs.map((job, i) => (
+              <div key={i} className="contact-card">
+                <div className="contact-avatar" style={{ background: "#059669" }}>💼</div>
+                <div className="contact-body">
+                  <div className="contact-top">
+                    <span className="contact-company">{job.title}</span>
+                    {job.salary && <span className="badge badge-opened">{job.salary}</span>}
+                    {job.type   && <span className="badge badge-muted">{job.type}</span>}
+                  </div>
+                  <p className="contact-email">{job.company}{job.location && ` · 📍 ${job.location}`}</p>
+                  {job.snippet && <p className="contact-meta-text">{job.snippet.replace(/<[^>]+>/g, "").slice(0, 130)}…</p>}
+                  <div className="contact-meta">
+                    {job.updated && <span>📅 {new Date(job.updated).toLocaleDateString("en-IN")}</span>}
+                  </div>
+                </div>
+                <div className="contact-actions">
+                  <button className="btn-ghost btn-sm" onClick={() => onFillApply({ company: job.company, role: job.title })}>✉ Apply</button>
+                  <a href={job.link} target="_blank" rel="noreferrer" className="btn-primary btn-sm">Open ↗</a>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      {searched && jobs.length === 0 && (
+        <div className="empty-state"><span className="empty-icon">🔍</span><p>No listings found. Try different keywords or use the portal links above.</p></div>
+      )}
+    </div>
+  );
+}
+
+// ─── Schedule Apply Modal (from Prospect/Referral page) ──────────────────────
+function ScheduleApplyModal({ data, onClose, onSendNow }) {
+  const [mode, setMode]               = useState("now");
+  const [scheduledTime, setSched]     = useState("");
+  const [loading, setLoading]         = useState(false);
+  const [status, setStatus]           = useState(null);
+  useLockBodyScroll();
+
+  const submit = async () => {
+    if (mode === "now") { onSendNow(data); return; }
+    if (!scheduledTime) { setStatus({ type: "error", text: "Choose a date and time." }); return; }
+    setLoading(true); setStatus(null);
+    try {
+      const res = await axios.post(`${API}/api/schedule-email`, {
+        hrEmail: data.hrEmail, hrName: data.hrName || "",
+        company: data.company, role: data.role || "",
+        scheduledTime, templateType: "fullstack",
+      });
+      setStatus({ type: "success", text: res.data.message });
+    } catch (e) {
+      setStatus({ type: "error", text: e.response?.data?.message || "Failed to schedule." });
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box-sm" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title-row">
+            <span>✉</span>
+            <h3 className="modal-title">Apply to {data.company}</h3>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-pad">
+          <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--text-muted)" }}>{data.hrEmail}</p>
+          <div className="form-group">
+            <label className="form-label">Delivery</label>
+            <div className="chip-row">
+              <button type="button" className={`chip ${mode === "now" ? "chip-active" : ""}`} onClick={() => setMode("now")}>⚡ Send Now</button>
+              <button type="button" className={`chip ${mode === "schedule" ? "chip-active" : ""}`} onClick={() => setMode("schedule")}>🗓 Schedule</button>
+            </div>
+          </div>
+          {mode === "schedule" && (
+            <div className="form-group">
+              <label className="form-label">Date &amp; Time</label>
+              <input type="datetime-local"
+                min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                value={scheduledTime} onChange={e => setSched(e.target.value)} className="form-input" />
+            </div>
+          )}
+          {status && (
+            <div className={`alert alert-${status.type}`}>
+              <span className="alert-icon">{status.type === "success" ? "✓" : "✕"}</span>
+              <span>{status.text}</span>
+            </div>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={submit}
+            disabled={loading || status?.type === "success"}>
+            {loading
+              ? <><span className="spinner" /> Scheduling…</>
+              : mode === "schedule" ? "🗓 Schedule Email" : "→ Go to Send Form"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Prospect Page (find HR emails by company) ────────────────────────────────
+function guessDomain(companyName) {
+  if (!companyName) return "";
+  return companyName
+    .toLowerCase()
+    .replace(/\b(pvt|ltd|inc|corp|llc|private|limited|technologies|solutions|systems|india|global|group|services|it|tech|innovations?|consulting|infotech)\b\.?/g, " ")
+    .replace(/[^a-z0-9]/g, "")
+    .trim() + ".com";
+}
+
+function ProspectPage({ onFillApply }) {
+  const [company,    setCompany]  = useState("");
+  const [domain,     setDomain]   = useState("");
+  const [filter,     setFilter]   = useState("hr");
+  const [results,    setResults]  = useState(null); // null = not searched yet
+  const [loading,    setLoading]  = useState(false);
+  const [copiedIdx,  setCopied]   = useState(null);
+  const [schedModal, setSchedModal] = useState(null); // data for ScheduleApplyModal
+
+  const handleCompanyChange = (val) => {
+    setCompany(val);
+    setDomain(guessDomain(val));
+  };
+
+  const search = async e => {
+    e.preventDefault();
+    if (!company && !domain) return;
+    setLoading(true); setResults(null);
+    try {
+      const res = await axios.get(`${API}/api/prospect`, {
+        params: { company, domain, filter },
+      });
+      setResults(res.data);
+    } catch (err) {
+      setResults({ success: false, emails: [], message: err.response?.data?.message || "Request failed." });
+    } finally { setLoading(false); }
+  };
+
+  const copyEmail = (email, idx) => {
+    navigator.clipboard.writeText(email).then(() => {
+      setCopied(idx); setTimeout(() => setCopied(null), 2000);
+    });
+  };
+
+  return (
+    <div className="page">
+      <form onSubmit={search} className="app-form">
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label" htmlFor="pr-company">
+              Company Name <span className="label-hint">e.g. Infosys, TCS, Google India</span>
+            </label>
+            <input id="pr-company" type="text" className="form-input" value={company}
+              onChange={e => handleCompanyChange(e.target.value)}
+              placeholder="e.g. Infosys" required />
+          </div>
+          <div className="form-group">
+            <label className="form-label" htmlFor="pr-domain">
+              Company Domain <span className="label-hint">auto-guessed · edit if wrong</span>
+            </label>
+            <input id="pr-domain" type="text" className="form-input" value={domain}
+              onChange={e => setDomain(e.target.value)}
+              placeholder="e.g. infosys.com" />
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Filter by Role</label>
+          <div className="chip-row">
+            {[
+              { value: "hr",  label: "HR / Recruiter only" },
+              { value: "all", label: "All employees" },
+            ].map(o => (
+              <button key={o.value} type="button"
+                className={`chip ${filter === o.value ? "chip-active" : ""}`}
+                onClick={() => setFilter(o.value)}>{o.label}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="form-footer">
+          <button type="submit" className="btn-primary" disabled={loading || !company}>
+            {loading ? <><span className="spinner" /> Searching…</> : "🔎 Find Contacts"}
+          </button>
+        </div>
+      </form>
+
+      {/* No Hunter key — show info box */}
+      {results?.noKey && (
+        <div className="prospect-nokey">
+          <p className="nokey-title">🔑 Hunter.io API key needed</p>
+          <p className="nokey-text">
+            Get a free key at <strong>hunter.io/api-keys</strong> (25 searches/month, no credit card).
+            Add it to <code>backend/.env</code> as <code>HUNTER_API_KEY=your_key</code> then restart the backend.
+          </p>
+          <a href={results.linkedinUrl} target="_blank" rel="noreferrer" className="btn-linkedin" style={{ marginTop: 12, display: "inline-flex" }}>
+            🔗 Search on LinkedIn instead ↗
+          </a>
+        </div>
+      )}
+
+      {/* Results */}
+      {results && !results.noKey && (
+        <>
+          <div className="prospect-meta">
+            <span className="prospect-org">{results.organization || company}</span>
+            {results.domain && <span className="prospect-domain">{results.domain}</span>}
+            {results.pattern && (
+              <span className="prospect-pattern" title="Email pattern used by this company">
+                📋 Pattern: <code>{results.pattern}</code>
+              </span>
+            )}
+            <span className="prospect-count">{results.emails?.length || 0} contacts found</span>
+            <a href={results.linkedinUrl} target="_blank" rel="noreferrer" className="prospect-li-link">
+              🔗 Search LinkedIn ↗
+            </a>
+          </div>
+
+          {results.emails?.length === 0 ? (
+            <div className="empty-state">
+              <span className="empty-icon">🔍</span>
+              <p>No contacts found for <strong>{domain || company}</strong>.</p>
+              <p className="empty-hint">Try editing the domain (e.g. use the exact company website domain).</p>
+            </div>
+          ) : (
+            <div className="prospect-list">
+              {results.emails.map((e, i) => (
+                <div key={i} className="prospect-card">
+                  <div className="prospect-avatar">{e.name[0]?.toUpperCase() || "?"}</div>
+                  <div className="prospect-body">
+                    <div className="prospect-name">{e.name}</div>
+                    {e.position && <div className="prospect-position">{e.position}</div>}
+                    <div className="prospect-email-row">
+                      <span className="prospect-email">{e.email}</span>
+                      {e.confidence > 0 && (
+                        <span className={`confidence-badge ${e.confidence >= 80 ? "conf-high" : e.confidence >= 50 ? "conf-med" : "conf-low"}`}>
+                          {e.confidence}% confidence
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="prospect-actions">
+                    <button className={`btn-ghost btn-sm ${copiedIdx === i ? "btn-copied" : ""}`}
+                      onClick={() => copyEmail(e.email, i)}>
+                      {copiedIdx === i ? "✓ Copied" : "📋 Copy"}
+                    </button>
+                    {e.linkedin && (
+                      <a href={e.linkedin} target="_blank" rel="noreferrer" className="btn-ghost btn-sm">🔗 LinkedIn</a>
+                    )}
+                    <button className="btn-primary btn-sm"
+                      onClick={() => setSchedModal({ hrEmail: e.email, hrName: e.name, company: results.organization || company, role: "" })}>
+                      ✉ Apply
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {schedModal && (
+        <ScheduleApplyModal
+          data={schedModal}
+          onClose={() => setSchedModal(null)}
+          onSendNow={(d) => { setSchedModal(null); onFillApply(d); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Scheduled Page ───────────────────────────────────────────────────────────
+function ScheduledPage() {
+  const [jobs, setJobs] = useState([]);
+  useEffect(() => { axios.get(`${API}/api/scheduled-emails`).then(r => setJobs(r.data.jobs || [])).catch(() => {}); }, []);
+  const remove = async id => { await axios.delete(`${API}/api/scheduled-emails/${id}`); setJobs(p => p.filter(j => j.jobId !== id)); };
+  const pending = jobs.filter(j => j.status === "pending");
+  return (
+    <div className="page">
+      {pending.length === 0
+        ? <div className="empty-state"><span className="empty-icon">🗓</span><p>No scheduled emails.</p></div>
+        : <div className="contacts-list">
+            {pending.map(job => (
+              <div key={job.jobId} className="contact-card">
+                <div className="contact-avatar" style={{ background: "#7c3aed" }}>🗓</div>
+                <div className="contact-body">
+                  <div className="contact-top">
+                    <span className="contact-company">{job.emailData.company}</span>
+                    <span className="badge badge-scheduled">Scheduled</span>
+                  </div>
+                  <p className="contact-email">{job.emailData.hrEmail}</p>
+                  <div className="contact-meta"><span>📅 {new Date(job.scheduledTime).toLocaleString("en-IN")}</span></div>
+                </div>
+                <div className="contact-actions">
+                  <button className="btn-ghost btn-sm" onClick={() => remove(job.jobId)}>Cancel</button>
+                </div>
+              </div>
+            ))}
+          </div>
+      }
+    </div>
+  );
+}
+
+// ═══════════════════════════════ MAIN APP ════════════════════════════════════
+
+export default function App() {
+  const [page,          setPage]          = useState("dashboard");
+  const [contacts,      setContacts]      = useState([]);
+  const [replies,       setReplies]       = useState([]);
+  const [scheduledJobs, setScheduledJobs] = useState([]);
+  const [fetchedAt,     setFetchedAt]     = useState(null);
+  const [darkMode,      setDarkMode]      = useState(() => localStorage.getItem("darkMode") === "true");
+  const [sidebarOpen,   setSidebarOpen]   = useState(false);
+  const [modal,         setModal]         = useState(null);
+  const [sheetError,    setSheetError]    = useState(null);
+  const [toasts,        setToasts]        = useState([]);
+
+  const addToast = useCallback((message, type = "success") => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3800);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
+    localStorage.setItem("darkMode", darkMode);
+  }, [darkMode]);
+
+  const fetchContacts = useCallback(async () => {
+    try {
+      const r = await axios.get(`${API}/api/contacts`);
+      setContacts(r.data.contacts || []);
+      setFetchedAt(r.data.fetchedAt || Date.now());
+      setSheetError(r.data.sheetError || null);
+    } catch {}
+  }, []);
+
+  const fetchReplies = useCallback(async () => {
+    try { const r = await axios.get(`${API}/api/gmail/replies`); setReplies(r.data.replies || []); } catch {}
+  }, []);
+
+  const fetchScheduled = useCallback(async () => {
+    try { const r = await axios.get(`${API}/api/scheduled-emails`); setScheduledJobs(r.data.jobs || []); } catch {}
+  }, []);
+
+  useEffect(() => { fetchContacts(); fetchReplies(); fetchScheduled(); }, [fetchContacts, fetchReplies, fetchScheduled]);
+
+  const reminderCount  = contacts.filter(c => c.needsFollowUp).length;
+  const replyCount     = replies.length;
+  const scheduledCount = scheduledJobs.filter(j => j.status === "pending").length;
+
+  const NAV = [
+    { id: "dashboard", icon: "🏠", label: "Dashboard" },
+    { id: "contacts",  icon: "👥", label: "HR Contacts",      badge: reminderCount  || null },
+    { id: "send",      icon: "✉",  label: "Send Application" },
+    { id: "prospect",  icon: "🎯", label: "Find HR Emails" },
+    { id: "inbox",     icon: "📥", label: "Inbox",            badge: replyCount     || null },
+    { id: "messages",  icon: "💬", label: "Messages" },
+    { id: "jobs",      icon: "🔍", label: "Find Jobs" },
+    { id: "scheduled", icon: "🗓", label: "Scheduled",        badge: scheduledCount || null },
+  ];
+
+  const [prefillSend, setPrefillSend] = React.useState(null);
+
+  const navigate = id => { setPage(id); setSidebarOpen(false); };
+  const goToSendPrefilled = (data) => { setPrefillSend(data); setPage("send"); setSidebarOpen(false); };
+
+  // Sidebar mini stats
+  const openedCount = contacts.filter(c => c.opened).length;
+
+  return (
+    <div className="app-shell">
+      <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
+        <div className="sidebar-header">
+          <div className="sidebar-avatar">AB</div>
+          <div className="sidebar-brand">
+            <span className="sidebar-name">Anav Bansal</span>
+            <span className="sidebar-role">Senior Dev</span>
+          </div>
+        </div>
+        <nav className="sidebar-nav">
+          {NAV.map(n => (
+            <button key={n.id} className={`nav-item ${page === n.id ? "nav-item-active" : ""}`} onClick={() => navigate(n.id)}>
+              <span className="nav-icon">{n.icon}</span>
+              <span className="nav-label">{n.label}</span>
+              {n.badge ? <span className="nav-badge">{n.badge}</span> : null}
+            </button>
+          ))}
+        </nav>
+        {/* Mini stats in sidebar */}
+        <div className="sidebar-stats">
+          <div className="sidebar-stat"><span className="ss-val">{contacts.length}</span><span className="ss-lbl">Applied</span></div>
+          <div className="sidebar-stat"><span className="ss-val">{openedCount}</span><span className="ss-lbl">Opened</span></div>
+          <div className="sidebar-stat"><span className="ss-val">{replyCount}</span><span className="ss-lbl">Replies</span></div>
+        </div>
+        <div className="sidebar-footer">
+          <DarkModeToggle dark={darkMode} onToggle={() => setDarkMode(d => !d)} />
+        </div>
+      </aside>
+
+      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
+
+      <div className="main-wrap">
+        <header className="top-header">
+          <button className="hamburger" onClick={() => setSidebarOpen(o => !o)}>☰</button>
+          <div className="header-user">
+            <div className="header-avatar">AB</div>
+            <div className="header-info">
+              <span className="header-name">Anav Bansal</span>
+              <span className="header-title">Senior Software Developer · CTI/Telephony Specialist · Node.js · AWS</span>
+            </div>
+          </div>
+          <div className="header-links">
+            <a href="mailto:anavbansal06@gmail.com" className="plink">✉ anavbansal06@gmail.com</a>
+            <a href="tel:+917827855635" className="plink">📞 +91 7827855635</a>
+            <a href="https://linkedin.com/in/anavbansal-51b191162" target="_blank" rel="noreferrer" className="plink">🔗 LinkedIn</a>
+            <a href={DRIVE_LINK} target="_blank" rel="noreferrer" className="plink plink-resume">📄 Resume</a>
+          </div>
+          <DarkModeToggle dark={darkMode} onToggle={() => setDarkMode(d => !d)} />
+        </header>
+
+        <main className="main-content">
+          <div className="page-header">
+            <h2 className="page-title">{NAV.find(n => n.id === page)?.icon} {NAV.find(n => n.id === page)?.label}</h2>
+          </div>
+
+          {page === "dashboard" && (
+            <DashboardPage
+              contacts={contacts}
+              replies={replies}
+              scheduledJobs={scheduledJobs}
+              onNavigate={navigate}
+            />
+          )}
+          {page === "contacts" && (
+            <HRContactsPage
+              contacts={contacts}
+              replies={replies}
+              fetchedAt={fetchedAt}
+              sheetError={sheetError}
+              onViewEmail={trackingId => setModal({ type: "emailBody", trackingId })}
+              onFollowUp={contact  => setModal({ type: "followUp",  contact })}
+              onMessage={contact   => { navigate("messages"); }}
+              onRefresh={() => { fetchContacts(); fetchReplies(); }}
+            />
+          )}
+          {page === "send"      && <SendApplicationPage onContactsRefresh={fetchContacts} prefill={prefillSend} onPrefillConsumed={() => setPrefillSend(null)} addToast={addToast} />}
+          {page === "inbox"     && <InboxPage contacts={contacts} onFollowUp={contact => setModal({ type: "followUp", contact })} />}
+          {page === "messages"  && <MessagesPage contacts={contacts} />}
+          {page === "prospect"  && <ProspectPage onFillApply={goToSendPrefilled} addToast={addToast} />}
+          {page === "jobs"      && <FindJobsPage onFillApply={goToSendPrefilled} />}
+          {page === "scheduled" && <ScheduledPage onRefresh={fetchScheduled} />}
+        </main>
+      </div>
+
+      {modal?.type === "emailBody" && <EmailBodyModal trackingId={modal.trackingId} onClose={() => setModal(null)} />}
+      {modal?.type === "followUp"  && <FollowUpModal  contact={modal.contact} onClose={() => setModal(null)} onSent={() => { setModal(null); fetchContacts(); addToast("Follow-up sent!"); }} />}
+
+      <ToastContainer toasts={toasts} />
+    </div>
+  );
+}

@@ -94,34 +94,42 @@ router.get("/api/gmail/callback", async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// ─── GET /api/gmail/inbox?q=...&max=... ──────────────────────────────────────
-// q: Gmail search query (default: in:inbox). Pass any Gmail search syntax.
+// ─── GET /api/gmail/inbox?q=...&max=...&pageToken=... ────────────────────────
+// q: Gmail search query (default: in:inbox). pageToken: cursor for pagination.
 router.get("/api/gmail/inbox", async (req, res) => {
   try {
-    const gmail    = getGmailClient();
-    const q        = req.query.q   || "in:inbox";
-    const maxRes   = parseInt(req.query.max) || 30;
-    const list     = await gmail.users.messages.list({ userId: "me", q, maxResults: maxRes });
+    const gmail     = getGmailClient();
+    const q         = req.query.q         || "in:inbox";
+    const maxRes    = parseInt(req.query.max) || 30;
+    const pageToken = req.query.pageToken || undefined;
+
+    const listParams = { userId: "me", q, maxResults: maxRes };
+    if (pageToken) listParams.pageToken = pageToken;
+
+    const list     = await gmail.users.messages.list(listParams);
     const messages = await Promise.all(
       (list.data.messages || []).map(async item => {
         const d = await gmail.users.messages.get({ userId: "me", id: item.id, format: "metadata",
-          metadataHeaders: ["Subject", "From", "Date"] });
+          metadataHeaders: ["Subject", "From", "To", "Date"] });
         const h       = d.data.payload.headers || [];
         const subject = h.find(x => x.name === "Subject")?.value || "(No Subject)";
         const from    = h.find(x => x.name === "From")?.value    || "Unknown";
+        const to      = h.find(x => x.name === "To")?.value      || "";
         const date    = h.find(x => x.name === "Date")?.value    || "";
+        const labels  = d.data.labelIds || [];
         return {
           id: item.id,
           threadId: d.data.threadId,
-          from, subject, date,
+          from, to, subject, date,
           snippet:  d.data.snippet || "",
-          isRead:   !(d.data.labelIds || []).includes("UNREAD"),
+          isRead:   !labels.includes("UNREAD"),
+          isSent:   labels.includes("SENT"),
           isReply:  /^re:/i.test(subject),
-          labelIds: d.data.labelIds || [],
+          labelIds: labels,
         };
       })
     );
-    return res.json({ success: true, messages });
+    return res.json({ success: true, messages, nextPageToken: list.data.nextPageToken || null });
   } catch (e) { return res.status(500).json({ success: false, message: e.message }); }
 });
 
