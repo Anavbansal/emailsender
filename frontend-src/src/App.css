@@ -1555,4 +1555,3 @@ input, textarea, select { font-family: var(--font); }
   .li-grid { grid-template-columns: 1fr; }
   .li-card { flex-wrap: wrap; }
 }
-}
