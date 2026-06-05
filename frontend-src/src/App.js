@@ -1990,7 +1990,9 @@ function LinkedInConnectionsPage({ onFillApply, addToast }) {
       setConnections(r.data.connections || []);
       setTotal(r.data.total || 0);
     } catch (e) {
-      addToast && addToast("Failed to load connections", "error");
+      const msg = e.response?.data?.message || e.message || "Failed to load connections";
+      addToast && addToast(msg, "error");
+      console.error("LinkedIn connections error:", msg);
     } finally { setLoading(false); }
   }, [addToast]);
 
