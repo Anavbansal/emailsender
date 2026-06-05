@@ -9,7 +9,7 @@ const cron = require("node-cron");
 const mongoose = require("mongoose");
 const gmailAuthRoutes = require("./gmail-auth");
 const {
-  createTrackingRecord, markTrackingOpened,
+  createTrackingRecord, markTrackingOpened, updateTrackingMessageId,
   getTrackingRecords, getPixelBuffer,
   storeEmailHtml, getEmailHtml,
 } = require("./tracking");
@@ -355,6 +355,8 @@ async function sendApplicationEmail({
   }
   const info = await sendViaGmailAPI(mailOpts);
   console.log(`📤 Sent → ${hrEmail} | ${info.messageId}`);
+  // Store Gmail Message-ID so follow-ups can thread on the same email
+  updateTrackingMessageId(trackRecord.trackingId, info.messageId);
   logToSheets([info.messageId, hrEmail, company||"", role||"", new Date().toISOString(), trackRecord.trackingId, "Sent", ""]);
   return { info, trackRecord };
 }
@@ -746,14 +748,18 @@ app.get("/api/contacts", async (req, res) => {
     sheetError = "GOOGLE_SHEET_ID not set in .env";
   }
 
-  // 2. Enrich with tracking.json — only update open status for contacts already in sheet
+  // 2. Enrich with tracking.json — open status + latestMessageId for threading
   const records = getTrackingRecords();
   for (const r of records) {
     const key = r.hrEmail.toLowerCase();
     const c   = byEmail.get(key);
-    if (!c) continue; // not in sheet → skip
+    if (!c) continue;
     if (r.opened && !c.opened) { c.opened = true; c.openedAt = r.openedAt; }
     if (!c.latestTrackingId && r.trackingId) c.latestTrackingId = r.trackingId;
+    // Keep messageId of the latest sent email (for follow-up threading)
+    if (r.messageId && (r.sentAt || 0) >= (c.latestSentAt || 0)) {
+      c.latestMessageId = r.messageId;
+    }
   }
 
   // 3. Build result array
@@ -768,6 +774,7 @@ app.get("/api/contacts", async (req, res) => {
       hrEmail: c.hrEmail, hrName: c.hrName || "",
       company: c.company, role: c.role,
       lastSentAt: c.latestSentAt, lastTrackingId: c.latestTrackingId,
+      lastMessageId: c.latestMessageId || null,
       totalSent: c.totalSent, followupCount: c.followupCount,
       opened: c.opened, openedAt: c.openedAt,
       needsFollowUp,

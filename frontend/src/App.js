@@ -411,7 +411,7 @@ function FollowUpModal({ contact, onClose, onSent }) {
     role: contact.role || "",
     originalDate: contact.lastSentAt ? new Date(contact.lastSentAt).toLocaleDateString("en-IN") : "",
     customNote: "",
-    originalMessageId: "",
+    originalMessageId: contact.originalMessageId || "",  // auto-filled for threading
     originalSubject: contact.originalSubject || "",
   });
   const [mode, setMode]           = useState("now");
@@ -675,7 +675,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
                         <div className="kanban-meta"><DaysBadge ts={c.lastSentAt} /></div>
                         <div className="kanban-actions">
                           <button className="btn-ghost btn-sm" onClick={() => onViewEmail(c.lastTrackingId)} disabled={!c.lastTrackingId} title="View email">📧</button>
-                          <button className="btn-followup btn-sm" onClick={() => onFollowUp(c)} title="Follow up">🔁 Follow-up</button>
+                          <button className="btn-followup btn-sm" onClick={() => onFollowUp({ ...c, originalMessageId: c.lastMessageId || "" })} title="Follow up">🔁 Follow-up</button>
                         </div>
                       </div>
                     ))
@@ -711,7 +711,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
               <div className="contact-actions">
                 <button className="btn-ghost btn-sm" onClick={() => onViewEmail(c.lastTrackingId)} disabled={!c.lastTrackingId}>📧 View</button>
                 <button className="btn-ghost btn-sm" onClick={() => onMessage(c)}>💬 Message</button>
-                <button className="btn-followup btn-sm" onClick={() => onFollowUp(c)}>🔁 Follow-up</button>
+                <button className="btn-followup btn-sm" onClick={() => onFollowUp({ ...c, originalMessageId: c.lastMessageId || "" })}>🔁 Follow-up</button>
               </div>
             </div>
           ))}

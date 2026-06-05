@@ -62,12 +62,22 @@ function markTrackingOpened(trackingId, ip, userAgent) {
   return records[idx];
 }
 
+// Store the Gmail Message-ID after the email is actually sent
+function updateTrackingMessageId(trackingId, messageId) {
+  const records = loadTrackingData();
+  const idx = records.findIndex((r) => r.trackingId === trackingId);
+  if (idx === -1) return;
+  records[idx].messageId = messageId;
+  saveTrackingData(records);
+}
+
 function getTrackingRecords() { return loadTrackingData(); }
 function getPixelBuffer() { return Buffer.from(TRANSPARENT_PNG, "base64"); }
 
 module.exports = {
   createTrackingRecord,
   markTrackingOpened,
+  updateTrackingMessageId,
   getTrackingRecords,
   getPixelBuffer,
   storeEmailHtml,
