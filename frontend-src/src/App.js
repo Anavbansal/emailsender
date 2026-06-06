@@ -5,6 +5,61 @@ import "./App.css";
 const API = "https://emailsender-v8a4.onrender.com";
 const DRIVE_LINK = "https://drive.google.com/file/d/1LKc-w9Ggd5I1eZ3t7Wvm9psU-4ITxHxr/view?usp=sharing";
 
+// ── HR Profile answers — edit these anytime ──────────────────────────────────
+const HR_PROFILE = {
+  totalExp:        "4.7+ Years",
+  relevantExp:     "4.7+ Years",
+  currentCompany:  "NovelVox Pvt. Ltd.",
+  reasonForChange: "Personal and professional growth",
+  noticePeriod:    "30 Days",
+  currentCTC:      "₹9 LPA",
+  offerInHand:     "No",
+  expectedCTC:     "₹15 LPA",
+  currentLocation: "Faridabad, Haryana",
+  preferredLocation: "PAN India",
+};
+
+// Keywords that indicate HR is asking screening questions
+const SCREENING_KEYWORDS = [
+  "total experience", "years of experience", "current ctc", "expected ctc",
+  "notice period", "current company", "reason for change", "offer in hand",
+  "current location", "preferred location", "lwd", "last working day",
+  "relevant experience", "ctc", "notice", "salary", "location", "joining",
+  "current salary", "expected salary", "current organization"
+];
+
+function buildScreeningReply(hrName = "") {
+  const greeting = hrName ? \`Hi \${hrName},\` : "Hi,";
+  return \`\${greeting}
+
+Thank you for reaching out! Please find my details below:
+
+📋 Candidate Profile — Anav Bansal
+
+• Total Experience       : \${HR_PROFILE.totalExp}
+• Relevant Experience    : \${HR_PROFILE.relevantExp}
+• Current Company        : \${HR_PROFILE.currentCompany}
+• Reason for Change      : \${HR_PROFILE.reasonForChange}
+• Notice Period / LWD    : \${HR_PROFILE.noticePeriod}
+• Current CTC            : \${HR_PROFILE.currentCTC}
+• Offer in Hand          : \${HR_PROFILE.offerInHand}
+• Expected CTC           : \${HR_PROFILE.expectedCTC}
+• Current Location       : \${HR_PROFILE.currentLocation}
+• Preferred Location     : \${HR_PROFILE.preferredLocation}
+
+Looking forward to the next steps. Please feel free to reach out for any further information.
+
+Best regards,
+Anav Bansal
+📞 +91 7827855635 | ✉ anavbansal06@gmail.com
+🔗 linkedin.com/in/anavbansal-51b191162\`;
+}
+
+function isScreeningEmail(subject = "", snippet = "") {
+  const text = (subject + " " + snippet).toLowerCase();
+  return SCREENING_KEYWORDS.some(kw => text.includes(kw));
+}
+
 const EMAIL_TEMPLATES = [
   { id: "fullstack", name: "Full Stack", icon: "⚡", accent: "#2563eb",
     customNote: "I am excited to apply for this opportunity. My full-stack expertise in Node.js, ReactJS, and AWS Lambda makes me an ideal candidate for building scalable, production-ready applications." },
@@ -139,10 +194,10 @@ function StatCard({ icon, label, value, sub, color = "blue", onClick }) {
 
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
 function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
+  const followDue = contacts.filter(c => c.needsFollowUp);
   const totalSent   = contacts.reduce((s, c) => s + (c.totalSent || 1), 0);
   const openedCount = contacts.filter(c => c.opened).length;
   const replyCount  = replies.length;
-  const followDue   = contacts.filter(c => c.needsFollowUp).length;
   const scheduled   = scheduledJobs.filter(j => j.status === "pending").length;
   const openRate    = contacts.length > 0 ? Math.round(openedCount / contacts.length * 100) : 0;
   const replyRate   = contacts.length > 0 ? Math.round(replyCount  / contacts.length * 100) : 0;
@@ -1084,15 +1139,194 @@ function ThreadView({ threadId, onBack }) {
   );
 }
 
+
+// ─── Screening Reply Modal ─────────────────────────────────────────────────────
+function ScreeningReplyModal({ message, contacts, onClose, addToast }) {
+  const extractEmail = (str = "") => { const m = str.match(/<(.+?)>/); return m ? m[1] : str.trim(); };
+  const displayName  = (str = "") => str.replace(/<[^>]+>/, "").trim() || str;
+
+  const fromEmail = extractEmail(message.from);
+  const fromName  = displayName(message.from);
+  const matched   = contacts.find(c => c.hrEmail.toLowerCase() === fromEmail.toLowerCase());
+  const hrName    = matched?.hrName || fromName || "";
+
+  const [replyText, setReplyText] = useState(() => buildScreeningReply(hrName));
+  const [loading,   setLoading]   = useState(false);
+  const [sent,      setSent]      = useState(false);
+  const [editProfile, setEditProfile] = useState(false);
+  const [profile, setProfile] = useState({ ...HR_PROFILE });
+  useLockBodyScroll();
+
+  const handleProfileChange = (k, v) => setProfile(p => ({ ...p, [k]: v }));
+
+  const regenerate = () => {
+    // rebuild with current profile values
+    const greeting = hrName ? \`Hi \${hrName},\` : "Hi,";
+    const txt = \`\${greeting}
+
+Thank you for reaching out! Please find my details below:
+
+📋 Candidate Profile — Anav Bansal
+
+• Total Experience       : \${profile.totalExp}
+• Relevant Experience    : \${profile.relevantExp}
+• Current Company        : \${profile.currentCompany}
+• Reason for Change      : \${profile.reasonForChange}
+• Notice Period / LWD    : \${profile.noticePeriod}
+• Current CTC            : \${profile.currentCTC}
+• Offer in Hand          : \${profile.offerInHand}
+• Expected CTC           : \${profile.expectedCTC}
+• Current Location       : \${profile.currentLocation}
+• Preferred Location     : \${profile.preferredLocation}
+
+Looking forward to the next steps. Please feel free to reach out for any further information.
+
+Best regards,
+Anav Bansal
+📞 +91 7827855635 | ✉ anavbansal06@gmail.com
+🔗 linkedin.com/in/anavbansal-51b191162\`;
+    setReplyText(txt);
+    setEditProfile(false);
+  };
+
+  const send = async () => {
+    setLoading(true);
+    try {
+      await axios.post(\`\${API}/api/send-followup\`, {
+        hrEmail:           fromEmail,
+        hrName:            hrName,
+        company:           matched?.company || "",
+        role:              matched?.role || "",
+        originalMessageId: message.id,
+        originalThreadId:  message.threadId,
+        originalSubject:   message.subject,
+        customNote:        replyText,
+        isScreeningReply:  true,
+      });
+      setSent(true);
+      addToast && addToast("✅ Screening reply sent!");
+      setTimeout(onClose, 1500);
+    } catch (e) {
+      addToast && addToast("❌ Failed to send reply", "error");
+    } finally { setLoading(false); }
+  };
+
+  const profileFields = [
+    { key: "totalExp",        label: "Total Experience" },
+    { key: "relevantExp",     label: "Relevant Experience" },
+    { key: "currentCompany",  label: "Current Company" },
+    { key: "reasonForChange", label: "Reason for Change" },
+    { key: "noticePeriod",    label: "Notice Period / LWD" },
+    { key: "currentCTC",      label: "Current CTC" },
+    { key: "offerInHand",     label: "Offer in Hand" },
+    { key: "expectedCTC",     label: "Expected CTC" },
+    { key: "currentLocation", label: "Current Location" },
+    { key: "preferredLocation", label: "Preferred Location" },
+  ];
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box-form modal-wide" onClick={e => e.stopPropagation()} style={{ maxWidth: 680 }}>
+        <div className="modal-header">
+          <div className="modal-title-row">
+            <span>🤖</span>
+            <h3 className="modal-title">Auto HR Screening Reply</h3>
+            <span className="modal-hint" style={{ background: "#fef3c7", color: "#92400e", padding: "2px 8px", borderRadius: 6, fontSize: 11 }}>
+              📧 Replying to {fromName || fromEmail}
+            </span>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="modal-scroll">
+          {/* Toggle: Edit Profile */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
+            <button
+              className={\`chip \${editProfile ? "chip-active" : ""}\`}
+              onClick={() => setEditProfile(p => !p)}
+              type="button"
+            >
+              ✏️ {editProfile ? "Hide Profile Editor" : "Edit Profile Values"}
+            </button>
+            {editProfile && (
+              <button className="chip chip-active" onClick={regenerate} type="button">
+                🔄 Regenerate Reply
+              </button>
+            )}
+          </div>
+
+          {/* Profile editor */}
+          {editProfile && (
+            <div style={{
+              background: "var(--bg-secondary, #f8fafc)", border: "1px solid var(--border, #e2e8f0)",
+              borderRadius: 10, padding: "16px", marginBottom: 14
+            }}>
+              <p style={{ fontSize: 12, color: "var(--text-muted, #64748b)", marginBottom: 10, fontWeight: 600 }}>
+                📋 Edit your profile — changes reflect in the reply below
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                {profileFields.map(f => (
+                  <div key={f.key} className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: 11 }}>{f.label}</label>
+                    <input
+                      className="form-input"
+                      style={{ fontSize: 12 }}
+                      value={profile[f.key]}
+                      onChange={e => handleProfileChange(f.key, e.target.value)}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Reply preview / editor */}
+          <div className="form-group">
+            <label className="form-label">
+              📝 Reply Text — <span style={{ color: "var(--text-muted,#64748b)", fontWeight: 400 }}>Edit if needed before sending</span>
+            </label>
+            <textarea
+              className="form-textarea"
+              rows={18}
+              value={replyText}
+              onChange={e => setReplyText(e.target.value)}
+              style={{ fontFamily: "monospace", fontSize: 12, lineHeight: 1.7 }}
+            />
+          </div>
+
+          {sent && (
+            <div className="alert alert-success">
+              <span className="alert-icon">✓</span>
+              <span>Reply sent successfully in the same thread!</span>
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button
+            className={\`btn-followup \${loading ? "loading" : ""}\`}
+            onClick={send}
+            disabled={loading || sent}
+          >
+            {loading ? <><span className="spinner" /> Sending…</> : sent ? "✓ Sent!" : <><span className="btn-arrow">↑</span> Send Reply in Thread</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Inbox Page ───────────────────────────────────────────────────────────────
-function InboxPage({ contacts = [], onFollowUp }) {
-  const [activeTab,    setActiveTab]    = useState("inbox"); // "inbox" | "sent"
-  const [messages,     setMessages]     = useState([]);
-  const [loading,      setLoading]      = useState(false);
-  const [loadingMore,  setLoadingMore]  = useState(false);
-  const [searchQuery,  setSearchQuery]  = useState("");
-  const [nextPageToken,setNextPage]     = useState(null);
-  const [activeThread, setActiveThread] = useState(null);
+function InboxPage({ contacts = [], onFollowUp, addToast }) {
+  const [activeTab,       setActiveTab]       = useState("inbox"); // "inbox" | "sent"
+  const [messages,        setMessages]        = useState([]);
+  const [loading,         setLoading]         = useState(false);
+  const [loadingMore,     setLoadingMore]      = useState(false);
+  const [searchQuery,     setSearchQuery]      = useState("");
+  const [nextPageToken,   setNextPage]         = useState(null);
+  const [activeThread,    setActiveThread]     = useState(null);
+  const [screeningModal,  setScreeningModal]   = useState(null); // message to auto-reply
 
   const baseQ = (tab) => tab === "sent" ? "in:sent" : "in:inbox";
 
@@ -1136,6 +1370,18 @@ function InboxPage({ contacts = [], onFollowUp }) {
     const matched  = contacts.find(c => c.hrEmail.toLowerCase() === email.toLowerCase());
     onFollowUp(matched || { hrEmail: email, hrName: displayName(emailStr), company: "", role: "" });
   };
+
+  // Screening reply modal
+  if (screeningModal) {
+    return (
+      <ScreeningReplyModal
+        message={screeningModal}
+        contacts={contacts}
+        onClose={() => setScreeningModal(null)}
+        addToast={addToast}
+      />
+    );
+  }
 
   // Thread view replaces the list
   if (activeThread) {
@@ -1202,7 +1448,7 @@ function InboxPage({ contacts = [], onFollowUp }) {
             {messages.map((m, i) => {
               const name = isSent ? displayName(m.to) : displayName(m.from);
               return (
-                <div key={i} className={`inbox-row ${!m.isRead && !isSent ? "inbox-row-unread" : ""}`}>
+                <div key={i} className={`inbox-row ${!m.isRead && !isSent ? "inbox-row-unread" : ""}`} style={{ position: "relative" }}>
                   <div className="inbox-row-avatar" onClick={() => setActiveThread(m.threadId)}>
                     {(name || "?")[0].toUpperCase()}
                   </div>
@@ -1214,7 +1460,17 @@ function InboxPage({ contacts = [], onFollowUp }) {
                     <p className="inbox-row-subject">{m.subject}</p>
                     <p className="inbox-row-snippet">{m.snippet}</p>
                   </div>
-                  <div className="inbox-row-actions">
+                  <div className="inbox-row-actions" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {!isSent && isScreeningEmail(m.subject, m.snippet) && (
+                      <button
+                        className="btn-primary btn-sm"
+                        title="Auto-fill HR screening answers"
+                        style={{ background: "#0d9488", fontSize: 11, whiteSpace: "nowrap" }}
+                        onClick={e => { e.stopPropagation(); setScreeningModal(m); }}
+                      >
+                        🤖 Auto Reply
+                      </button>
+                    )}
                     {onFollowUp && (
                       <button
                         className="btn-followup btn-sm"
@@ -1226,6 +1482,14 @@ function InboxPage({ contacts = [], onFollowUp }) {
                     )}
                   </div>
                   {!m.isRead && !isSent && <span className="inbox-unread-dot" />}
+                  {!isSent && isScreeningEmail(m.subject, m.snippet) && (
+                    <span style={{
+                      position: "absolute", top: 6, left: 6,
+                      background: "#0d9488", color: "#fff",
+                      fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                      letterSpacing: "0.5px", textTransform: "uppercase"
+                    }}>🤖 Screening</span>
+                  )}
                 </div>
               );
             })}
@@ -2210,6 +2474,52 @@ export default function App() {
 
   useEffect(() => { fetchContacts(); fetchReplies(); fetchScheduled(); }, [fetchContacts, fetchReplies, fetchScheduled]);
 
+  // ── Auto-poll replies every 2 minutes + notify on new replies ───────────────
+  const prevReplyCountRef = React.useRef(0);
+  useEffect(() => {
+    // Request notification permission on load
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+
+    const poll = setInterval(async () => {
+      try {
+        const r = await axios.get(`${API}/api/gmail/replies`);
+        const newReplies = r.data.replies || [];
+        setReplies(newReplies);
+
+        // Notify if new replies came in since last poll
+        const prev = prevReplyCountRef.current;
+        if (newReplies.length > prev && prev > 0) {
+          const diff = newReplies.length - prev;
+          // Browser notification
+          if ("Notification" in window && Notification.permission === "granted") {
+            new Notification("📬 New HR Reply!", {
+              body: `${diff} new reply${diff > 1 ? "s" : ""} in your inbox`,
+              icon: "/favicon.ico",
+              tag: "hr-reply",
+            });
+          }
+          addToast(`📬 ${diff} new HR repl${diff > 1 ? "ies" : "y"} received!`, "success");
+        }
+        prevReplyCountRef.current = newReplies.length;
+      } catch {}
+    }, 2 * 60 * 1000); // every 2 minutes
+
+    return () => clearInterval(poll);
+  }, [addToast, fetchReplies]);
+
+  // ── Follow-up reminders toast on load ─────────────────────────────────────
+  const reminderShownRef = React.useRef(false);
+  useEffect(() => {
+    if (reminderShownRef.current) return;
+    const due = contacts.filter(c => c.needsFollowUp);
+    if (due.length > 0) {
+      reminderShownRef.current = true;
+      addToast(`⏰ ${due.length} follow-up${due.length > 1 ? "s" : ""} due today!`, "success");
+    }
+  }, [contacts, addToast]);
+
   const reminderCount  = contacts.filter(c => c.needsFollowUp).length;
   const replyCount     = replies.length;
   const scheduledCount = scheduledJobs.filter(j => j.status === "pending").length;
@@ -2314,7 +2624,7 @@ export default function App() {
           {page === "send"      && <SendApplicationPage onContactsRefresh={fetchContacts} prefill={prefillSend} onPrefillConsumed={() => setPrefillSend(null)} addToast={addToast} />}
           {page === "linkedin"  && <LinkedInConnectionsPage onFillApply={goToSendPrefilled} addToast={addToast} />}
           {page === "referral"  && <ReferralPage addToast={addToast} />}
-          {page === "inbox"     && <InboxPage contacts={contacts} onFollowUp={contact => setModal({ type: "followUp", contact })} />}
+          {page === "inbox"     && <InboxPage contacts={contacts} onFollowUp={contact => setModal({ type: "followUp", contact })} addToast={addToast} />}
           {page === "messages"  && <MessagesPage contacts={contacts} />}
           {page === "prospect"  && <ProspectPage onFillApply={goToSendPrefilled} addToast={addToast} />}
           {page === "jobs"      && <FindJobsPage onFillApply={goToSendPrefilled} />}
