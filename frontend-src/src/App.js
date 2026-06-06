@@ -7,6 +7,7 @@ const DRIVE_LINK = "https://drive.google.com/file/d/1LKc-w9Ggd5I1eZ3t7Wvm9psU-4I
 
 // ── HR Profile answers — edit these anytime ──────────────────────────────────
 const HR_PROFILE = {
+  keySkills:       "Node.js, Angular, AWS, ExpressJS, TypeScript, CTI Integrations, ServiceNow, Chatbot Development",
   totalExp:        "4.7+ Years",
   relevantExp:     "4.7+ Years",
   currentCompany:  "NovelVox Pvt. Ltd.",
@@ -36,6 +37,7 @@ Thank you for reaching out! Please find my details below:
 
 📋 Candidate Profile — Anav Bansal
 
+• Key Skills             : ${HR_PROFILE.keySkills}
 • Total Experience       : ${HR_PROFILE.totalExp}
 • Relevant Experience    : ${HR_PROFILE.relevantExp}
 • Current Company        : ${HR_PROFILE.currentCompany}
@@ -1207,6 +1209,7 @@ Thank you for reaching out! Please find my details below:
 
 📋 Candidate Profile — Anav Bansal
 
+• Key Skills             : ${profile.keySkills}
 • Total Experience       : ${profile.totalExp}
 • Relevant Experience    : ${profile.relevantExp}
 • Current Company        : ${profile.currentCompany}
@@ -1251,6 +1254,7 @@ Anav Bansal
   };
 
   const profileFields = [
+    { key: "keySkills",       label: "Key Skills",          wide: true },
     { key: "totalExp",        label: "Total Experience" },
     { key: "relevantExp",     label: "Relevant Experience" },
     { key: "currentCompany",  label: "Current Company" },
@@ -1305,12 +1309,13 @@ Anav Bansal
               </p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                 {profileFields.map(f => (
-                  <div key={f.key} className="form-group" style={{ marginBottom: 0 }}>
+                  <div key={f.key} className="form-group"
+                    style={{ marginBottom: 0, gridColumn: f.wide ? "1 / -1" : undefined }}>
                     <label className="form-label" style={{ fontSize: 11 }}>{f.label}</label>
                     <input
                       className="form-input"
                       style={{ fontSize: 12 }}
-                      value={profile[f.key]}
+                      value={profile[f.key] || ""}
                       onChange={e => handleProfileChange(f.key, e.target.value)}
                     />
                   </div>
