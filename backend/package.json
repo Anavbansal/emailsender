@@ -1,7 +1,7 @@
 {
-  "name": "email-sender-backend",
+  "name": "job-mailer-backend",
   "version": "1.0.0",
-  "description": "Secure Node.js + Nodemailer email backend",
+  "description": "Job application email sender with follow-up threading",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -12,7 +12,10 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "googleapis": "^144.0.0",
-    "nodemailer": "^6.9.13"
+    "mongoose": "^8.24.0",
+    "node-cron": "^3.0.0",
+    "nodemailer": "^6.9.13",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
