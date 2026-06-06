@@ -660,7 +660,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
   };
 
   function statusBadge(c) {
-    if (replyEmails.has(c.hrEmail.toLowerCase()))
+    if (replyEmails.has(c.hrEmail.toLowerCase()) || c.replied)
       return <span className="badge badge-reply">↩ Replied</span>;
     if (c.opened)
       return (
@@ -794,6 +794,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
                   {c.followupCount > 0 && <span>🔁 {c.followupCount} follow-up{c.followupCount > 1 ? "s" : ""}</span>}
                   {c.opened && c.openedAt && <span>👁 opened {relativeTime(c.openedAt)}</span>}
                   {c.totalSent > 1 && <span>✉ {c.totalSent} sent</span>}
+                  {c.notes && <span title={c.notes}>📝 {c.notes.length > 30 ? c.notes.slice(0,30)+"…" : c.notes}</span>}
                 </div>
               </div>
               <div className="contact-actions">
