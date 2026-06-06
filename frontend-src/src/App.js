@@ -620,11 +620,12 @@ const PIPELINE_STAGES = [
 ];
 
 function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail, onFollowUp, onMessage, onRefresh, addToast, onViewThread }) {
-  const [search,    setSearch]    = useState("");
-  const [view,      setView]      = useState("list"); // "list" | "kanban"
-  const [clearing,  setClearing]  = useState(null);
-  const [syncing,   setSyncing]   = useState(false);
-  const [syncResult,setSyncResult]= useState(null);
+  const [search,     setSearch]    = useState("");
+  const [view,       setView]      = useState("list"); // "list" | "kanban"
+  const [activeTab,  setActiveTab] = useState("all");  // filter tab
+  const [clearing,   setClearing]  = useState(null);
+  const [syncing,    setSyncing]   = useState(false);
+  const [syncResult, setSyncResult]= useState(null);
 
   const syncGmailSent = async () => {
     setSyncing(true); setSyncResult(null);
@@ -640,23 +641,57 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
       addToast && addToast("❌ Gmail sync failed: " + (e.response?.data?.message || e.message), "error");
     } finally { setSyncing(false); }
   };
+
   const replyEmails = new Set((replies || []).map(r => r.fromEmail.toLowerCase()));
 
   const getStage = (c) => {
-    if (replyEmails.has(c.hrEmail.toLowerCase())) return "replied";
-    if (c.opened) return "opened";
-    if (c.needsFollowUp) return "followup";
+    if (c.replied || replyEmails.has(c.hrEmail.toLowerCase())) return "replied";
+    if (c.opened)         return "opened";
+    if (c.needsFollowUp)  return "followup";
+    if (c.followupSent)   return "followup_sent";
     return "applied";
   };
 
-  const filtered = contacts.filter(c =>
+  // ── Filter counts ──────────────────────────────────────────────────────────
+  const counts = {
+    all:           contacts.length,
+    replied:       contacts.filter(c => c.replied || replyEmails.has(c.hrEmail.toLowerCase())).length,
+    followup:      contacts.filter(c => c.needsFollowUp).length,
+    followup_sent: contacts.filter(c => c.followupSent && !c.replied).length,
+    thread:        contacts.filter(c => c.lastMessageId).length,
+    opened:        contacts.filter(c => c.opened).length,
+  };
+
+  // ── Filter tabs definition ─────────────────────────────────────────────────
+  const FILTER_TABS = [
+    { key: "all",           icon: "👥", label: "All",           color: "#2563eb" },
+    { key: "replied",       icon: "↩",  label: "Replied",       color: "#059669" },
+    { key: "followup",      icon: "⏰", label: "Follow-up Due", color: "#d97706" },
+    { key: "followup_sent", icon: "🔁", label: "Follow-up Sent",color: "#7c3aed" },
+    { key: "opened",        icon: "👁", label: "Opened",        color: "#0d9488" },
+    { key: "thread",        icon: "🧵", label: "Has Thread",    color: "#6366f1" },
+  ];
+
+  // ── Apply search + tab filter ──────────────────────────────────────────────
+  const searchFiltered = contacts.filter(c =>
     !search ||
     c.company?.toLowerCase().includes(search.toLowerCase()) ||
     c.hrEmail?.toLowerCase().includes(search.toLowerCase()) ||
-    c.role?.toLowerCase().includes(search.toLowerCase())
+    c.role?.toLowerCase().includes(search.toLowerCase()) ||
+    c.hrName?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const reminders = filtered.filter(c => c.needsFollowUp);
+  const filtered = searchFiltered.filter(c => {
+    if (activeTab === "all")           return true;
+    if (activeTab === "replied")       return c.replied || replyEmails.has(c.hrEmail.toLowerCase());
+    if (activeTab === "followup")      return c.needsFollowUp;
+    if (activeTab === "followup_sent") return c.followupSent;
+    if (activeTab === "thread")        return !!c.lastMessageId;
+    if (activeTab === "opened")        return c.opened;
+    return true;
+  });
+
+  const reminders = searchFiltered.filter(c => c.needsFollowUp);
 
   const clearOpened = async (trackingId) => {
     if (!trackingId) return;
@@ -707,6 +742,26 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
           <span><strong>{reminders.length} contact{reminders.length > 1 ? "s" : ""}</strong> sent 3+ days ago with no follow-up.</span>
         </div>
       )}
+
+      {/* ── Filter Tabs ── */}
+      <div className="contact-filter-tabs">
+        {FILTER_TABS.map(tab => (
+          <button
+            key={tab.key}
+            className={`cft-btn ${activeTab === tab.key ? "cft-active" : ""}`}
+            style={activeTab === tab.key ? { "--tab-color": tab.color } : {}}
+            onClick={() => setActiveTab(tab.key)}
+          >
+            <span className="cft-icon">{tab.icon}</span>
+            <span className="cft-label">{tab.label}</span>
+            {counts[tab.key] > 0 && (
+              <span className="cft-count" style={activeTab === tab.key ? { background: tab.color } : {}}>
+                {counts[tab.key]}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
 
       <div className="page-toolbar">
         <div className="search-bar-wrap search-bar-inline">
@@ -835,7 +890,13 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
                     </span>
                   )}
                   {c.totalSent > 1 && <span>✉ {c.totalSent} emails</span>}
-                  {c.followupCount > 0 && <span>🔁 {c.followupCount} followup{c.followupCount>1?"s":""}</span>}
+                  {c.followupCount > 0 && (
+                    <span style={{ color:"#7c3aed", fontWeight:600, fontSize:11 }}
+                      title="Follow-up email sent"
+                      onClick={() => onViewThread(c)} >
+                      🔁 followup sent {c.lastSentAt > 0 ? relativeTime(c.lastSentAt) : ""}
+                    </span>
+                  )}
                   {c.opened && c.openedAt && <span>👁 opened {relativeTime(c.openedAt)}</span>}
                   {c.replied && c.repliedAt && (
                     <span style={{ color:"#0d9488", fontWeight:600, fontSize:11 }}>
