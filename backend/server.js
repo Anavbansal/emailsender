@@ -860,13 +860,13 @@ app.get("/api/contacts", async (req, res) => {
     sheetError = "GOOGLE_SHEET_ID not set in .env";
   }
 
+  // ── Merge tracking.json records ──────────────────────────────────────────────
   const records = getTrackingRecords();
   const missingFromSheet = [];
   for (const r of records) {
     const key = r.hrEmail.toLowerCase();
     const c   = byEmail.get(key);
     if (!c) {
-      // Contact is in tracking.json but not in Sheet — add it and backfill to Sheet
       byEmail.set(key, {
         hrEmail: r.hrEmail, hrName: r.hrName || "",
         company: r.company || "", role: r.role || "",
@@ -885,7 +885,7 @@ app.get("/api/contacts", async (req, res) => {
     }
   }
 
-  // Backfill tracking.json contacts that were missing from Sheet
+  // Backfill tracking.json contacts missing from Sheet
   for (const r of missingFromSheet) {
     logToSheets([
       r.messageId || "", r.hrEmail, r.company || "", r.role || "",
@@ -894,21 +894,60 @@ app.get("/api/contacts", async (req, res) => {
     ]).catch(() => {});
   }
 
+  // ── Merge ALL MongoDB SentEmailLog records ────────────────────────────────
   const contacts = [];
-  // Enrich contacts with threadId from DB (needed for followup threading)
   if (mongoose.connection.readyState === 1) {
-    const allEmails = [...byEmail.keys()];
-    const dbLogs = await SentEmailLog.aggregate([
-      { $match: { hrEmail: { $in: allEmails.map(e => new RegExp(`^${e}$`, "i")) } } },
+    // Get all unique contacts from DB grouped by email
+    const dbContacts = await SentEmailLog.aggregate([
       { $sort: { sentAt: -1 } },
-      { $group: { _id: { $toLower: "$hrEmail" }, threadId: { $first: "$threadId" }, messageId: { $first: "$messageId" }, sentAt: { $first: "$sentAt" } } }
+      { $group: {
+        _id:          { $toLower: "$hrEmail" },
+        hrEmail:      { $first: "$hrEmail" },
+        hrName:       { $first: "$hrName" },
+        company:      { $first: "$company" },
+        role:         { $first: "$role" },
+        latestSentAt: { $first: "$sentAt" },
+        messageId:    { $first: "$messageId" },
+        threadId:     { $first: "$threadId" },
+        replied:      { $max:   "$replied" },
+        repliedAt:    { $first: "$repliedAt" },
+        followupSent: { $max:   "$followupSent" },
+        notes:        { $first: "$notes" },
+        totalSent:    { $sum: 1 },
+      }}
     ]);
-    for (const row of dbLogs) {
-      const c = byEmail.get(row._id);
-      if (c) {
-        c.latestThreadId  = row.threadId || null;
-        if (!c.latestMessageId && row.messageId) c.latestMessageId = row.messageId;
-        if (!c.latestSentAt && row.sentAt) c.latestSentAt = new Date(row.sentAt).getTime();
+
+    for (const row of dbContacts) {
+      const key = row._id;
+      const existing = byEmail.get(key);
+      if (!existing) {
+        // DB-only contact — add to map
+        byEmail.set(key, {
+          hrEmail:          row.hrEmail || row._id,
+          hrName:           row.hrName  || "",
+          company:          row.company || "",
+          role:             row.role    || "",
+          latestSentAt:     row.latestSentAt ? new Date(row.latestSentAt).getTime() : 0,
+          latestMessageId:  row.messageId    || null,
+          latestThreadId:   row.threadId     || null,
+          opened:           false,
+          openedAt:         null,
+          replied:          row.replied      || false,
+          repliedAt:        row.repliedAt    || null,
+          followupSent:     row.followupSent || false,
+          notes:            row.notes        || "",
+          totalSent:        row.totalSent    || 1,
+          followupCount:    row.followupSent ? 1 : 0,
+        });
+      } else {
+        // Enrich existing sheet/tracking contact with DB data
+        existing.latestThreadId  = row.threadId  || existing.latestThreadId  || null;
+        existing.latestMessageId = row.messageId || existing.latestMessageId || null;
+        existing.replied         = row.replied   || existing.replied   || false;
+        existing.repliedAt       = row.repliedAt || existing.repliedAt || null;
+        existing.notes           = row.notes     || existing.notes     || "";
+        if (!existing.latestSentAt && row.latestSentAt)
+          existing.latestSentAt = new Date(row.latestSentAt).getTime();
       }
     }
   }
