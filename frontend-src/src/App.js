@@ -3071,6 +3071,7 @@ function LinkedInConnectionsPage({ onFillApply, addToast }) {
   };
 
   return (
+    <>
     <div className="page">
       {/* Stats row */}
       <div className="li-stats-row">
@@ -3185,23 +3186,24 @@ function LinkedInConnectionsPage({ onFillApply, addToast }) {
           ))}
         </div>
       )}
-      {/* Referral Message Modal */}
-      {refModal && (
-        <ReferralMessageModal
-          connection={refModal}
-          onClose={() => setRefModal(null)}
-          addToast={addToast}
-        />
-      )}
-      {/* Add Connection Modal */}
-      {addConnModal && (
-        <AddConnectionModal
-          onClose={() => setAddConnModal(false)}
-          onAdded={() => fetchConnections(search, filter)}
-          addToast={addToast}
-        />
-      )}
     </div>
+
+    {/* Modals rendered outside page div to avoid overflow clipping */}
+    {refModal && (
+      <ReferralMessageModal
+        connection={refModal}
+        onClose={() => setRefModal(null)}
+        addToast={addToast}
+      />
+    )}
+    {addConnModal && (
+      <AddConnectionModal
+        onClose={() => setAddConnModal(false)}
+        onAdded={() => fetchConnections(search, filter)}
+        addToast={addToast}
+      />
+    )}
+    </>
   );
 }
 
