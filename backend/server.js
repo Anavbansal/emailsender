@@ -7,7 +7,8 @@ const fs = require("fs");
 const https = require("https");
 const cron = require("node-cron");
 const mongoose = require("mongoose");
-const gmailAuthRoutes = require("./gmail-auth");
+const gmailAuthRoutes   = require("./gmail-auth");
+const autoImportContacts = require("./auto-import");
 const {
   createTrackingRecord, markTrackingOpened, updateTrackingMessageId,
   getTrackingRecords, getPixelBuffer,
@@ -30,7 +31,11 @@ const THREE_DAYS_MS    = 3 * 24 * 60 * 60 * 1000;
 // ─── MongoDB connection ────────────────────────────────────────────────────────
 if (process.env.MONGODB_URI) {
   mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log("✅ MongoDB connected"))
+    .then(async () => {
+      console.log("✅ MongoDB connected");
+      // One-time import of HR contacts from xlsx — runs only if contacts_import.done doesn't exist
+      setTimeout(() => autoImportContacts(SentEmailLog, mongoose), 3000);
+    })
     .catch(e => console.error("❌ MongoDB error:", e.message));
 } else {
   console.warn("⚠️  MONGODB_URI not set — scheduled emails will use local JSON fallback");
