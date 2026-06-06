@@ -1303,10 +1303,9 @@ app.get("/api/linkedin/connections", async (req, res) => {
     });
     const rows = resp.data.values || [];
     let connections = rows
-      .filter(row => (row[0] || row[1] || "").trim())
-      .filter(row => String(row[9] || "").toUpperCase() !== "IGNORED")  // skip ignored
+      // Assign rowIndex FIRST (before any filtering) so sheet row numbers stay correct
       .map((row, i) => ({
-        rowIndex:    i + 2,
+        rowIndex:    i + 2,                              // actual sheet row number
         firstName:   (row[0] || "").trim(),
         lastName:    (row[1] || "").trim(),
         name:        `${(row[0] || "").trim()} ${(row[1] || "").trim()}`.trim(),
@@ -1318,7 +1317,9 @@ app.get("/api/linkedin/connections", async (req, res) => {
         sent:        String(row[7] || "").toUpperCase() === "TRUE",
         replied:     String(row[8] || "").toUpperCase() === "TRUE",
         ignored:     String(row[9] || "").toUpperCase() === "IGNORED",
-      }));
+      }))
+      .filter(c => c.name.trim())                        // skip empty rows
+      .filter(c => !c.ignored);                          // skip ignored rows
 
     const { q, filter } = req.query;
     if (q) {
