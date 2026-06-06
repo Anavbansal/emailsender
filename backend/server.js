@@ -1390,7 +1390,7 @@ app.post("/api/import-contacts", async (req, res) => {
           role:       c.role     || "",
           type:       c.type     || "application",
           status:     c.status   || "Sent",
-          sentAt:     c.sentAt   ? new Date(c.sentAt) : new Date(),
+          sentAt:     c.sentAt   ? new Date(c.sentAt) : null,  // null = unknown date
           replied:    c.replied  || false,
           repliedAt:  c.repliedAt ? new Date(c.repliedAt) : null,
           followupSent: c.followupSent || false,
