@@ -2724,13 +2724,127 @@ const LI_FILTERS = [
   { key: "replied", label: "Replied ✓"      },
 ];
 
+
+// ─── Referral Message Modal ────────────────────────────────────────────────────
+function buildReferralMsg(name, company) {
+  const firstName = (name || "there").split(" ")[0];
+  return `Hi ${firstName},
+
+I hope this message finds you well! I came across your profile and was impressed by your journey at ${company || "your company"}.
+
+I'm currently exploring new opportunities and am actively looking for my next role as a Senior Full Stack Developer / CRM Integration Expert. With 4.7+ years of hands-on experience in Node.js, Angular, AWS, ServiceNow, and CTI integrations, I've delivered enterprise-grade products across contact center ecosystems.
+
+I'd be truly grateful if you could refer me for any suitable openings at ${company || "your organization"} or simply point me in the right direction. Even a quick introduction to the right team would mean a lot.
+
+I'm happy to share my resume or any further details — just let me know!
+
+Thank you so much for your time and consideration. Looking forward to connecting.
+
+Warm regards,
+Anav Bansal
+📞 +91 7827855635
+✉ anavbansal06@gmail.com
+🔗 linkedin.com/in/anavbansal-51b191162`;
+}
+
+function ReferralMessageModal({ connection, onClose, addToast }) {
+  const [msg,      setMsg]      = useState(() => buildReferralMsg(connection.name, connection.company));
+  const [copied,   setCopied]   = useState(false);
+  useLockBodyScroll();
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(msg);
+      setCopied(true);
+      addToast && addToast("✅ Message copied! Paste on LinkedIn.");
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // fallback
+      const ta = document.createElement("textarea");
+      ta.value = msg; document.body.appendChild(ta);
+      ta.select(); document.execCommand("copy");
+      document.body.removeChild(ta);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }
+  };
+
+  const openLinkedIn = () => {
+    if (connection.url) window.open(connection.url, "_blank");
+    else addToast && addToast("No LinkedIn URL for this connection", "error");
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box-form" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
+        <div className="modal-header">
+          <div className="modal-title-row">
+            <span>💬</span>
+            <h3 className="modal-title">Referral Message</h3>
+            <span className="modal-hint" style={{ background:"#e0f2fe", color:"#0369a1" }}>
+              🏢 {connection.company || "—"} · {(connection.name||"").split(" ")[0]}
+            </span>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="modal-scroll">
+          {/* Tips */}
+          <div style={{
+            background:"linear-gradient(135deg,#f0f9ff,#e0f2fe)",
+            border:"1px solid #bae6fd", borderRadius:10,
+            padding:"10px 14px", marginBottom:14, fontSize:12, color:"#0369a1"
+          }}>
+            💡 <strong>Tip:</strong> Copy → Open LinkedIn → Go to {(connection.name||"their")} profile → Message → Paste
+          </div>
+
+          {/* Editable message */}
+          <div className="form-group">
+            <label className="form-label" style={{ display:"flex", justifyContent:"space-between" }}>
+              <span>📝 Message — edit if needed</span>
+              <span style={{ fontSize:11, color:"var(--text-muted,#64748b)", fontWeight:400 }}>
+                {msg.length} chars
+              </span>
+            </label>
+            <textarea
+              className="form-textarea"
+              rows={14}
+              value={msg}
+              onChange={e => setMsg(e.target.value)}
+              style={{ fontFamily:"inherit", fontSize:13, lineHeight:1.7 }}
+            />
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          {connection.url && (
+            <button className="btn-ghost" onClick={openLinkedIn} style={{ color:"#0077b5", borderColor:"#0077b5" }}>
+              🔗 Open Profile
+            </button>
+          )}
+          <button
+            className="btn-primary"
+            onClick={copy}
+            style={{ background: copied ? "linear-gradient(135deg,#059669,#10b981)" : undefined, minWidth:140 }}
+          >
+            {copied ? "✅ Copied!" : "📋 Copy Message"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LinkedInConnectionsPage({ onFillApply, addToast }) {
   const [connections, setConnections] = useState([]);
   const [loading,     setLoading]     = useState(false);
   const [search,      setSearch]      = useState("");
   const [filter,      setFilter]      = useState("all");
   const [total,       setTotal]       = useState(0);
-  const [updating,    setUpdating]    = useState({}); // rowIndex -> field being updated
+  const [updating,    setUpdating]    = useState({});
+  const [refModal,    setRefModal]    = useState(null);   // connection for referral msg
+  const [ignoring,    setIgnoring]    = useState({});     // rowIndex -> bool
 
   const fetchConnections = useCallback(async (q, f) => {
     setLoading(true);
@@ -2767,6 +2881,17 @@ function LinkedInConnectionsPage({ onFillApply, addToast }) {
     } catch {
       addToast && addToast("Update failed", "error");
     } finally { setUpdating(p => ({ ...p, [key]: false })); }
+  };
+
+  const ignore = async (conn) => {
+    setIgnoring(p => ({ ...p, [conn.rowIndex]: true }));
+    try {
+      await axios.post(`${API}/api/linkedin/ignore-connection`, { rowIndex: conn.rowIndex });
+      setConnections(prev => prev.filter(c => c.rowIndex !== conn.rowIndex));
+      addToast && addToast(`🚫 ${conn.name || "Contact"} ignored and removed.`);
+    } catch {
+      addToast && addToast("Failed to ignore contact", "error");
+    } finally { setIgnoring(p => ({ ...p, [conn.rowIndex]: false })); }
   };
 
   // Stats from ALL connections (not filtered)
@@ -2863,20 +2988,40 @@ function LinkedInConnectionsPage({ onFillApply, addToast }) {
               </div>
 
               {/* Actions */}
-              <div className="li-actions">
+              <div className="li-actions" style={{ flexDirection:"column", gap:5, alignItems:"stretch" }}>
                 {c.url && (
-                  <a href={c.url} target="_blank" rel="noreferrer" className="btn-linkedin btn-sm" title="Open LinkedIn profile">
-                    🔗
+                  <a href={c.url} target="_blank" rel="noreferrer" className="btn-linkedin btn-sm"
+                    title="Open LinkedIn profile" style={{ textAlign:"center" }}>
+                    🔗 Profile
                   </a>
                 )}
-                <button className="btn-primary btn-sm" title="Send Application"
-                  onClick={() => onFillApply({ hrEmail: c.email || "", hrName: c.name, company: c.company, role: "" })}>
-                  ✉ Apply
+                <button
+                  className="btn-primary btn-sm"
+                  title="Generate referral message to copy-paste on LinkedIn"
+                  style={{ background:"linear-gradient(135deg,#0077b5,#005f8f)", fontSize:11 }}
+                  onClick={() => setRefModal(c)}>
+                  💬 Message
+                </button>
+                <button
+                  className="btn-ghost btn-sm"
+                  title="Ignore — remove from list"
+                  style={{ fontSize:10, color:"var(--text-400,#9ca3af)", borderColor:"transparent" }}
+                  disabled={ignoring[c.rowIndex]}
+                  onClick={() => ignore(c)}>
+                  {ignoring[c.rowIndex] ? "…" : "🚫 Ignore"}
                 </button>
               </div>
             </div>
           ))}
         </div>
+      )}
+      {/* Referral Message Modal */}
+      {refModal && (
+        <ReferralMessageModal
+          connection={refModal}
+          onClose={() => setRefModal(null)}
+          addToast={addToast}
+        />
       )}
     </div>
   );
