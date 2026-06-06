@@ -183,7 +183,7 @@ cron.schedule("* * * * *", async () => {
 
 // ─── Google Sheets ────────────────────────────────────────────────────────────
 const SHEET_HEADERS = ["Mail ID","HR Email","Company","Role","Sent At","Tracking ID","Status","Opened At"];
-const GOOGLE_SHEET_ID = GOOGLE_SHEET_ID || "1Ctdcf2D-DnWH0kfkKtPtobH-g_pNBs9tvHdf_gvS2WQ";
+const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID || "1Ctdcf2D-DnWH0kfkKtPtobH-g_pNBs9tvHdf_gvS2WQ";
 const SHEET_TAB = process.env.SHEET_TAB || "Contacts";
 let sheetsInitialized = false;
 
