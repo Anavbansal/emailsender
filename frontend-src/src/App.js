@@ -14,8 +14,10 @@ const EMAIL_TEMPLATES = [
     customNote: "I am respectfully submitting my application for this position. I am confident that my technical background aligns closely with your requirements." },
   { id: "startup",  name: "Startup",    icon: "🚀", accent: "#059669",
     customNote: "I build fast, ship quality, and love environments where impact matters. My Node.js + AWS stack has powered real-time enterprise solutions." },
+  { id: "crm",      name: "CRM Expert", icon: "🏆", accent: "#0d9488",
+    customNote: "With 4.7+ years as a CRM Integration Expert, I specialize in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent) and Freshdesk CTI — delivering real-time ticket automation and telephony-to-CRM sync at enterprise scale." },
 ];
-const BACKEND_TEMPLATE_MAP = { fullstack: "fullstack", cti: "cti", formal: "formal", startup: "fullstack" };
+const BACKEND_TEMPLATE_MAP = { fullstack: "fullstack", cti: "cti", formal: "formal", startup: "fullstack", crm: "crm" };
 
 const HEADER_THEMES = [
   { id: "blue",   label: "Blue",   color: "#2563eb" },
