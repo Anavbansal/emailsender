@@ -1349,4 +1349,134 @@ app.post("/api/import-contacts", async (req, res) => {
   res.json({ success: true, inserted, updated, skipped, total: contacts.length });
 });
 
+
+// ─── GET /api/sync-sent-emails ───────────────────────────────────────────────
+// Fetches sent emails from Gmail after a given date and saves to MongoDB
+app.get("/api/sync-sent-emails", async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1)
+      return res.status(503).json({ success: false, message: "MongoDB not connected" });
+
+    const tokenPath = path.join(__dirname, "tokens.json");
+    if (!fs.existsSync(tokenPath))
+      return res.status(401).json({ success: false, message: "Gmail not connected. Please connect via /api/gmail/auth" });
+
+    const auth = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI
+    );
+    auth.setCredentials(JSON.parse(fs.readFileSync(tokenPath, "utf8")));
+    const gmail = google.gmail({ version: "v1", auth });
+
+    // Default: after last sheet date (28 May 2026), or use query param
+    const afterDate = req.query.after || "2026/05/28";
+    const maxResults = parseInt(req.query.max || "200");
+
+    // Gmail date query format: after:YYYY/MM/DD
+    const query = `in:sent after:${afterDate}`;
+    console.log(`📧 Syncing Gmail sent emails: ${query}`);
+
+    let allMessages = [];
+    let pageToken = null;
+
+    // Paginate through results
+    do {
+      const listParams = { userId: "me", q: query, maxResults: 100 };
+      if (pageToken) listParams.pageToken = pageToken;
+      const list = await gmail.users.messages.list(listParams);
+      const msgs = list.data.messages || [];
+      allMessages = allMessages.concat(msgs);
+      pageToken = list.data.nextPageToken || null;
+      if (allMessages.length >= maxResults) break;
+    } while (pageToken);
+
+    console.log(`📬 Found ${allMessages.length} sent messages`);
+
+    let inserted = 0, skipped = 0, updated = 0;
+    const results = [];
+
+    for (const msg of allMessages) {
+      try {
+        const detail = await gmail.users.messages.get({
+          userId: "me", id: msg.id, format: "metadata",
+          metadataHeaders: ["To", "Subject", "Date", "Message-ID"]
+        });
+
+        const headers = detail.data.payload.headers || [];
+        const getH = (name) => headers.find(h => h.name === name)?.value || "";
+
+        const toRaw   = getH("To");
+        const subject = getH("Subject");
+        const date    = getH("Date");
+        const msgId   = getH("Message-ID") || msg.id;
+        const threadId = detail.data.threadId;
+
+        // Extract email address from "Name <email>" format
+        const emailMatch = toRaw.match(/<([^>]+)>/);
+        const hrEmail    = (emailMatch ? emailMatch[1] : toRaw).trim().toLowerCase();
+        const hrName     = toRaw.replace(/<[^>]+>/, "").replace(/"/g, "").trim();
+
+        // Skip non-email / self-emails / test emails
+        if (!hrEmail.includes("@")) { skipped++; continue; }
+        if (hrEmail === (process.env.GMAIL_USER || "").toLowerCase()) { skipped++; continue; }
+
+        // Parse date
+        const sentAt = date ? new Date(date) : new Date();
+
+        // Detect company from email domain
+        const domainMatch = hrEmail.match(/@([^.]+)\./);
+        const company = domainMatch ? domainMatch[1] : "";
+
+        // Check if already exists in DB
+        const existing = await SentEmailLog.findOne({ messageId: msg.id }).lean();
+
+        if (existing) {
+          skipped++;
+        } else {
+          // Check by email to see if we sent before (for dedup)
+          const prevByEmail = await SentEmailLog.findOne({
+            hrEmail: new RegExp("^" + hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", "i"),
+            sentAt: { $gte: new Date(sentAt.getTime() - 60000) }  // within 1 min
+          }).lean();
+
+          if (prevByEmail) { skipped++; continue; }
+
+          await SentEmailLog.create({
+            messageId:  msg.id,
+            threadId:   threadId || null,
+            hrEmail,
+            hrName:     hrName || "",
+            company:    company || "",
+            role:       "",
+            subject:    subject || "",
+            type:       "application",
+            status:     "Sent",
+            sentAt,
+            source:     "gmail_sync",
+          });
+          inserted++;
+          results.push({ hrEmail, company, sentAt: sentAt.toISOString(), subject });
+        }
+      } catch (e) {
+        skipped++;
+        console.warn("Skip msg:", msg.id, e.message);
+      }
+    }
+
+    console.log(`✅ Gmail sync done: inserted=${inserted} updated=${updated} skipped=${skipped}`);
+    res.json({
+      success: true,
+      message: `Sync complete! ${inserted} new contacts saved.`,
+      inserted, updated, skipped,
+      totalFetched: allMessages.length,
+      sample: results.slice(0, 10),
+    });
+
+  } catch (e) {
+    console.error("Gmail sync error:", e.message);
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 app.listen(PORT, () => console.log(`\n🚀 Job Mailer API → http://localhost:${PORT}\n`));
