@@ -610,7 +610,7 @@ const PIPELINE_STAGES = [
   { key: "replied",  label: "Replied",       icon: "↩", color: "#059669" },
 ];
 
-function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail, onFollowUp, onMessage, onRefresh, addToast }) {
+function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail, onFollowUp, onMessage, onRefresh, addToast, onViewThread }) {
   const [search,    setSearch]    = useState("");
   const [view,      setView]      = useState("list"); // "list" | "kanban"
   const [clearing,  setClearing]  = useState(null);
@@ -718,7 +718,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
             className={`btn-primary btn-sm ${syncing ? "loading" : ""}`}
             onClick={syncGmailSent}
             disabled={syncing}
-            title="Fetch new sent emails from Gmail and save to DB"
+            title="Fetch new sent emails from Gmail, detect replies, save thread history"
             style={{ background: "#0d9488", fontSize: 12 }}
           >
             {syncing ? <><span className="spinner" /> Syncing…</> : "📥 Sync Gmail Sent"}
@@ -799,6 +799,13 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
               </div>
               <div className="contact-actions">
                 <button className="btn-ghost btn-sm" onClick={() => onViewEmail(c.lastTrackingId)} disabled={!c.lastTrackingId}>📧 View</button>
+                {c.lastMessageId && (
+                  <button className="btn-ghost btn-sm" onClick={() => onViewThread(c)}
+                    style={{ color: c.replied ? "#0d9488" : undefined }}
+                    title="View full conversation thread">
+                    🧵 {c.replied ? "Replied!" : "Thread"}
+                  </button>
+                )}
                 <button className="btn-ghost btn-sm" onClick={() => onMessage(c)}>💬 Message</button>
                 <button className="btn-followup btn-sm" onClick={() => onFollowUp({ ...c, originalMessageId: c.lastMessageId || "" })}>🔁 Follow-up</button>
               </div>
@@ -1343,6 +1350,127 @@ Anav Bansal
           >
             {loading ? <><span className="spinner" /> Sending…</> : sent ? "✓ Sent!" : <><span className="btn-arrow">↑</span> Send Reply in Thread</>}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ─── Thread Modal — full conversation history ─────────────────────────────────
+function ThreadModal({ messageId, contact, onClose }) {
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);
+  useLockBodyScroll();
+
+  useEffect(() => {
+    if (!messageId) { setLoading(false); return; }
+    axios.get(`${API}/api/thread/${messageId}`)
+      .then(r => { setData(r.data); setLoading(false); })
+      .catch(e => { setError(e.response?.data?.message || e.message); setLoading(false); });
+  }, [messageId]);
+
+  const fmt = (dateStr) => {
+    if (!dateStr) return "";
+    try { return new Date(dateStr).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }); }
+    catch { return dateStr; }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box-form modal-wide" onClick={e => e.stopPropagation()} style={{ maxWidth: 700 }}>
+        <div className="modal-header">
+          <div className="modal-title-row">
+            <span>🧵</span>
+            <h3 className="modal-title">Thread History</h3>
+            <span className="modal-hint">{contact?.company || ""} · {contact?.hrEmail || ""}</span>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="modal-scroll" style={{ maxHeight: 520 }}>
+          {loading && (
+            <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted,#64748b)" }}>
+              <span className="spinner" /> Loading thread…
+            </div>
+          )}
+          {error && (
+            <div className="alert alert-error"><span className="alert-icon">✕</span>{error}</div>
+          )}
+          {!loading && !error && data && (
+            <>
+              {/* Thread summary */}
+              <div style={{
+                background: "var(--bg-secondary,#f8fafc)", borderRadius: 8,
+                padding: "12px 16px", marginBottom: 16,
+                display: "flex", gap: 16, flexWrap: "wrap",
+              }}>
+                <span><strong>Subject:</strong> {data.subject || "—"}</span>
+                <span><strong>Messages:</strong> {data.conversation?.length || 0}</span>
+                {data.replied && (
+                  <span style={{ color: "#0d9488", fontWeight: 600 }}>
+                    ✅ HR Replied {data.repliedAt ? `· ${fmt(data.repliedAt)}` : ""}
+                  </span>
+                )}
+                {!data.replied && (
+                  <span style={{ color: "var(--text-muted,#64748b)" }}>⏳ No reply yet</span>
+                )}
+              </div>
+
+              {/* Messages */}
+              {(data.conversation || []).length === 0 ? (
+                <div className="empty-state">
+                  <span className="empty-icon">📭</span>
+                  <p>No conversation history found.</p>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {data.conversation.map((msg, i) => (
+                    <div key={i} style={{
+                      borderRadius: 10,
+                      padding: "12px 16px",
+                      background: msg.isReply
+                        ? "linear-gradient(135deg,#f0fdfa,#ccfbf1)"
+                        : msg.isMine
+                          ? "var(--bg-secondary,#f8fafc)"
+                          : "var(--card-bg,#fff)",
+                      border: msg.isReply
+                        ? "1px solid #0d9488"
+                        : "1px solid var(--border,#e2e8f0)",
+                      marginLeft: msg.isMine ? 20 : 0,
+                      marginRight: msg.isReply ? 0 : (msg.isMine ? 0 : 20),
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, gap: 8, flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: 600, fontSize: 13, color: msg.isReply ? "#0d9488" : "var(--text,#111)" }}>
+                          {msg.isReply ? "↩ " : msg.isMine ? "📤 You" : ""}
+                          {msg.from?.replace(/<[^>]+>/, "").trim() || msg.fromEmail}
+                        </span>
+                        <span style={{ fontSize: 11, color: "var(--text-muted,#64748b)" }}>{fmt(msg.date)}</span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 13, color: "var(--text,#374151)", lineHeight: 1.6 }}>
+                        {msg.body || msg.snippet || "—"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Close</button>
+          {data?.threadId && (
+            <a
+              href={`https://mail.google.com/mail/u/0/#inbox/${data.threadId}`}
+              target="_blank" rel="noreferrer"
+              className="btn-primary"
+              style={{ textDecoration: "none", fontSize: 13 }}
+            >
+              📬 Open in Gmail →
+            </a>
+          )}
         </div>
       </div>
     </div>
@@ -2473,6 +2601,7 @@ export default function App() {
   const [darkMode,      setDarkMode]      = useState(() => localStorage.getItem("darkMode") === "true");
   const [sidebarOpen,   setSidebarOpen]   = useState(false);
   const [modal,         setModal]         = useState(null);
+  const [threadModal,   setThreadModal]   = useState(null); // { contact }
   const [sheetError,    setSheetError]    = useState(null);
   const [toasts,        setToasts]        = useState([]);
 
@@ -2652,6 +2781,7 @@ export default function App() {
               onMessage={contact   => { navigate("messages"); }}
               onRefresh={() => { fetchContacts(); fetchReplies(); }}
               addToast={addToast}
+              onViewThread={contact => setThreadModal({ contact })}
             />
           )}
           {page === "send"      && <SendApplicationPage onContactsRefresh={fetchContacts} prefill={prefillSend} onPrefillConsumed={() => setPrefillSend(null)} addToast={addToast} />}
@@ -2666,6 +2796,7 @@ export default function App() {
       </div>
 
       {modal?.type === "emailBody" && <EmailBodyModal trackingId={modal.trackingId} onClose={() => setModal(null)} />}
+      {threadModal && <ThreadModal messageId={threadModal.contact?.lastMessageId} contact={threadModal.contact} onClose={() => setThreadModal(null)} />}
       {modal?.type === "followUp"  && <FollowUpModal  contact={modal.contact} onClose={() => setModal(null)} onSent={() => { setModal(null); fetchContacts(); addToast("Follow-up sent!"); }} />}
 
       <ToastContainer toasts={toasts} />
