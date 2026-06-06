@@ -2726,31 +2726,95 @@ const LI_FILTERS = [
 
 
 // ─── Referral Message Modal ────────────────────────────────────────────────────
-function buildReferralMsg(name, company) {
-  const firstName = (name || "there").split(" ")[0];
-  return `Hi ${firstName},
+const MSG_TEMPLATES = [
+  {
+    id: "fullstack1",
+    label: "Full Stack — Casual",
+    icon: "💻",
+    color: "#2563eb",
+    build: (name, company) => {
+      const n = (name || "there").split(" ")[0];
+      const c = company || "your organization";
+      return `Hi ${n},
 
-I hope this message finds you well! I came across your profile and was impressed by your journey at ${company || "your company"}.
+Hope you're doing well! I came across your profile and wanted to reach out.
 
-I'm currently exploring new opportunities and am actively looking for my next role as a Senior Full Stack Developer / CRM Integration Expert. With 4.7+ years of hands-on experience in Node.js, Angular, AWS, ServiceNow, and CTI integrations, I've delivered enterprise-grade products across contact center ecosystems.
+I'm Anav Bansal — a Senior Full Stack Developer with 4.7+ years of experience building production-grade applications using Node.js, Angular, React, AWS Lambda, and DynamoDB. I've worked extensively on enterprise CTI integrations and serverless architectures.
 
-I'd be truly grateful if you could refer me for any suitable openings at ${company || "your organization"} or simply point me in the right direction. Even a quick introduction to the right team would mean a lot.
+I'm currently exploring a job switch and would love to connect with someone at ${c}. If there are any openings that might be a good fit, or if you'd be open to a referral, I'd really appreciate it!
 
-I'm happy to share my resume or any further details — just let me know!
+Even a quick pointer to the right team would mean a lot.
 
-Thank you so much for your time and consideration. Looking forward to connecting.
+Thanks so much — looking forward to connecting!
 
 Warm regards,
 Anav Bansal
-📞 +91 7827855635
-✉ anavbansal06@gmail.com
+📞 +91 7827855635 | ✉ anavbansal06@gmail.com
 🔗 linkedin.com/in/anavbansal-51b191162`;
-}
+    }
+  },
+  {
+    id: "fullstack2",
+    label: "Full Stack — Professional",
+    icon: "🚀",
+    color: "#7c3aed",
+    build: (name, company) => {
+      const n = (name || "there").split(" ")[0];
+      const c = company || "your organization";
+      return `Hi ${n},
+
+I hope this message finds you well!
+
+I'm Anav Bansal, a Senior Full Stack Developer with 4.7+ years of experience delivering scalable, end-to-end applications — Node.js, Angular, React, AWS, and enterprise CRM/CTI integrations across platforms like ServiceNow, Salesforce, and Freshdesk.
+
+I'm at a stage in my career where I'm actively evaluating exciting new opportunities, and ${c} has caught my attention. I'd be grateful if you'd consider referring me, or simply connecting me with the right person on your team.
+
+I'm happy to share my resume and portfolio at your convenience. Thank you for your time — it truly means a lot!
+
+Best regards,
+Anav Bansal
+📞 +91 7827855635 | ✉ anavbansal06@gmail.com
+🔗 linkedin.com/in/anavbansal-51b191162`;
+    }
+  },
+  {
+    id: "crm",
+    label: "CRM / ServiceNow Expert",
+    icon: "🏆",
+    color: "#0d9488",
+    build: (name, company) => {
+      const n = (name || "there").split(" ")[0];
+      const c = company || "your organization";
+      return `Hi ${n},
+
+Hope you're having a great week!
+
+I'm Anav Bansal — a Senior CRM Integration Expert with 4.7+ years of specialization in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent, Scripted REST APIs), Freshdesk, Salesforce, and Zendesk. I've published 3 enterprise marketplace apps and led CTI integrations for Fortune 500 contact centers.
+
+I'm currently looking for a new challenge and exploring opportunities where I can make an impact with my CRM & ServiceNow expertise. If ${c} has any relevant openings or if you'd be open to referring me, I'd truly appreciate it!
+
+Happy to send across my resume — just let me know.
+
+Thank you so much for taking the time!
+
+Warm regards,
+Anav Bansal
+📞 +91 7827855635 | ✉ anavbansal06@gmail.com
+🔗 linkedin.com/in/anavbansal-51b191162`;
+    }
+  },
+];
 
 function ReferralMessageModal({ connection, onClose, addToast }) {
-  const [msg,      setMsg]      = useState(() => buildReferralMsg(connection.name, connection.company));
-  const [copied,   setCopied]   = useState(false);
+  const [activeTemplate, setActiveTemplate] = useState("fullstack1");
+  const [msg,    setMsg]    = useState(() => MSG_TEMPLATES[0].build(connection.name, connection.company));
+  const [copied, setCopied] = useState(false);
   useLockBodyScroll();
+
+  const applyTemplate = (tplId) => {
+    const tpl = MSG_TEMPLATES.find(t => t.id === tplId);
+    if (tpl) { setActiveTemplate(tplId); setMsg(tpl.build(connection.name, connection.company)); setCopied(false); }
+  };
 
   const copy = async () => {
     try {
@@ -2798,6 +2862,27 @@ function ReferralMessageModal({ connection, onClose, addToast }) {
             💡 <strong>Tip:</strong> Copy → Open LinkedIn → Go to {(connection.name||"their")} profile → Message → Paste
           </div>
 
+          {/* Template selector */}
+          <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
+            {MSG_TEMPLATES.map(tpl => (
+              <button key={tpl.id} type="button"
+                onClick={() => applyTemplate(tpl.id)}
+                style={{
+                  display:"flex", alignItems:"center", gap:5,
+                  padding:"6px 12px", borderRadius:99, fontSize:12, fontWeight:600,
+                  border: `1.5px solid ${activeTemplate === tpl.id ? tpl.color : "var(--border,#e2e8f0)"}`,
+                  background: activeTemplate === tpl.id
+                    ? `color-mix(in srgb, ${tpl.color} 12%, transparent)`
+                    : "var(--surface,#fff)",
+                  color: activeTemplate === tpl.id ? tpl.color : "var(--text-500,#6b7280)",
+                  cursor:"pointer", transition:"all 0.15s ease",
+                  boxShadow: activeTemplate === tpl.id ? `0 2px 8px ${tpl.color}30` : "none",
+                }}>
+                {tpl.icon} {tpl.label}
+              </button>
+            ))}
+          </div>
+
           {/* Editable message */}
           <div className="form-group">
             <label className="form-label" style={{ display:"flex", justifyContent:"space-between" }}>
@@ -2836,6 +2921,81 @@ function ReferralMessageModal({ connection, onClose, addToast }) {
   );
 }
 
+
+// ─── Add Connection Modal ──────────────────────────────────────────────────────
+function AddConnectionModal({ onClose, onAdded, addToast }) {
+  const [form, setForm] = useState({
+    firstName: "", lastName: "", company: "", position: "",
+    email: "", url: "", connectedOn: new Date().toLocaleDateString("en-IN"),
+  });
+  const [loading, setSaving] = useState(false);
+  useLockBodyScroll();
+
+  const handle = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const submit = async () => {
+    if (!form.firstName && !form.lastName)
+      return addToast && addToast("Name required", "error");
+    setSaving(true);
+    try {
+      await axios.post(`${API}/api/linkedin/add-connection`, form);
+      addToast && addToast(`✅ ${form.firstName} ${form.lastName} added!`);
+      onAdded && onAdded();
+      onClose();
+    } catch (e) {
+      addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error");
+    } finally { setSaving(false); }
+  };
+
+  const fields = [
+    [{ key:"firstName", label:"First Name *", ph:"Radmila", half:true },
+     { key:"lastName",  label:"Last Name",    ph:"Neykova", half:true }],
+    [{ key:"company",   label:"Company",      ph:"Wiser Technology", half:true },
+     { key:"position",  label:"Position",     ph:"Talent Manager", half:true }],
+    [{ key:"email",     label:"Email",        ph:"radmila@example.com", half:true },
+     { key:"url",       label:"LinkedIn URL", ph:"https://linkedin.com/in/...", half:true }],
+    [{ key:"connectedOn", label:"Connected On", ph:"19 May 2026", half:true }],
+  ];
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box-form" onClick={e => e.stopPropagation()} style={{ maxWidth:500 }}>
+        <div className="modal-header">
+          <div className="modal-title-row">
+            <span>➕</span>
+            <h3 className="modal-title">Add Connection</h3>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="modal-scroll">
+          {fields.map((row, ri) => (
+            <div key={ri} style={{ display:"grid", gridTemplateColumns: row.length > 1 ? "1fr 1fr" : "1fr", gap:10, marginBottom:10 }}>
+              {row.map(f => (
+                <div key={f.key} className="form-group" style={{ marginBottom:0 }}>
+                  <label className="form-label" style={{ fontSize:11 }}>{f.label}</label>
+                  <input className="form-input" style={{ fontSize:13 }}
+                    placeholder={f.ph}
+                    value={form[f.key]}
+                    onChange={e => handle(f.key, e.target.value)} />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className={`btn-primary ${loading ? "loading" : ""}`}
+            onClick={submit} disabled={loading}>
+            {loading ? <><span className="spinner" /> Adding…</> : "➕ Add Connection"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LinkedInConnectionsPage({ onFillApply, addToast }) {
   const [connections, setConnections] = useState([]);
   const [loading,     setLoading]     = useState(false);
@@ -2843,8 +3003,9 @@ function LinkedInConnectionsPage({ onFillApply, addToast }) {
   const [filter,      setFilter]      = useState("all");
   const [total,       setTotal]       = useState(0);
   const [updating,    setUpdating]    = useState({});
-  const [refModal,    setRefModal]    = useState(null);   // connection for referral msg
-  const [ignoring,    setIgnoring]    = useState({});     // rowIndex -> bool
+  const [refModal,       setRefModal]       = useState(null);
+  const [ignoring,       setIgnoring]       = useState({});
+  const [addConnModal,   setAddConnModal]   = useState(false);
 
   const fetchConnections = useCallback(async (q, f) => {
     setLoading(true);
@@ -2917,6 +3078,15 @@ function LinkedInConnectionsPage({ onFillApply, addToast }) {
         <div className="li-stat"><span className="li-stat-val" style={{ color: "var(--purple)" }}>{hrCount}</span><span className="li-stat-lbl">HR/Recruiter</span></div>
         <div className="li-stat"><span className="li-stat-val" style={{ color: "var(--blue)" }}>{sentCount}</span><span className="li-stat-lbl">Applied</span></div>
         <div className="li-stat"><span className="li-stat-val" style={{ color: "var(--green)" }}>{repliedCount}</span><span className="li-stat-lbl">Replied</span></div>
+      </div>
+
+      {/* Toolbar: Search + Add */}
+      <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:8 }}>
+        <button className="btn-primary btn-sm"
+          style={{ whiteSpace:"nowrap", gap:5, display:"flex", alignItems:"center" }}
+          onClick={() => setAddConnModal(true)}>
+          ➕ Add Connection
+        </button>
       </div>
 
       {/* Search */}
@@ -3020,6 +3190,14 @@ function LinkedInConnectionsPage({ onFillApply, addToast }) {
         <ReferralMessageModal
           connection={refModal}
           onClose={() => setRefModal(null)}
+          addToast={addToast}
+        />
+      )}
+      {/* Add Connection Modal */}
+      {addConnModal && (
+        <AddConnectionModal
+          onClose={() => setAddConnModal(false)}
+          onAdded={() => fetchConnections(search, filter)}
           addToast={addToast}
         />
       )}
