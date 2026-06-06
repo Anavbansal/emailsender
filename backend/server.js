@@ -164,7 +164,7 @@ cron.schedule("* * * * *", async () => {
       try {
         const { info, trackRecord } = await sendApplicationEmail(job.emailData);
         logToSheets([
-          info.messageId,
+          info.id,
           job.emailData.hrEmail,
           job.emailData.company || "",
           job.emailData.role    || "",
@@ -184,7 +184,7 @@ cron.schedule("* * * * *", async () => {
 // ─── Google Sheets ────────────────────────────────────────────────────────────
 const SHEET_HEADERS = ["Mail ID","HR Email","Company","Role","Sent At","Tracking ID","Status","Opened At"];
 const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID || "1Ctdcf2D-DnWH0kfkKtPtobH-g_pNBs9tvHdf_gvS2WQ";
-const SHEET_TAB = process.env.SHEET_TAB || "Contacts";
+const SHEET_TAB = process.env.SHEET_TAB || "Candidate_Status_Log";
 let sheetsInitialized = false;
 
 async function getSheetsClient() {
@@ -346,9 +346,9 @@ async function sendApplicationEmail({
     };
   }
   const info = await sendViaGmailAPI(mailOpts);
-  console.log(`📤 Sent → ${hrEmail} | ${info.messageId}`);
-  updateTrackingMessageId(trackRecord.trackingId, info.messageId);
-  logToSheets([info.messageId, hrEmail, company||"", role||"", new Date().toISOString(), trackRecord.trackingId, "Sent", ""]);
+  console.log(`📤 Sent → ${hrEmail} | ${info.id}`);
+  updateTrackingMessageId(trackRecord.trackingId, info.id);
+  logToSheets([info.id, hrEmail, company||"", role||"", new Date().toISOString(), trackRecord.trackingId, "Sent", ""]);
   return { info, trackRecord };
 }
 
@@ -593,11 +593,11 @@ app.post("/api/send-referral", async (req, res) => {
 
   try {
     const info = await sendViaGmailAPI({ to: employeeEmail, subject, html });
-    logToSheets([info.messageId, employeeEmail, company, role, new Date().toISOString(), trackRecord.trackingId, "Referral-Sent", ""]);
+    logToSheets([info.id, employeeEmail, company, role, new Date().toISOString(), trackRecord.trackingId, "Referral-Sent", ""]);
     return res.status(200).json({
       success: true,
       message: `Referral request sent to ${employeeEmail}!`,
-      messageId: info.messageId,
+      messageId: info.id,
       trackingId: trackRecord.trackingId,
     });
   } catch (err) {
@@ -872,7 +872,7 @@ app.post("/api/send-application", async (req, res) => {
     });
     return res.status(200).json({
       success: true, message: `Application sent to ${hrEmail}!`,
-      messageId: info.messageId, trackingId: trackRecord.trackingId,
+      messageId: info.id, trackingId: trackRecord.trackingId,
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -909,8 +909,8 @@ app.post("/api/send-followup", async (req, res) => {
       from: `"Anav Bansal" <${process.env.GMAIL_USER}>`,
       to: hrEmail, subject, html, attachments, headers: extraHeaders,
     });
-    logToSheets([info.messageId, hrEmail, company||"", role||"", new Date().toISOString(), trackRecord.trackingId, "FollowUp-Sent", ""]);
-    return res.status(200).json({ success: true, message: `Follow-up sent to ${hrEmail}!`, messageId: info.messageId });
+    logToSheets([info.id, hrEmail, company||"", role||"", new Date().toISOString(), trackRecord.trackingId, "FollowUp-Sent", ""]);
+    return res.status(200).json({ success: true, message: `Follow-up sent to ${hrEmail}!`, messageId: info.id });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
