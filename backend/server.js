@@ -939,6 +939,7 @@ app.get("/api/contacts", async (req, res) => {
           repliedAt:        row.repliedAt    || null,
           followupSent:     row.followupSent || false,
           notes:            row.notes        || "",
+          lastFollowupAt:   row.lastFollowupAt ? new Date(row.lastFollowupAt).getTime() : null,
           totalSent:        row.totalSent    || 1,
           followupCount:    row.followupSent ? 1 : 0,
         });
@@ -946,9 +947,10 @@ app.get("/api/contacts", async (req, res) => {
         // Enrich existing sheet/tracking contact with DB data
         existing.latestThreadId  = row.threadId  || existing.latestThreadId  || null;
         existing.latestMessageId = row.messageId || existing.latestMessageId || null;
-        existing.replied         = row.replied   || existing.replied   || false;
-        existing.repliedAt       = row.repliedAt || existing.repliedAt || null;
-        existing.notes           = row.notes     || existing.notes     || "";
+        existing.replied         = row.replied      || existing.replied      || false;
+        existing.repliedAt       = row.repliedAt   || existing.repliedAt   || null;
+        existing.followupSent    = row.followupSent|| existing.followupSent || false;
+        existing.notes           = row.notes       || existing.notes       || "";
         if (!existing.latestSentAt && row.latestSentAt)
           existing.latestSentAt = new Date(row.latestSentAt).getTime();
       }
@@ -984,6 +986,7 @@ app.get("/api/contacts", async (req, res) => {
       openedAt:      toMs(c.openedAt)     || null,
       replied:       c.replied            || false,
       repliedAt:     toMs(c.repliedAt)    || null,
+      followupSent:  c.followupSent       || false,
       notes:         typeof c.notes === "string" ? c.notes : "",
       needsFollowUp,
     });
