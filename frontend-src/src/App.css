@@ -2059,3 +2059,61 @@ input, textarea, select { font-family: var(--font); }
   box-shadow: 0 2px 6px rgba(0,0,0,0.08) !important;
 }
 
+
+/* ─── Contact Filter Tabs ─────────────────────────────────────────────────────── */
+.contact-filter-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 4px 0;
+}
+
+.cft-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 99px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text-500);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+  white-space: nowrap;
+}
+.cft-btn:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(37,99,235,0.12);
+}
+.cft-active {
+  background: color-mix(in srgb, var(--tab-color, #2563eb) 12%, transparent) !important;
+  border-color: var(--tab-color, #2563eb) !important;
+  color: var(--tab-color, #2563eb) !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--tab-color, #2563eb) 25%, transparent) !important;
+}
+.cft-icon  { font-size: 13px; }
+.cft-label { font-size: 12px; }
+.cft-count {
+  background: var(--surface-3);
+  color: var(--text-500);
+  font-size: 10px;
+  font-weight: 800;
+  border-radius: 99px;
+  padding: 1px 6px;
+  min-width: 18px;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+.cft-active .cft-count {
+  color: #fff !important;
+}
+
+/* Fallback for browsers without color-mix */
+@supports not (color: color-mix(in srgb, red, blue)) {
+  .cft-active { background: var(--blue-light) !important; }
+}
+
