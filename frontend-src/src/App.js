@@ -610,10 +610,27 @@ const PIPELINE_STAGES = [
   { key: "replied",  label: "Replied",       icon: "↩", color: "#059669" },
 ];
 
-function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail, onFollowUp, onMessage, onRefresh }) {
-  const [search,   setSearch]   = useState("");
-  const [view,     setView]     = useState("list"); // "list" | "kanban"
-  const [clearing, setClearing] = useState(null);
+function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail, onFollowUp, onMessage, onRefresh, addToast }) {
+  const [search,    setSearch]    = useState("");
+  const [view,      setView]      = useState("list"); // "list" | "kanban"
+  const [clearing,  setClearing]  = useState(null);
+  const [syncing,   setSyncing]   = useState(false);
+  const [syncResult,setSyncResult]= useState(null);
+
+  const syncGmailSent = async () => {
+    setSyncing(true); setSyncResult(null);
+    try {
+      const r = await axios.get(`${API}/api/sync-sent-emails`, {
+        params: { after: "2026/05/28", max: 500 }
+      });
+      const { inserted, skipped, totalFetched } = r.data;
+      setSyncResult({ inserted, skipped, totalFetched });
+      addToast && addToast(`✅ Gmail sync done! ${inserted} new contacts saved.`);
+      onRefresh();
+    } catch (e) {
+      addToast && addToast("❌ Gmail sync failed: " + (e.response?.data?.message || e.message), "error");
+    } finally { setSyncing(false); }
+  };
   const replyEmails = new Set((replies || []).map(r => r.fromEmail.toLowerCase()));
 
   const getStage = (c) => {
@@ -697,6 +714,20 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
           </div>
           {fetchedAt && <span className="fetched-at">↻ {relativeTime(fetchedAt)}</span>}
           <button className="btn-ghost btn-sm" onClick={onRefresh}>↻ Refresh</button>
+          <button
+            className={`btn-primary btn-sm ${syncing ? "loading" : ""}`}
+            onClick={syncGmailSent}
+            disabled={syncing}
+            title="Fetch new sent emails from Gmail and save to DB"
+            style={{ background: "#0d9488", fontSize: 12 }}
+          >
+            {syncing ? <><span className="spinner" /> Syncing…</> : "📥 Sync Gmail Sent"}
+          </button>
+          {syncResult && (
+            <span style={{ fontSize: 11, color: "var(--text-muted,#64748b)" }}>
+              {syncResult.inserted} new · {syncResult.totalFetched} fetched
+            </span>
+          )}
         </div>
       </div>
 
@@ -2619,6 +2650,7 @@ export default function App() {
               onFollowUp={contact  => setModal({ type: "followUp",  contact })}
               onMessage={contact   => { navigate("messages"); }}
               onRefresh={() => { fetchContacts(); fetchReplies(); }}
+              addToast={addToast}
             />
           )}
           {page === "send"      && <SendApplicationPage onContactsRefresh={fetchContacts} prefill={prefillSend} onPrefillConsumed={() => setPrefillSend(null)} addToast={addToast} />}
