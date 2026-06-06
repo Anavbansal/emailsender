@@ -392,6 +392,7 @@ input, textarea, select { font-family: var(--font); }
 }
 .contact-card:hover { border-color: var(--blue-light); box-shadow: var(--shadow-sm); }
 .contact-card-reminder { border-left: 3px solid var(--amber); }
+.contact-card-replied  { border-left: 3px solid #0d9488; background: linear-gradient(135deg, var(--surface) 90%, rgba(13,148,136,0.04) 100%); }
 
 .contact-avatar {
   width: 40px;
