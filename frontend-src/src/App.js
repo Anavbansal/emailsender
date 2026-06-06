@@ -619,7 +619,7 @@ const PIPELINE_STAGES = [
   { key: "replied",  label: "Replied",       icon: "↩", color: "#059669" },
 ];
 
-function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail, onFollowUp, onMessage, onRefresh, addToast, onViewThread }) {
+function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail, onFollowUp, onMessage, onRefresh, addToast, onViewThread, onManualUpdate }) {
   const [search,     setSearch]    = useState("");
   const [view,       setView]      = useState("list"); // "list" | "kanban"
   const [activeTab,  setActiveTab] = useState("all");  // filter tab
@@ -954,6 +954,12 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
                   <button className="btn-ghost btn-sm" style={{ fontSize:10, padding:"2px 6px" }}
                     onClick={() => onMessage(c)} title="Generate message">
                     💬
+                  </button>
+                  <button className="btn-ghost btn-sm"
+                    style={{ fontSize:10, padding:"2px 6px", color: "#6366f1" }}
+                    onClick={() => onManualUpdate(c)}
+                    title="Manually update — mark replied, add notes">
+                    ✏️
                   </button>
                 </div>
               </div>
@@ -1622,6 +1628,174 @@ function ThreadModal({ messageId, contact, onClose }) {
               📬 Open in Gmail →
             </a>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ─── Manual Contact Update Modal ──────────────────────────────────────────────
+function ManualUpdateModal({ contact, onClose, onSaved, addToast }) {
+  const [form, setForm] = useState({
+    replied:     contact.replied     || false,
+    repliedAt:   contact.repliedAt   ? new Date(contact.repliedAt).toISOString().slice(0,16) : new Date().toISOString().slice(0,16),
+    replyNote:   contact.replySnippet|| "",
+    notes:       contact.notes       || "",
+    followupSent:contact.followupSent|| false,
+  });
+  const [loading, setLoading] = useState(false);
+  const [saved,   setSaved]   = useState(false);
+  useLockBodyScroll();
+
+  const handle = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const submit = async () => {
+    setLoading(true);
+    try {
+      await axios.patch(`${API}/api/contact/update`, {
+        hrEmail:     contact.hrEmail,
+        replied:     form.replied,
+        repliedAt:   form.replied ? form.repliedAt : null,
+        replyNote:   form.replyNote,
+        notes:       form.notes,
+        followupSent:form.followupSent,
+      });
+      setSaved(true);
+      addToast && addToast(`✅ ${contact.company || contact.hrEmail} updated!`);
+      setTimeout(() => { onSaved && onSaved(); onClose(); }, 800);
+    } catch (e) {
+      addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error");
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box-form" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
+        <div className="modal-header">
+          <div className="modal-title-row">
+            <span>✏️</span>
+            <h3 className="modal-title">Update Contact</h3>
+            <span className="modal-hint">{contact.company || contact.hrEmail}</span>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="modal-scroll">
+          {/* Replied toggle */}
+          <div style={{
+            background: form.replied ? "linear-gradient(135deg,#f0fdfa,#ccfbf1)" : "var(--surface-2,#f8fafc)",
+            border: `1.5px solid ${form.replied ? "#0d9488" : "var(--border,#e2e8f0)"}`,
+            borderRadius: 12, padding: "14px 16px", marginBottom: 14,
+            transition: "all 0.2s ease"
+          }}>
+            <label style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
+              <div
+                onClick={() => handle("replied", !form.replied)}
+                style={{
+                  width: 44, height: 24, borderRadius: 99,
+                  background: form.replied ? "#0d9488" : "var(--border,#e2e8f0)",
+                  position: "relative", transition: "all 0.2s ease", cursor: "pointer", flexShrink: 0
+                }}
+              >
+                <div style={{
+                  position:"absolute", top: 3, left: form.replied ? 22 : 3,
+                  width: 18, height: 18, borderRadius: "50%", background: "#fff",
+                  transition: "left 0.2s ease", boxShadow: "0 1px 4px rgba(0,0,0,0.2)"
+                }} />
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: form.replied ? "#0d9488" : "var(--text-900,#111)" }}>
+                  {form.replied ? "✅ Marked as Replied" : "Mark as Replied"}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--text-500,#6b7280)", marginTop: 2 }}>
+                  Phone call, LinkedIn, WhatsApp — any channel
+                </div>
+              </div>
+            </label>
+          </div>
+
+          {/* Reply date — only when replied */}
+          {form.replied && (
+            <div className="form-group" style={{ marginBottom: 12 }}>
+              <label className="form-label">Reply Date & Time</label>
+              <input
+                type="datetime-local"
+                className="form-input"
+                value={form.repliedAt}
+                onChange={e => handle("repliedAt", e.target.value)}
+              />
+            </div>
+          )}
+
+          {/* Reply note */}
+          {form.replied && (
+            <div className="form-group" style={{ marginBottom: 12 }}>
+              <label className="form-label">Reply Summary <span className="lbadge lbadge-opt">Optional</span></label>
+              <textarea
+                className="form-textarea"
+                rows={2}
+                placeholder="e.g. Called on phone, said resume looks good, interview next week…"
+                value={form.replyNote}
+                onChange={e => handle("replyNote", e.target.value)}
+              />
+            </div>
+          )}
+
+          {/* Follow-up sent toggle */}
+          <div style={{
+            background: "var(--surface-2,#f8fafc)",
+            border: "1.5px solid var(--border,#e2e8f0)",
+            borderRadius: 12, padding: "12px 16px", marginBottom: 12
+          }}>
+            <label style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
+              <div
+                onClick={() => handle("followupSent", !form.followupSent)}
+                style={{
+                  width: 44, height: 24, borderRadius: 99,
+                  background: form.followupSent ? "#7c3aed" : "var(--border,#e2e8f0)",
+                  position: "relative", transition: "all 0.2s ease", cursor: "pointer", flexShrink: 0
+                }}
+              >
+                <div style={{
+                  position:"absolute", top: 3, left: form.followupSent ? 22 : 3,
+                  width: 18, height: 18, borderRadius: "50%", background: "#fff",
+                  transition: "left 0.2s ease", boxShadow: "0 1px 4px rgba(0,0,0,0.2)"
+                }} />
+              </div>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 13, color: form.followupSent ? "#7c3aed" : "var(--text-700,#374151)" }}>
+                  🔁 Follow-up Sent
+                </div>
+                <div style={{ fontSize: 11, color: "var(--text-500,#6b7280)", marginTop: 1 }}>
+                  Mark if follow-up was sent manually or via other channel
+                </div>
+              </div>
+            </label>
+          </div>
+
+          {/* Notes */}
+          <div className="form-group">
+            <label className="form-label">📝 Notes <span className="lbadge lbadge-opt">Optional</span></label>
+            <textarea
+              className="form-textarea"
+              rows={3}
+              placeholder="Interview scheduled, salary discussed, referral given…"
+              value={form.notes}
+              onChange={e => handle("notes", e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button
+            className={`btn-primary ${loading ? "loading" : ""}`}
+            onClick={submit}
+            disabled={loading || saved}
+          >
+            {loading ? <><span className="spinner" /> Saving…</> : saved ? "✓ Saved!" : "💾 Save Changes"}
+          </button>
         </div>
       </div>
     </div>
@@ -2752,7 +2926,8 @@ export default function App() {
   const [darkMode,      setDarkMode]      = useState(() => localStorage.getItem("darkMode") === "true");
   const [sidebarOpen,   setSidebarOpen]   = useState(false);
   const [modal,         setModal]         = useState(null);
-  const [threadModal,   setThreadModal]   = useState(null); // { contact }
+  const [threadModal,       setThreadModal]       = useState(null);
+  const [manualUpdateModal, setManualUpdateModal] = useState(null); // { contact }
   const [sheetError,    setSheetError]    = useState(null);
   const [toasts,        setToasts]        = useState([]);
 
@@ -2933,6 +3108,7 @@ export default function App() {
               onRefresh={() => { fetchContacts(); fetchReplies(); }}
               addToast={addToast}
               onViewThread={contact => setThreadModal({ contact })}
+              onManualUpdate={contact => setManualUpdateModal({ contact })}
             />
           )}
           {page === "send"      && <SendApplicationPage onContactsRefresh={fetchContacts} prefill={prefillSend} onPrefillConsumed={() => setPrefillSend(null)} addToast={addToast} />}
@@ -2948,6 +3124,14 @@ export default function App() {
 
       {modal?.type === "emailBody" && <EmailBodyModal trackingId={modal.trackingId} onClose={() => setModal(null)} />}
       {threadModal && <ThreadModal messageId={threadModal.contact?.lastMessageId} contact={threadModal.contact} onClose={() => setThreadModal(null)} />}
+      {manualUpdateModal && (
+        <ManualUpdateModal
+          contact={manualUpdateModal.contact}
+          onClose={() => setManualUpdateModal(null)}
+          onSaved={() => { setManualUpdateModal(null); fetchContacts(); }}
+          addToast={addToast}
+        />
+      )}
       {modal?.type === "followUp"  && <FollowUpModal  contact={modal.contact} onClose={() => setModal(null)} onSent={() => { setModal(null); fetchContacts(); addToast("Follow-up sent!"); }} />}
 
       <ToastContainer toasts={toasts} />
