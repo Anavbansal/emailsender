@@ -1769,4 +1769,45 @@ app.get("/api/resync-replies", async (req, res) => {
   }
 });
 
+
+// ─── PATCH /api/contact/update — manually update contact status ───────────────
+app.patch("/api/contact/update", async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1)
+      return res.status(503).json({ success: false, message: "MongoDB not connected" });
+
+    const { hrEmail, replied, repliedAt, notes, followupSent, status } = req.body;
+    if (!hrEmail) return res.status(400).json({ success: false, message: "hrEmail required" });
+
+    const updates = {};
+    if (replied     !== undefined) updates.replied      = replied;
+    if (repliedAt   !== undefined) updates.repliedAt    = repliedAt ? new Date(repliedAt) : new Date();
+    if (notes       !== undefined) updates.notes        = notes;
+    if (followupSent!== undefined) updates.followupSent = followupSent;
+    if (status      !== undefined) updates.status       = status;
+
+    // Update ALL records for this email (multiple sends)
+    const result = await SentEmailLog.updateMany(
+      { hrEmail: new RegExp("^" + hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", "i") },
+      { $set: updates }
+    );
+
+    // If marking as replied, also add replySnippet
+    if (replied && req.body.replyNote) {
+      await SentEmailLog.updateMany(
+        { hrEmail: new RegExp("^" + hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", "i") },
+        { $set: { replySnippet: req.body.replyNote } }
+      );
+    }
+
+    res.json({
+      success: true,
+      message: `Updated ${result.modifiedCount} record(s) for ${hrEmail}`,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 app.listen(PORT, () => console.log(`\n🚀 Job Mailer API → http://localhost:${PORT}\n`));
