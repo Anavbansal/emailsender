@@ -734,15 +734,37 @@ app.get("/api/contacts", async (req, res) => {
   }
 
   const records = getTrackingRecords();
+  const missingFromSheet = [];
   for (const r of records) {
     const key = r.hrEmail.toLowerCase();
     const c   = byEmail.get(key);
-    if (!c) continue;
+    if (!c) {
+      // Contact is in tracking.json but not in Sheet — add it and backfill to Sheet
+      byEmail.set(key, {
+        hrEmail: r.hrEmail, hrName: r.hrName || "",
+        company: r.company || "", role: r.role || "",
+        latestSentAt: r.sentAt || 0, latestTrackingId: r.trackingId,
+        latestMessageId: r.messageId || null,
+        opened: r.opened || false, openedAt: r.openedAt || null,
+        totalSent: 1, followupCount: 0,
+      });
+      missingFromSheet.push(r);
+      continue;
+    }
     if (r.opened && !c.opened) { c.opened = true; c.openedAt = r.openedAt; }
     if (!c.latestTrackingId && r.trackingId) c.latestTrackingId = r.trackingId;
     if (r.messageId && (r.sentAt || 0) >= (c.latestSentAt || 0)) {
       c.latestMessageId = r.messageId;
     }
+  }
+
+  // Backfill tracking.json contacts that were missing from Sheet
+  for (const r of missingFromSheet) {
+    logToSheets([
+      r.messageId || "", r.hrEmail, r.company || "", r.role || "",
+      r.sentAt ? new Date(r.sentAt).toISOString() : new Date().toISOString(),
+      r.trackingId || "", r.type === "followup" ? "FollowUp-Sent" : "Sent", "",
+    ]).catch(() => {});
   }
 
   const contacts = [];
