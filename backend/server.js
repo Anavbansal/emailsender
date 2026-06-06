@@ -1299,11 +1299,12 @@ app.get("/api/linkedin/connections", async (req, res) => {
     const sheets = await getSheetsClient();
     const resp   = await sheets.spreadsheets.values.get({
       spreadsheetId: LINKEDIN_SHEET_ID,
-      range: `${LINKEDIN_TAB}!A2:I5000`,
+      range: `${LINKEDIN_TAB}!A2:J5000`,  // J = ignored flag
     });
     const rows = resp.data.values || [];
     let connections = rows
       .filter(row => (row[0] || row[1] || "").trim())
+      .filter(row => String(row[9] || "").toUpperCase() !== "IGNORED")  // skip ignored
       .map((row, i) => ({
         rowIndex:    i + 2,
         firstName:   (row[0] || "").trim(),
@@ -1316,6 +1317,7 @@ app.get("/api/linkedin/connections", async (req, res) => {
         connectedOn: (row[6] || "").trim(),
         sent:        String(row[7] || "").toUpperCase() === "TRUE",
         replied:     String(row[8] || "").toUpperCase() === "TRUE",
+        ignored:     String(row[9] || "").toUpperCase() === "IGNORED",
       }));
 
     const { q, filter } = req.query;
@@ -1354,6 +1356,26 @@ app.post("/api/linkedin/update-connection", async (req, res) => {
       requestBody: { values: [[value ? "TRUE" : "FALSE"]] },
     });
     return res.json({ success: true });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+
+// ─── POST /api/linkedin/ignore-connection ─────────────────────────────────────
+app.post("/api/linkedin/ignore-connection", async (req, res) => {
+  const { rowIndex } = req.body;
+  if (!rowIndex) return res.status(400).json({ success: false, message: "rowIndex required" });
+  try {
+    const sheets = await getSheetsClient();
+    // Mark column J as "IGNORED" so it's filtered out from future fetches
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: LINKEDIN_SHEET_ID,
+      range: `${LINKEDIN_TAB}!J${rowIndex}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [["IGNORED"]] },
+    });
+    return res.json({ success: true, message: `Row ${rowIndex} ignored` });
   } catch (e) {
     return res.status(500).json({ success: false, message: e.message });
   }
