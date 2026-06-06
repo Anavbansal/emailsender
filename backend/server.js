@@ -61,7 +61,13 @@ const SentEmailLogSchema = new mongoose.Schema({
   sentAt:     { type: Date,   default: Date.now },
   opened:     { type: Boolean, default: false },
   openedAt:   { type: Date,   default: null },
-  inReplyTo:  { type: String, default: null },  // original messageId for followups
+  inReplyTo:    { type: String,  default: null },
+  replied:      { type: Boolean, default: false },
+  repliedAt:    { type: Date,    default: null },
+  followupSent: { type: Boolean, default: false },
+  notes:        { type: String,  default: "" },
+  status:       { type: String,  default: "Sent" },
+  source:       { type: String,  default: "app" },
 }, { timestamps: true });
 
 const SentEmailLog = mongoose.models.SentEmailLog ||
@@ -1291,4 +1297,51 @@ app.post("/api/linkedin/update-connection", async (req, res) => {
 });
 
 app.get("/", (req, res) => res.json({ status: "ok" }));
+
+// ─── POST /api/import-contacts — bulk import from xlsx/JSON ──────────────────
+app.post("/api/import-contacts", async (req, res) => {
+  if (mongoose.connection.readyState !== 1)
+    return res.status(503).json({ success: false, message: "MongoDB not connected" });
+
+  const { contacts } = req.body;
+  if (!Array.isArray(contacts) || contacts.length === 0)
+    return res.status(400).json({ success: false, message: "contacts array required" });
+
+  let inserted = 0, skipped = 0, updated = 0;
+  for (const c of contacts) {
+    if (!c.hrEmail) { skipped++; continue; }
+    try {
+      const existing = await SentEmailLog.findOne({ hrEmail: new RegExp(`^${c.hrEmail}$`, "i") }).lean();
+      if (existing) {
+        // Update replied/notes if new info available
+        const updates = {};
+        if (c.replied && !existing.replied)      { updates.replied = true; }
+        if (c.repliedAt && !existing.repliedAt)  { updates.repliedAt = new Date(c.repliedAt); }
+        if (c.notes && !existing.notes)           { updates.notes = c.notes; }
+        if (Object.keys(updates).length > 0) {
+          await SentEmailLog.updateOne({ _id: existing._id }, { $set: updates });
+          updated++;
+        } else { skipped++; }
+      } else {
+        await SentEmailLog.create({
+          hrEmail:    c.hrEmail,
+          hrName:     c.hrName   || "",
+          company:    c.company  || "",
+          role:       c.role     || "",
+          type:       c.type     || "application",
+          status:     c.status   || "Sent",
+          sentAt:     c.sentAt   ? new Date(c.sentAt) : new Date(),
+          replied:    c.replied  || false,
+          repliedAt:  c.repliedAt ? new Date(c.repliedAt) : null,
+          followupSent: c.followupSent || false,
+          notes:      c.notes    || "",
+          source:     c.source   || "import",
+        });
+        inserted++;
+      }
+    } catch (e) { skipped++; }
+  }
+  res.json({ success: true, inserted, updated, skipped, total: contacts.length });
+});
+
 app.listen(PORT, () => console.log(`\n🚀 Job Mailer API → http://localhost:${PORT}\n`));
