@@ -1038,12 +1038,9 @@ app.get("/api/sent-log", async (req, res) => {
 // ─── GET /api/gmail/replies — inbox replies from tracked HR emails ─────────────
 app.get("/api/gmail/replies", async (req, res) => {
   try {
-    const tokenPath = path.join(__dirname, "tokens.json");
-    if (!fs.existsSync(tokenPath)) return res.json({ success: true, replies: [] });
-    const auth = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, process.env.GOOGLE_REDIRECT_URI
-    );
-    auth.setCredentials(JSON.parse(fs.readFileSync(tokenPath, "utf8")));
+    // Use refresh token from env (works on Render without tokens.json)
+    if (!process.env.GMAIL_REFRESH_TOKEN) return res.json({ success: true, replies: [] });
+    const auth = getGmailAPITransport();
     const gmail = google.gmail({ version: "v1", auth });
 
     // Pull tracked emails from DB (more complete) with fallback to tracking.json
@@ -1412,16 +1409,11 @@ app.get("/api/sync-sent-emails", async (req, res) => {
     if (mongoose.connection.readyState !== 1)
       return res.status(503).json({ success: false, message: "MongoDB not connected" });
 
-    const tokenPath = path.join(__dirname, "tokens.json");
-    if (!fs.existsSync(tokenPath))
-      return res.status(401).json({ success: false, message: "Gmail not connected. Please connect via /api/gmail/auth" });
+    // Use refresh token from env (works on Render without tokens.json file)
+    if (!process.env.GMAIL_REFRESH_TOKEN)
+      return res.status(401).json({ success: false, message: "GMAIL_REFRESH_TOKEN not set in env" });
 
-    const auth = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
-    );
-    auth.setCredentials(JSON.parse(fs.readFileSync(tokenPath, "utf8")));
+    const auth = getGmailAPITransport();
     const gmail = google.gmail({ version: "v1", auth });
 
     // Default: after last sheet date (28 May 2026), or use query param
