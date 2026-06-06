@@ -117,18 +117,25 @@ function relativeTime(ts) {
 
 // Returns integer day count since timestamp (0 = today)
 function daysSince(ts) {
-  if (!ts) return null;
-  return Math.floor((Date.now() - ts) / (1000 * 60 * 60 * 24));
+  if (!ts || ts === 0) return null;
+  const d = Math.floor((Date.now() - ts) / (1000 * 60 * 60 * 24));
+  return d < 0 ? 0 : d;
 }
 
-// Pill showing "Today", "2d ago", "10d ago" — color shifts green→amber→red
 function DaysBadge({ ts }) {
+  if (!ts || ts === 0) return null;
   const d = daysSince(ts);
   if (d === null) return null;
-  const color = d === 0 ? "var(--green)" : d <= 3 ? "var(--green)" : d <= 7 ? "var(--amber)" : "var(--red)";
-  const label = d === 0 ? "Today" : d === 1 ? "1 day ago" : `${d} days ago`;
+  // Don't show "Today" for old imported contacts — anything > 400 days is likely bad data
+  if (d > 400) return null;
+  const color = d === 0 ? "var(--green)" : d <= 3 ? "var(--green)" : d <= 7 ? "var(--amber)" : d <= 30 ? "var(--red)" : "#9ca3af";
+  const label = d === 0 ? "Today"
+    : d === 1 ? "1d ago"
+    : d < 30  ? `${d}d ago`
+    : d < 365 ? `${Math.floor(d/30)}mo ago`
+    : `${Math.floor(d/365)}y ago`;
   return (
-    <span className="days-badge" style={{ borderColor: color, color }}>
+    <span className="days-badge" style={{ borderColor: color, color, fontSize: 11 }}>
       📅 {label}
     </span>
   );
@@ -779,37 +786,115 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
         /* ── List view ── */
         <div className="contacts-list">
           {filtered.map((c, i) => (
-            <div key={i} className={`contact-card ${c.needsFollowUp ? "contact-card-reminder" : ""}`}>
-              <div className="contact-avatar">{getInitials(c.hrName, c.hrEmail)}</div>
-              <div className="contact-body">
-                <div className="contact-top">
-                  <span className="contact-company">{c.company}</span>
+            <div key={i} className={`contact-card ${c.needsFollowUp ? "contact-card-reminder" : ""} ${c.replied ? "contact-card-replied" : ""}`}>
+              {/* Avatar + Status dot */}
+              <div style={{ position: "relative", flexShrink: 0 }}>
+                <div className="contact-avatar" style={{
+                  background: c.replied ? "linear-gradient(135deg,#0d9488,#059669)"
+                    : c.opened ? "linear-gradient(135deg,#7c3aed,#4f46e5)"
+                    : c.needsFollowUp ? "linear-gradient(135deg,#d97706,#f59e0b)"
+                    : "linear-gradient(135deg,#2563eb,#4f46e5)"
+                }}>
+                  {getInitials(c.hrName, c.hrEmail)}
+                </div>
+                {c.replied && (
+                  <span style={{
+                    position:"absolute", bottom:-2, right:-2,
+                    background:"#0d9488", color:"#fff",
+                    borderRadius:"50%", width:16, height:16,
+                    fontSize:9, display:"flex", alignItems:"center", justifyContent:"center",
+                    border:"2px solid var(--card-bg,#fff)"
+                  }}>✓</span>
+                )}
+              </div>
+
+              {/* Main content */}
+              <div className="contact-body" style={{ flex: 1, minWidth: 0 }}>
+                {/* Row 1: Company + Role + Status badges */}
+                <div className="contact-top" style={{ flexWrap: "wrap", gap: 4 }}>
+                  <span className="contact-company">{c.company || "—"}</span>
                   {c.role && <span className="contact-role">{c.role}</span>}
                   {statusBadge(c)}
-                  <DaysBadge ts={c.lastSentAt} />
+                  {c.lastSentAt > 0 && <DaysBadge ts={c.lastSentAt} />}
                 </div>
-                <p className="contact-email">
-                  {c.hrEmail}
+
+                {/* Row 2: Email + Name */}
+                <p className="contact-email" style={{ marginBottom: 4 }}>
+                  <a href={`mailto:${c.hrEmail}`} style={{ color:"inherit", textDecoration:"none" }}
+                    onClick={e => e.stopPropagation()}>
+                    {c.hrEmail}
+                  </a>
                   {c.hrName && <span className="contact-hrname"> · {c.hrName}</span>}
                 </p>
-                <div className="contact-meta">
-                  {c.followupCount > 0 && <span>🔁 {c.followupCount} follow-up{c.followupCount > 1 ? "s" : ""}</span>}
+
+                {/* Row 3: Meta info chips */}
+                <div className="contact-meta" style={{ flexWrap:"wrap", gap:4 }}>
+                  {c.lastSentAt > 0 && (
+                    <span style={{ fontSize:11, color:"var(--text-muted,#6b7280)" }}>
+                      📤 {new Date(c.lastSentAt).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric" })}
+                    </span>
+                  )}
+                  {c.totalSent > 1 && <span>✉ {c.totalSent} emails</span>}
+                  {c.followupCount > 0 && <span>🔁 {c.followupCount} followup{c.followupCount>1?"s":""}</span>}
                   {c.opened && c.openedAt && <span>👁 opened {relativeTime(c.openedAt)}</span>}
-                  {c.totalSent > 1 && <span>✉ {c.totalSent} sent</span>}
-                  {c.notes && <span title={c.notes}>📝 {c.notes.length > 30 ? c.notes.slice(0,30)+"…" : c.notes}</span>}
+                  {c.replied && c.repliedAt && (
+                    <span style={{ color:"#0d9488", fontWeight:600, fontSize:11 }}>
+                      ↩ replied {relativeTime(c.repliedAt)}
+                    </span>
+                  )}
+                  {c.notes && (
+                    <span title={c.notes} style={{ color:"var(--text-muted,#6b7280)", fontStyle:"italic" }}>
+                      📝 {c.notes.length > 35 ? c.notes.slice(0,35)+"…" : c.notes}
+                    </span>
+                  )}
                 </div>
               </div>
-              <div className="contact-actions">
-                <button className="btn-ghost btn-sm" onClick={() => onViewEmail(c.lastTrackingId)} disabled={!c.lastTrackingId}>📧 View</button>
-                {c.lastMessageId && (
-                  <button className="btn-ghost btn-sm" onClick={() => onViewThread(c)}
-                    style={{ color: c.replied ? "#0d9488" : undefined }}
-                    title="View full conversation thread">
-                    🧵 {c.replied ? "Replied!" : "Thread"}
+
+              {/* Action buttons — vertical stack */}
+              <div className="contact-actions" style={{ flexDirection:"column", gap:4, minWidth:90 }}>
+                {/* Primary action based on status */}
+                {c.replied ? (
+                  <button className="btn-followup btn-sm"
+                    style={{ background:"#0d9488", fontSize:11 }}
+                    onClick={() => onFollowUp({ ...c, originalMessageId: c.lastMessageId || "", originalThreadId: c.lastThreadId || "" })}>
+                    ↩ Reply Back
+                  </button>
+                ) : c.needsFollowUp ? (
+                  <button className="btn-followup btn-sm"
+                    style={{ background:"#d97706", fontSize:11 }}
+                    onClick={() => onFollowUp({ ...c, originalMessageId: c.lastMessageId || "", originalThreadId: c.lastThreadId || "" })}>
+                    ⏰ Follow-up!
+                  </button>
+                ) : (
+                  <button className="btn-followup btn-sm" style={{ fontSize:11 }}
+                    onClick={() => onFollowUp({ ...c, originalMessageId: c.lastMessageId || "", originalThreadId: c.lastThreadId || "" })}>
+                    🔁 Follow-up
                   </button>
                 )}
-                <button className="btn-ghost btn-sm" onClick={() => onMessage(c)}>💬 Message</button>
-                <button className="btn-followup btn-sm" onClick={() => onFollowUp({ ...c, originalMessageId: c.lastMessageId || "" })}>🔁 Follow-up</button>
+
+                {/* Thread button — shows reply count / status */}
+                {c.lastMessageId && (
+                  <button className="btn-ghost btn-sm"
+                    style={{ fontSize:11, color: c.replied ? "#0d9488" : undefined, fontWeight: c.replied ? 600 : 400 }}
+                    onClick={() => onViewThread(c)}
+                    title="View full conversation thread">
+                    🧵 {c.replied ? "View Reply" : "Thread"}
+                  </button>
+                )}
+
+                {/* Secondary actions */}
+                <div style={{ display:"flex", gap:3 }}>
+                  {c.lastTrackingId && (
+                    <button className="btn-ghost btn-sm" style={{ fontSize:10, padding:"2px 6px" }}
+                      onClick={() => onViewEmail(c.lastTrackingId)} title="View sent email">
+                      📧
+                    </button>
+                  )}
+                  <button className="btn-ghost btn-sm" style={{ fontSize:10, padding:"2px 6px" }}
+                    onClick={() => onMessage(c)} title="Generate message">
+                    💬
+                  </button>
+                </div>
               </div>
             </div>
           ))}
