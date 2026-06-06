@@ -23,6 +23,7 @@ app.use(express.json());
 app.use(gmailAuthRoutes);
 
 const RESUME_PATH      = path.join(__dirname, "ANAV_BANSAL_FullStackDeveloper.pdf");
+const CRM_RESUME_PATH  = path.join(__dirname, "ANAV_BANSAL_CRMExpert.pdf");
 const RESUME_DRIVE_LINK = "https://drive.google.com/file/d/1LKc-w9Ggd5I1eZ3t7Wvm9psU-4ITxHxr/view?usp=sharing";
 const THREE_DAYS_MS    = 3 * 24 * 60 * 60 * 1000;
 
@@ -390,8 +391,12 @@ async function sendApplicationEmail({
   storeEmailHtml(trackRecord.trackingId, html);
 
   const attachments = [];
-  if (fs.existsSync(RESUME_PATH))
-    attachments.push({ filename: "Anav_Bansal_Resume.pdf", path: RESUME_PATH, contentType: "application/pdf" });
+  const resumeFile = templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)
+    ? { filename: "Anav_Bansal_CRMExpert.pdf", path: CRM_RESUME_PATH, contentType: "application/pdf" }
+    : fs.existsSync(RESUME_PATH)
+      ? { filename: "Anav_Bansal_Resume.pdf", path: RESUME_PATH, contentType: "application/pdf" }
+      : null;
+  if (resumeFile) attachments.push(resumeFile);
 
   const mailOpts = { from: `"Anav Bansal" <${process.env.GMAIL_USER}>`, to: hrEmail, subject, html, attachments };
   if (readReceipt) {
