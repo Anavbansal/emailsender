@@ -1362,6 +1362,33 @@ app.post("/api/linkedin/update-connection", async (req, res) => {
 });
 
 
+
+// ─── POST /api/linkedin/add-connection — add manually ─────────────────────────
+app.post("/api/linkedin/add-connection", async (req, res) => {
+  const { firstName, lastName, company, position, email, url, connectedOn } = req.body;
+  if (!firstName && !lastName)
+    return res.status(400).json({ success: false, message: "Name required" });
+  try {
+    const sheets = await getSheetsClient();
+    // Append a new row: A=First B=Last C=URL D=Email E=Company F=Position G=ConnectedOn H=sent I=replied J=ignored
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: LINKEDIN_SHEET_ID,
+      range: `${LINKEDIN_TAB}!A:J`,
+      valueInputOption: "USER_ENTERED",
+      insertDataOption: "INSERT_ROWS",
+      requestBody: {
+        values: [[
+          firstName || "", lastName || "", url || "", email || "",
+          company || "", position || "", connectedOn || "", "FALSE", "FALSE", ""
+        ]]
+      },
+    });
+    return res.json({ success: true, message: `${firstName} ${lastName} added to connections sheet` });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // ─── POST /api/linkedin/ignore-connection ─────────────────────────────────────
 app.post("/api/linkedin/ignore-connection", async (req, res) => {
   const { rowIndex } = req.body;
