@@ -29,30 +29,30 @@ const SCREENING_KEYWORDS = [
 ];
 
 function buildScreeningReply(hrName = "") {
-  const greeting = hrName ? \`Hi \${hrName},\` : "Hi,";
-  return \`\${greeting}
+  const greeting = hrName ? `Hi ${hrName},` : "Hi,";
+  return `${greeting}
 
 Thank you for reaching out! Please find my details below:
 
 📋 Candidate Profile — Anav Bansal
 
-• Total Experience       : \${HR_PROFILE.totalExp}
-• Relevant Experience    : \${HR_PROFILE.relevantExp}
-• Current Company        : \${HR_PROFILE.currentCompany}
-• Reason for Change      : \${HR_PROFILE.reasonForChange}
-• Notice Period / LWD    : \${HR_PROFILE.noticePeriod}
-• Current CTC            : \${HR_PROFILE.currentCTC}
-• Offer in Hand          : \${HR_PROFILE.offerInHand}
-• Expected CTC           : \${HR_PROFILE.expectedCTC}
-• Current Location       : \${HR_PROFILE.currentLocation}
-• Preferred Location     : \${HR_PROFILE.preferredLocation}
+• Total Experience       : ${HR_PROFILE.totalExp}
+• Relevant Experience    : ${HR_PROFILE.relevantExp}
+• Current Company        : ${HR_PROFILE.currentCompany}
+• Reason for Change      : ${HR_PROFILE.reasonForChange}
+• Notice Period / LWD    : ${HR_PROFILE.noticePeriod}
+• Current CTC            : ${HR_PROFILE.currentCTC}
+• Offer in Hand          : ${HR_PROFILE.offerInHand}
+• Expected CTC           : ${HR_PROFILE.expectedCTC}
+• Current Location       : ${HR_PROFILE.currentLocation}
+• Preferred Location     : ${HR_PROFILE.preferredLocation}
 
 Looking forward to the next steps. Please feel free to reach out for any further information.
 
 Best regards,
 Anav Bansal
 📞 +91 7827855635 | ✉ anavbansal06@gmail.com
-🔗 linkedin.com/in/anavbansal-51b191162\`;
+🔗 linkedin.com/in/anavbansal-51b191162`;
 }
 
 function isScreeningEmail(subject = "", snippet = "") {
@@ -1161,30 +1161,30 @@ function ScreeningReplyModal({ message, contacts, onClose, addToast }) {
 
   const regenerate = () => {
     // rebuild with current profile values
-    const greeting = hrName ? \`Hi \${hrName},\` : "Hi,";
-    const txt = \`\${greeting}
+    const greeting = hrName ? `Hi ${hrName},` : "Hi,";
+    const txt = `${greeting}
 
 Thank you for reaching out! Please find my details below:
 
 📋 Candidate Profile — Anav Bansal
 
-• Total Experience       : \${profile.totalExp}
-• Relevant Experience    : \${profile.relevantExp}
-• Current Company        : \${profile.currentCompany}
-• Reason for Change      : \${profile.reasonForChange}
-• Notice Period / LWD    : \${profile.noticePeriod}
-• Current CTC            : \${profile.currentCTC}
-• Offer in Hand          : \${profile.offerInHand}
-• Expected CTC           : \${profile.expectedCTC}
-• Current Location       : \${profile.currentLocation}
-• Preferred Location     : \${profile.preferredLocation}
+• Total Experience       : ${profile.totalExp}
+• Relevant Experience    : ${profile.relevantExp}
+• Current Company        : ${profile.currentCompany}
+• Reason for Change      : ${profile.reasonForChange}
+• Notice Period / LWD    : ${profile.noticePeriod}
+• Current CTC            : ${profile.currentCTC}
+• Offer in Hand          : ${profile.offerInHand}
+• Expected CTC           : ${profile.expectedCTC}
+• Current Location       : ${profile.currentLocation}
+• Preferred Location     : ${profile.preferredLocation}
 
 Looking forward to the next steps. Please feel free to reach out for any further information.
 
 Best regards,
 Anav Bansal
 📞 +91 7827855635 | ✉ anavbansal06@gmail.com
-🔗 linkedin.com/in/anavbansal-51b191162\`;
+🔗 linkedin.com/in/anavbansal-51b191162`;
     setReplyText(txt);
     setEditProfile(false);
   };
@@ -1192,7 +1192,7 @@ Anav Bansal
   const send = async () => {
     setLoading(true);
     try {
-      await axios.post(\`\${API}/api/send-followup\`, {
+      await axios.post(`${API}/api/send-followup`, {
         hrEmail:           fromEmail,
         hrName:            hrName,
         company:           matched?.company || "",
@@ -1242,7 +1242,7 @@ Anav Bansal
           {/* Toggle: Edit Profile */}
           <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
             <button
-              className={\`chip \${editProfile ? "chip-active" : ""}\`}
+              className={`chip ${editProfile ? "chip-active" : ""}`}
               onClick={() => setEditProfile(p => !p)}
               type="button"
             >
@@ -1305,7 +1305,7 @@ Anav Bansal
         <div className="modal-footer">
           <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
           <button
-            className={\`btn-followup \${loading ? "loading" : ""}\`}
+            className={`btn-followup ${loading ? "loading" : ""}`}
             onClick={send}
             disabled={loading || sent}
           >
