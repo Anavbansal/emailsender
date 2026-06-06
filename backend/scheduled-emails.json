@@ -1,0 +1,30 @@
+[
+  {
+    "jobId": "1780064027925",
+    "scheduledTime": "2026-05-29T19:45",
+    "status": "sent",
+    "emailData": {
+      "hrEmail": "anavbansal6@gmail.com",
+      "company": "hfhghfh",
+      "hrName": "Hmma",
+      "role": "",
+      "customNote": "",
+      "templateType": "fullstack",
+      "readReceipt": true
+    }
+  },
+  {
+    "jobId": "1780076695194",
+    "scheduledTime": "2026-05-29T23:17",
+    "status": "sent",
+    "emailData": {
+      "hrEmail": "anavbansal6@gmail.com",
+      "company": "avns",
+      "hrName": "Anav",
+      "role": "",
+      "customNote": "",
+      "templateType": "fullstack",
+      "readReceipt": false
+    }
+  }
+]
