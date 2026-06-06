@@ -183,7 +183,8 @@ cron.schedule("* * * * *", async () => {
 
 // ─── Google Sheets ────────────────────────────────────────────────────────────
 const SHEET_HEADERS = ["Mail ID","HR Email","Company","Role","Sent At","Tracking ID","Status","Opened At"];
-const SHEET_TAB = process.env.SHEET_TAB || "Sheet1";
+const GOOGLE_SHEET_ID = GOOGLE_SHEET_ID || "1Ctdcf2D-DnWH0kfkKtPtobH-g_pNBs9tvHdf_gvS2WQ";
+const SHEET_TAB = process.env.SHEET_TAB || "Contacts";
 let sheetsInitialized = false;
 
 async function getSheetsClient() {
@@ -212,11 +213,11 @@ async function getSheetsClient() {
 async function ensureSheetHeaders(sheets) {
   if (sheetsInitialized) return;
   const ex = await sheets.spreadsheets.values.get({
-    spreadsheetId: process.env.GOOGLE_SHEET_ID, range: `${SHEET_TAB}!A1:H1`,
+    spreadsheetId: GOOGLE_SHEET_ID, range: `${SHEET_TAB}!A1:H1`,
   });
   if ((ex.data.values?.[0] || [])[0] !== "Mail ID") {
     await sheets.spreadsheets.values.update({
-      spreadsheetId: process.env.GOOGLE_SHEET_ID, range: `${SHEET_TAB}!A1:H1`,
+      spreadsheetId: GOOGLE_SHEET_ID, range: `${SHEET_TAB}!A1:H1`,
       valueInputOption: "USER_ENTERED", requestBody: { values: [SHEET_HEADERS] },
     });
     console.log(`✅ Headers written to ${SHEET_TAB}!A1:H1`);
@@ -225,12 +226,12 @@ async function ensureSheetHeaders(sheets) {
 }
 
 async function logToSheets(row) {
-  if (!process.env.GOOGLE_SHEET_ID) return;
+  if (!GOOGLE_SHEET_ID) return;
   try {
     const sheets = await getSheetsClient();
     await ensureSheetHeaders(sheets);
     await sheets.spreadsheets.values.append({
-      spreadsheetId: process.env.GOOGLE_SHEET_ID, range: `${SHEET_TAB}!A:H`,
+      spreadsheetId: GOOGLE_SHEET_ID, range: `${SHEET_TAB}!A:H`,
       valueInputOption: "USER_ENTERED", requestBody: { values: [row] },
     });
   } catch (e) { console.warn("⚠️ Sheets log failed:", e.message); }
@@ -238,7 +239,7 @@ async function logToSheets(row) {
 
 // ─── GET /api/sheets/setup ────────────────────────────────────────────────────
 app.get("/api/sheets/setup", async (req, res) => {
-  if (!process.env.GOOGLE_SHEET_ID)
+  if (!GOOGLE_SHEET_ID)
     return res.status(400).json({ success: false, message: "GOOGLE_SHEET_ID not set in .env" });
   try {
     const sheets = await getSheetsClient();
@@ -247,7 +248,7 @@ app.get("/api/sheets/setup", async (req, res) => {
     return res.json({
       success: true,
       message: `Connected! Headers written to tab "${SHEET_TAB}" row 1.`,
-      sheetId: process.env.GOOGLE_SHEET_ID,
+      sheetId: GOOGLE_SHEET_ID,
       tab: SHEET_TAB,
     });
   } catch (e) { return res.status(500).json({ success: false, message: e.message }); }
@@ -255,7 +256,7 @@ app.get("/api/sheets/setup", async (req, res) => {
 
 // ─── GET /api/sheets/debug ────────────────────────────────────────────────────
 app.get("/api/sheets/debug", async (req, res) => {
-  if (!process.env.GOOGLE_SHEET_ID)
+  if (!GOOGLE_SHEET_ID)
     return res.json({ ok: false, message: "GOOGLE_SHEET_ID not set" });
   try {
     const { google } = require("googleapis");
@@ -268,12 +269,12 @@ app.get("/api/sheets/debug", async (req, res) => {
     auth.setCredentials(JSON.parse(fs.readFileSync(tokenPath, "utf8")));
     const sheets = google.sheets({ version: "v4", auth });
 
-    const meta = await sheets.spreadsheets.get({ spreadsheetId: process.env.GOOGLE_SHEET_ID });
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: GOOGLE_SHEET_ID });
     const tabs = meta.data.sheets.map(s => ({ name: s.properties.title, id: s.properties.sheetId }));
 
     const firstTab = tabs[0]?.name || "Sheet1";
     const data = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.GOOGLE_SHEET_ID, range: `${firstTab}!A1:H5`,
+      spreadsheetId: GOOGLE_SHEET_ID, range: `${firstTab}!A1:H5`,
     }).catch(() => ({ data: { values: [] } }));
 
     return res.json({
@@ -684,11 +685,11 @@ app.get("/api/contacts", async (req, res) => {
   const byEmail = new Map();
   let sheetError = null;
 
-  if (process.env.GOOGLE_SHEET_ID) {
+  if (GOOGLE_SHEET_ID) {
     try {
       const sheets = await getSheetsClient();
       const resp   = await sheets.spreadsheets.values.get({
-        spreadsheetId: process.env.GOOGLE_SHEET_ID,
+        spreadsheetId: GOOGLE_SHEET_ID,
         range: `${SHEET_TAB}!A2:H5000`,
       });
       const rows = resp.data.values || [];
