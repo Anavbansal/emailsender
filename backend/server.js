@@ -357,6 +357,13 @@ const CTI_HIGHLIGHTS = [
   "CRM: ServiceNow, Salesforce, Freshdesk, Zendesk, CDK Global",
   "AWS Lambda · DynamoDB · IVR/ACD Design · Chatbot Development",
 ];
+const CRM_HIGHLIGHTS = [
+  "4.7+ years · Senior CRM Integration Expert",
+  "ServiceNow (ITSM, CSM, Flow Designer, IntegrationHub, Virtual Agent, Scripted REST)",
+  "Freshdesk (FDK, Marketplace Apps, CTI API) · Salesforce Open CTI · Zendesk Apps Framework",
+  "3 published marketplace apps: ServiceNow Store · Freshdesk · Webex App Hub",
+  "CTI Screen Pop · Click-to-Dial · Real-Time Ticket Automation · CRM-Telephony Sync",
+];
 
 // ─── Core send helper ─────────────────────────────────────────────────────────
 async function sendApplicationEmail({
@@ -366,7 +373,9 @@ async function sendApplicationEmail({
 }) {
   const subject = role
     ? `Application for ${role} Position — Anav Bansal`
-    : `Job Application — Anav Bansal (Senior Full Stack Developer)`;
+    : templateType === "crm"
+      ? `Job Application — Anav Bansal (Senior CRM & ServiceNow Expert)`
+      : `Job Application — Anav Bansal (Senior Full Stack Developer)`;
 
   const trackRecord = createTrackingRecord({ hrEmail, hrName, company, role, subject, type: "application" });
   const trackUrl    = `${BASE_URL}/api/track/${trackRecord.trackingId}`;
@@ -375,6 +384,7 @@ async function sendApplicationEmail({
   let html;
   if (templateType === "cti")         html = buildCTIHTML(tplOpts);
   else if (templateType === "formal") html = buildFormalHTML(tplOpts);
+  else if (templateType === "crm")    html = buildCRMHTML(tplOpts);
   else                                html = buildFullstackHTML(tplOpts);
 
   storeEmailHtml(trackRecord.trackingId, html);
@@ -422,6 +432,52 @@ function resumeBox(accentColor = "#2563eb") {
       <a href="${RESUME_DRIVE_LINK}" style="color:${accentColor};text-decoration:none;font-weight:500;">🔗 View on Google Drive →</a>
     </p>
   </div>`;
+}
+
+
+// ─── HTML: CRM Expert ─────────────────────────────────────────────────────────
+function buildCRMHTML({ hrName, company, role, customNote, trackUrl = "", customIntro = "", customHighlights = null, headerTheme = "teal" }) {
+  const gradient  = HEADER_THEMES[headerTheme] || HEADER_THEMES.teal;
+  const greeting  = hrName ? `Dear ${hrName},` : "Dear Hiring Manager,";
+  const roleText  = role   ? ` for the <strong>${role}</strong> position` : "";
+  const noteBlock = customNote ? `<p style="color:#374151;line-height:1.8;margin:16px 0;">${customNote}</p>` : "";
+  const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
+  const intro     = customIntro ||
+    `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}.
+     With <strong>4.7+ years as a CRM Integration Expert</strong>, I specialize in <strong>ServiceNow platform development</strong>
+     (Flow Designer, IntegrationHub, Virtual Agent, Scripted REST APIs) and <strong>Freshdesk CTI integrations</strong> —
+     delivering enterprise-grade solutions that automate ticket workflows, enable real-time telephony-to-CRM sync,
+     and measurably reduce agent handle time.`;
+  const items     = (customHighlights && customHighlights.length) ? customHighlights : CRM_HIGHLIGHTS;
+  const hlHtml    = items.map(h => `<li>${h}</li>`).join("");
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',sans-serif;">
+<div style="max-width:620px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+  <div style="background:${gradient};padding:36px 40px;">
+    <p style="margin:0 0 6px;color:#99f6e4;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Senior CRM Integration Expert</p>
+    <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Anav Bansal</h1>
+    <p style="margin:6px 0 0;color:#99f6e4;font-size:14px;">ServiceNow · Freshdesk · Salesforce · Zendesk · MS Dynamics</p>
+  </div>
+  <div style="padding:36px 40px;">
+    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
+    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${intro}</p>
+    ${noteBlock}
+    <p style="color:#374151;line-height:1.8;margin:0 0 24px;">
+      At <strong>Novelvox PVT Ltd</strong>, I published <strong>3 enterprise marketplace apps</strong>
+      (ServiceNow Store, Freshdesk Marketplace, Webex App Hub) and delivered CRM integrations across
+      <strong>6+ platforms</strong> — each reducing manual agent effort by 30–40%.
+      Nominated for <em>Performance of the Year</em> and received three <em>'Pat on the Back'</em> awards.
+    </p>
+    <div style="background:#f0fdfa;border-left:4px solid #0d9488;border-radius:0 8px 8px 0;padding:20px 24px;margin-bottom:24px;">
+      <p style="margin:0 0 12px;font-weight:600;color:#134e4a;font-size:14px;">🏆 CRM & ServiceNow Expertise</p>
+      <ul style="margin:0;padding-left:20px;color:#374151;font-size:14px;line-height:2;">${hlHtml}</ul>
+    </div>
+    ${resumeBox("#0d9488")}
+    <p style="color:#374151;line-height:1.8;margin:0;">Thank you for your time and consideration. I would love the opportunity to discuss how I can bring this expertise to your team.</p>
+  </div>
+  ${footer("#0d9488")}
+</div>${pixel}</body></html>`;
 }
 
 // ─── HTML: Full Stack Developer ───────────────────────────────────────────────
@@ -1155,6 +1211,7 @@ app.post("/api/preview-email", (req, res) => {
   let html;
   if (templateType === "cti")         html = buildCTIHTML(opts);
   else if (templateType === "formal") html = buildFormalHTML(opts);
+  else if (templateType === "crm")    html = buildCRMHTML(opts);
   else                                html = buildFullstackHTML(opts);
   res.json({ success: true, html });
 });
