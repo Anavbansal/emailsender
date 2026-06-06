@@ -194,7 +194,7 @@ function StatCard({ icon, label, value, sub, color = "blue", onClick }) {
 
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
 function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
-  const followDue = contacts.filter(c => c.needsFollowUp);
+  const followDue = contacts.filter(c => c.needsFollowUp).length;
   const totalSent   = contacts.reduce((s, c) => s + (c.totalSent || 1), 0);
   const openedCount = contacts.filter(c => c.opened).length;
   const replyCount  = replies.length;
