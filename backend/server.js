@@ -1479,4 +1479,18 @@ app.get("/api/sync-sent-emails", async (req, res) => {
   }
 });
 
+
+// ─── GET /api/run-import — trigger import from browser (one-time) ─────────────
+app.get("/api/run-import", async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1)
+      return res.status(503).send("❌ MongoDB not connected");
+    await autoImportContacts(SentEmailLog, mongoose);
+    const total = await SentEmailLog.countDocuments();
+    res.send(`✅ Import triggered! Total contacts in DB: ${total}. <br><a href='/api/contacts'>Check contacts</a>`);
+  } catch(e) {
+    res.status(500).send("❌ Error: " + e.message);
+  }
+});
+
 app.listen(PORT, () => console.log(`\n🚀 Job Mailer API → http://localhost:${PORT}\n`));
