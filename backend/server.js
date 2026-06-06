@@ -1612,8 +1612,22 @@ app.get("/api/thread/:messageId", async (req, res) => {
     if (mongoose.connection.readyState !== 1)
       return res.status(503).json({ success: false, message: "MongoDB not connected" });
 
-    const log = await SentEmailLog.findOne({ messageId: req.params.messageId }).lean();
-    if (!log) return res.status(404).json({ success: false, message: "Email not found in DB" });
+    // Try messageId first, then threadId as fallback
+    let log = await SentEmailLog.findOne({ messageId: req.params.messageId }).lean();
+    if (!log) log = await SentEmailLog.findOne({ threadId: req.params.messageId }).lean();
+    if (!log) {
+      // Try to fetch directly from Gmail if not in DB yet
+      if (!process.env.GMAIL_REFRESH_TOKEN)
+        return res.status(404).json({ success: false, message: "Email not found. Run Gmail Sync first." });
+      // Return minimal response so frontend can show something
+      return res.json({
+        success: true, threadId: req.params.messageId,
+        hrEmail: "", hrName: "", company: "", subject: "Unknown",
+        replied: false, repliedAt: null, replySnippet: "",
+        conversation: [],
+        note: "Email not in DB yet — click Sync Gmail Sent to import it first."
+      });
+    }
 
     // If conversation already cached in DB, return it
     if (log.conversation && log.conversation.length > 0) {
