@@ -1390,39 +1390,44 @@ app.post("/api/linkedin/add-connection", async (req, res) => {
   }
 });
 
-// ─── POST /api/linkedin/ignore-connection ─────────────────────────────────────
+// ─── POST /api/linkedin/ignore-connection — permanently delete row ─────────────
 app.post("/api/linkedin/ignore-connection", async (req, res) => {
   const { rowIndex } = req.body;
   if (!rowIndex) return res.status(400).json({ success: false, message: "rowIndex required" });
   try {
-    const sheets = await getSheetsClient();
+    const sheets     = await getSheetsClient();
+    const sheetsMeta = await sheets.spreadsheets.get({ spreadsheetId: LINKEDIN_SHEET_ID });
 
-    // Ensure J1 header exists, then write IGNORED to J{rowIndex}
-    // First ensure the Ignored header exists in J1
-    try {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: LINKEDIN_SHEET_ID,
-        range: `${LINKEDIN_TAB}!J1`,
-        valueInputOption: "USER_ENTERED",
-        requestBody: { values: [["Ignored"]] },
-      });
-    } catch (headerErr) {
-      console.warn("Could not write J1 header:", headerErr.message);
-    }
+    // Find the sheet tab ID for LINKEDIN_TAB
+    const tabMeta = sheetsMeta.data.sheets.find(
+      s => s.properties.title === LINKEDIN_TAB
+    );
+    if (!tabMeta) return res.status(400).json({ success: false, message: `Tab "${LINKEDIN_TAB}" not found` });
 
-    await sheets.spreadsheets.values.update({
+    const sheetId = tabMeta.properties.sheetId;
+
+    // Delete the actual row from sheet — permanent
+    await sheets.spreadsheets.batchUpdate({
       spreadsheetId: LINKEDIN_SHEET_ID,
-      range: `${LINKEDIN_TAB}!J${rowIndex}`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: { values: [["IGNORED"]] },
+      requestBody: {
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId,
+              dimension:  "ROWS",
+              startIndex: rowIndex - 1,  // 0-based
+              endIndex:   rowIndex,       // exclusive
+            }
+          }
+        }]
+      }
     });
 
-    return res.json({ success: true, message: `Row ${rowIndex} ignored` });
+    console.log(`🗑 Deleted row ${rowIndex} from ${LINKEDIN_TAB}`);
+    return res.json({ success: true, message: `Row ${rowIndex} permanently deleted` });
   } catch (e) {
-    console.error("Ignore error:", e.message);
-    // Fallback: just return success so UI removes the card
-    // The row won't be persisted as ignored but won't block UX
-    return res.json({ success: true, message: `Removed from view (sheet write failed: ${e.message})`, fallback: true });
+    console.error("Ignore/delete error:", e.message);
+    return res.status(500).json({ success: false, message: e.message });
   }
 });
 
