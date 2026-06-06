@@ -46,6 +46,36 @@ const ScheduledEmailSchema = new mongoose.Schema({
 const ScheduledEmail = mongoose.models.ScheduledEmail ||
   mongoose.model("ScheduledEmail", ScheduledEmailSchema);
 
+// ─── SentEmailLog — every email sent gets saved here ──────────────────────────
+const SentEmailLogSchema = new mongoose.Schema({
+  messageId:  { type: String },           // Gmail message ID
+  threadId:   { type: String },           // Gmail thread ID (for reply threading)
+  trackingId: { type: String },
+  type:       { type: String, enum: ["application", "followup", "scheduled", "referral"], default: "application" },
+  hrEmail:    { type: String, required: true },
+  hrName:     { type: String, default: "" },
+  company:    { type: String, default: "" },
+  role:       { type: String, default: "" },
+  subject:    { type: String, default: "" },
+  sentAt:     { type: Date,   default: Date.now },
+  opened:     { type: Boolean, default: false },
+  openedAt:   { type: Date,   default: null },
+  inReplyTo:  { type: String, default: null },  // original messageId for followups
+}, { timestamps: true });
+
+const SentEmailLog = mongoose.models.SentEmailLog ||
+  mongoose.model("SentEmailLog", SentEmailLogSchema);
+
+async function saveSentEmail(data) {
+  try {
+    if (mongoose.connection.readyState === 1) {
+      await SentEmailLog.create(data);
+    }
+  } catch (e) {
+    console.warn("⚠️ saveSentEmail failed:", e.message);
+  }
+}
+
 // ─── Transporter ──────────────────────────────────────────────────────────────
 const { google } = require("googleapis");
 
@@ -61,7 +91,7 @@ function getGmailAPITransport() {
   return oauth2Client;
 }
 
-async function sendViaGmailAPI({ to, subject, html }) {
+async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references = null, threadId = null }) {
   const auth = getGmailAPITransport();
   const gmail = google.gmail({ version: "v1", auth });
 
@@ -71,11 +101,17 @@ async function sendViaGmailAPI({ to, subject, html }) {
   const resumePath = path.join(__dirname, "ANAV_BANSAL_FullStackDeveloper.pdf");
   const resumeData = fs.readFileSync(resumePath).toString("base64");
 
+  // Build threading headers when replying
+  const extraHeaders = [];
+  if (inReplyTo)  extraHeaders.push(`In-Reply-To: ${inReplyTo}`);
+  if (references) extraHeaders.push(`References: ${references}`);
+
   const rawEmail = [
     `From: "Anav Bansal" <${process.env.GMAIL_USER}>`,
     `To: ${to}`,
     `Subject: ${encodedSubject}`,
     `MIME-Version: 1.0`,
+    ...extraHeaders,
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
     ``,
     `--${boundary}`,
@@ -100,11 +136,14 @@ async function sendViaGmailAPI({ to, subject, html }) {
     .replace(/\//g, "_")
     .replace(/=+$/, "");
 
+  const requestBody = { raw: encoded };
+  if (threadId) requestBody.threadId = threadId;
+
   const res = await gmail.users.messages.send({
     userId: "me",
-    requestBody: { raw: encoded },
+    requestBody,
   });
-  console.log("✅ Email sent via Gmail API:", res.data.id);
+  console.log("✅ Email sent via Gmail API:", res.data.id, threadId ? `(thread: ${res.data.threadId})` : "");
   return res.data;
 }
 
@@ -173,6 +212,12 @@ cron.schedule("* * * * *", async () => {
           "Scheduled-Sent",
           "",
         ]);
+        await saveSentEmail({
+          messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
+          type: "scheduled", hrEmail: job.emailData.hrEmail, hrName: job.emailData.hrName||"",
+          company: job.emailData.company||"", role: job.emailData.role||"",
+          subject: trackRecord.subject, sentAt: new Date(),
+        });
         await deleteJob(job.jobId);
       } catch (e) {
         await updateJobStatus(job.jobId, "failed", e.message);
@@ -349,6 +394,11 @@ async function sendApplicationEmail({
   console.log(`📤 Sent → ${hrEmail} | ${info.id}`);
   updateTrackingMessageId(trackRecord.trackingId, info.id);
   logToSheets([info.id, hrEmail, company||"", role||"", new Date().toISOString(), trackRecord.trackingId, "Sent", ""]);
+  await saveSentEmail({
+    messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
+    type: "application", hrEmail, hrName: hrName||"", company: company||"", role: role||"",
+    subject: trackRecord.subject, sentAt: new Date(),
+  });
   return { info, trackRecord };
 }
 
@@ -594,6 +644,11 @@ app.post("/api/send-referral", async (req, res) => {
   try {
     const info = await sendViaGmailAPI({ to: employeeEmail, subject, html });
     logToSheets([info.id, employeeEmail, company, role, new Date().toISOString(), trackRecord.trackingId, "Referral-Sent", ""]);
+    await saveSentEmail({
+      messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
+      type: "referral", hrEmail: employeeEmail, hrName: employeeName||"", company: company||"", role: role||"",
+      subject: trackRecord.subject, sentAt: new Date(),
+    });
     return res.status(200).json({
       success: true,
       message: `Referral request sent to ${employeeEmail}!`,
@@ -768,6 +823,24 @@ app.get("/api/contacts", async (req, res) => {
   }
 
   const contacts = [];
+  // Enrich contacts with threadId from DB (needed for followup threading)
+  if (mongoose.connection.readyState === 1) {
+    const allEmails = [...byEmail.keys()];
+    const dbLogs = await SentEmailLog.aggregate([
+      { $match: { hrEmail: { $in: allEmails.map(e => new RegExp(`^${e}$`, "i")) } } },
+      { $sort: { sentAt: -1 } },
+      { $group: { _id: { $toLower: "$hrEmail" }, threadId: { $first: "$threadId" }, messageId: { $first: "$messageId" }, sentAt: { $first: "$sentAt" } } }
+    ]);
+    for (const row of dbLogs) {
+      const c = byEmail.get(row._id);
+      if (c) {
+        c.latestThreadId  = row.threadId || null;
+        if (!c.latestMessageId && row.messageId) c.latestMessageId = row.messageId;
+        if (!c.latestSentAt && row.sentAt) c.latestSentAt = new Date(row.sentAt).getTime();
+      }
+    }
+  }
+
   for (const [, c] of byEmail) {
     const needsFollowUp = c.latestSentAt > 0
       && (Date.now() - c.latestSentAt) > THREE_DAYS_MS
@@ -779,6 +852,7 @@ app.get("/api/contacts", async (req, res) => {
       company: c.company, role: c.role,
       lastSentAt: c.latestSentAt, lastTrackingId: c.latestTrackingId,
       lastMessageId: c.latestMessageId || null,
+      lastThreadId: c.latestThreadId || null,       // ← frontend passes this for followup
       totalSent: c.totalSent, followupCount: c.followupCount,
       opened: c.opened, openedAt: c.openedAt,
       needsFollowUp,
@@ -811,9 +885,32 @@ app.get("/api/emails/:trackingId", (req, res) => {
 });
 
 // ─── GET /api/gmail/replies ───────────────────────────────────────────────────
+// ─── GET /api/sent-log — all sent emails from DB with dates ──────────────────
+app.get("/api/sent-log", async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1)
+      return res.json({ success: false, message: "MongoDB not connected", logs: [] });
+
+    const { type, email, limit = 100 } = req.query;
+    const filter = {};
+    if (type)  filter.type  = type;
+    if (email) filter.hrEmail = new RegExp(email, "i");
+
+    const logs = await SentEmailLog
+      .find(filter)
+      .sort({ sentAt: -1 })
+      .limit(parseInt(limit))
+      .lean();
+
+    res.json({ success: true, logs, total: logs.length });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message, logs: [] });
+  }
+});
+
+// ─── GET /api/gmail/replies — inbox replies from tracked HR emails ─────────────
 app.get("/api/gmail/replies", async (req, res) => {
   try {
-    const { google } = require("googleapis");
     const tokenPath = path.join(__dirname, "tokens.json");
     if (!fs.existsSync(tokenPath)) return res.json({ success: true, replies: [] });
     const auth = new google.auth.OAuth2(
@@ -822,27 +919,55 @@ app.get("/api/gmail/replies", async (req, res) => {
     auth.setCredentials(JSON.parse(fs.readFileSync(tokenPath, "utf8")));
     const gmail = google.gmail({ version: "v1", auth });
 
-    const trackedEmails = [...new Set(getTrackingRecords().map(r => r.hrEmail.toLowerCase()))];
+    // Pull tracked emails from DB (more complete) with fallback to tracking.json
+    let trackedEmails;
+    if (mongoose.connection.readyState === 1) {
+      const dbEmails = await SentEmailLog.distinct("hrEmail");
+      trackedEmails = [...new Set(dbEmails.map(e => e.toLowerCase()))];
+    } else {
+      trackedEmails = [...new Set(getTrackingRecords().map(r => r.hrEmail.toLowerCase()))];
+    }
     if (!trackedEmails.length) return res.json({ success: true, replies: [] });
 
-    const query = trackedEmails.slice(0, 10).map(e => `from:${e}`).join(" OR ");
-    const list  = await gmail.users.messages.list({ userId: "me", q: query, maxResults: 30 });
+    // Build query: replies from any HR we emailed, in INBOX, newer than 90 days
+    const fromClause = trackedEmails.slice(0, 20).map(e => `from:${e}`).join(" OR ");
+    const query = `(${fromClause}) in:inbox newer_than:90d`;
+    const list  = await gmail.users.messages.list({ userId: "me", q: query, maxResults: 50 });
+
+    if (!(list.data.messages || []).length) return res.json({ success: true, replies: [] });
 
     const replies = await Promise.all(
       (list.data.messages || []).map(async item => {
-        const d = await gmail.users.messages.get({ userId: "me", id: item.id });
+        const d = await gmail.users.messages.get({ userId: "me", id: item.id, format: "metadata",
+          metadataHeaders: ["From", "Subject", "Date", "In-Reply-To", "References"] });
         const h = d.data.payload.headers || [];
-        const from = h.find(x => x.name === "From")?.value || "";
-        const match = from.match(/<(.+?)>/);
+        const from     = h.find(x => x.name === "From")?.value || "";
+        const match    = from.match(/<(.+?)>/);
+        const fromEmail = match ? match[1].toLowerCase() : from.toLowerCase();
+
+        // Match back to our sent email log for context
+        let sentContext = null;
+        if (mongoose.connection.readyState === 1) {
+          const sent = await SentEmailLog.findOne({ hrEmail: new RegExp(fromEmail, "i") })
+            .sort({ sentAt: -1 }).lean();
+          if (sent) sentContext = { company: sent.company, role: sent.role, sentAt: sent.sentAt };
+        }
+
         return {
           id: item.id,
-          from, fromEmail: match ? match[1] : from,
-          subject: h.find(x => x.name === "Subject")?.value || "(No Subject)",
-          date: h.find(x => x.name === "Date")?.value || "",
-          snippet: d.data.snippet || "",
+          threadId: d.data.threadId,
+          from, fromEmail,
+          subject:   h.find(x => x.name === "Subject")?.value || "(No Subject)",
+          date:      h.find(x => x.name === "Date")?.value || "",
+          snippet:   d.data.snippet || "",
+          isReply:   !!(h.find(x => x.name === "In-Reply-To")?.value),
+          sentContext,
         };
       })
     );
+
+    // Sort newest first
+    replies.sort((a, b) => new Date(b.date) - new Date(a.date));
     res.json({ success: true, replies });
   } catch (e) {
     res.json({ success: true, replies: [], error: e.message });
@@ -881,9 +1006,16 @@ app.post("/api/send-application", async (req, res) => {
 
 // ─── POST /api/send-followup ──────────────────────────────────────────────────
 app.post("/api/send-followup", async (req, res) => {
-  const { hrEmail, hrName = "", company, role, originalDate, customNote, originalMessageId, originalSubject } = req.body;
+  const { hrEmail, hrName = "", company, role, originalDate, customNote, originalMessageId, originalSubject, originalThreadId } = req.body;
   if (!hrEmail || !company)
     return res.status(400).json({ success: false, message: "hrEmail and company are required." });
+
+  // If originalThreadId not supplied, look it up from DB so old entries also work
+  let resolvedThreadId = originalThreadId || null;
+  if (!resolvedThreadId && originalMessageId && mongoose.connection.readyState === 1) {
+    const prev = await SentEmailLog.findOne({ messageId: originalMessageId }).lean();
+    if (prev && prev.threadId) resolvedThreadId = prev.threadId;
+  }
 
   const baseSubject = originalSubject ||
     (role ? `Application for ${role} Position — Anav Bansal` : `Job Application — Anav Bansal`);
@@ -894,22 +1026,19 @@ app.post("/api/send-followup", async (req, res) => {
 
   storeEmailHtml(trackRecord.trackingId, html);
 
-  const attachments = [];
-  if (fs.existsSync(RESUME_PATH))
-    attachments.push({ filename: "Anav_Bansal_Resume.pdf", path: RESUME_PATH, contentType: "application/pdf" });
-
-  const extraHeaders = {};
-  if (originalMessageId) {
-    extraHeaders["In-Reply-To"] = originalMessageId;
-    extraHeaders["References"]  = originalMessageId;
-  }
-
   try {
     const info = await sendViaGmailAPI({
-      from: `"Anav Bansal" <${process.env.GMAIL_USER}>`,
-      to: hrEmail, subject, html, attachments, headers: extraHeaders,
+      to: hrEmail, subject, html,
+      inReplyTo:  originalMessageId || null,
+      references: originalMessageId || null,
+      threadId:   resolvedThreadId,          // ← puts reply inside the SAME thread
     });
     logToSheets([info.id, hrEmail, company||"", role||"", new Date().toISOString(), trackRecord.trackingId, "FollowUp-Sent", ""]);
+    await saveSentEmail({
+      messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
+      type: "followup", hrEmail, hrName: hrName||"", company: company||"", role: role||"",
+      subject, sentAt: new Date(), inReplyTo: originalMessageId || null,
+    });
     return res.status(200).json({ success: true, message: `Follow-up sent to ${hrEmail}!`, messageId: info.id });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
