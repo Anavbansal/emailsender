@@ -958,14 +958,30 @@ app.get("/api/contacts", async (req, res) => {
       && c.followupCount === 0
       && !c.opened;
 
+    // Ensure all date fields are numbers (ms), not Date objects or strings
+    const toMs = (v) => {
+      if (!v) return null;
+      if (typeof v === "number") return v;
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? null : d.getTime();
+    };
+
     contacts.push({
-      hrEmail: c.hrEmail, hrName: c.hrName || "",
-      company: c.company, role: c.role,
-      lastSentAt: c.latestSentAt, lastTrackingId: c.latestTrackingId,
-      lastMessageId: c.latestMessageId || null,
-      lastThreadId: c.latestThreadId || null,       // ← frontend passes this for followup
-      totalSent: c.totalSent, followupCount: c.followupCount,
-      opened: c.opened, openedAt: c.openedAt,
+      hrEmail:       c.hrEmail       || "",
+      hrName:        c.hrName        || "",
+      company:       c.company       || "",
+      role:          c.role          || "",
+      lastSentAt:    toMs(c.latestSentAt) || 0,
+      lastTrackingId:c.latestTrackingId   || null,
+      lastMessageId: c.latestMessageId    || null,
+      lastThreadId:  c.latestThreadId     || null,
+      totalSent:     c.totalSent          || 1,
+      followupCount: c.followupCount      || 0,
+      opened:        c.opened             || false,
+      openedAt:      toMs(c.openedAt)     || null,
+      replied:       c.replied            || false,
+      repliedAt:     toMs(c.repliedAt)    || null,
+      notes:         typeof c.notes === "string" ? c.notes : "",
       needsFollowUp,
     });
   }
