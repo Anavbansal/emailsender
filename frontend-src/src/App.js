@@ -1921,16 +1921,13 @@ ${rName}
   const send = async () => {
     setLoading(true);
     try {
-      await axios.post(`${API}/api/send-followup`, {
-        hrEmail:           fromEmail,
-        hrName:            hrName,
-        company:           matched?.company || "",
-        role:              matched?.role || "",
-        originalMessageId: message.id,
-        originalThreadId:  message.threadId,
-        originalSubject:   message.subject,
-        customNote:        replyText,
-        isScreeningReply:  true,
+      // Use direct Gmail reply for screening — plain text, same thread, no "Follow-Up" header
+      await axios.post(`${API}/api/gmail/reply`, {
+        threadId:  message.threadId,
+        messageId: message.id,
+        to:        fromEmail,
+        subject:   message.subject,
+        body:      replyText,
       });
       setSent(true);
       addToast && addToast("✅ Screening reply sent!");
