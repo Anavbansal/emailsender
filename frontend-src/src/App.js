@@ -3,6 +3,19 @@ import axios from "axios";
 import "./App.css";
 
 const API = "https://emailsender-v8a4.onrender.com";
+
+// ── Auth helpers ───────────────────────────────────────────────────────────────
+function getToken()       { return localStorage.getItem("em_token"); }
+function setToken(t)      { localStorage.setItem("em_token", t); }
+function clearToken()     { localStorage.removeItem("em_token"); localStorage.removeItem("em_user"); }
+function getUser()        { try { return JSON.parse(localStorage.getItem("em_user")||"null"); } catch { return null; } }
+function setUser(u)       { localStorage.setItem("em_user", JSON.stringify(u)); }
+// Axios interceptor — attach token to every request
+axios.interceptors.request.use(cfg => {
+  const t = getToken();
+  if (t) cfg.headers = { ...cfg.headers, Authorization: `Bearer ${t}` };
+  return cfg;
+});
 const DRIVE_LINK = "https://drive.google.com/file/d/1LKc-w9Ggd5I1eZ3t7Wvm9psU-4ITxHxr/view?usp=sharing";
 
 // ── HR Profile answers — edit these anytime ──────────────────────────────────
@@ -3532,7 +3545,146 @@ function ScheduledPage() {
 
 // ═══════════════════════════════ MAIN APP ════════════════════════════════════
 
-export default function App() {
+export default 
+// ─── Login / Register Page ────────────────────────────────────────────────────
+function AuthPage({ onAuth }) {
+  const [tab,      setTab]     = useState("login");
+  const [form,     setForm]    = useState({ username:"", password:"", displayName:"", inviteCode:"" });
+  const [loading,  setLoading] = useState(false);
+  const [error,    setError]   = useState("");
+  const handle = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
+
+  const submit = async e => {
+    e.preventDefault();
+    setLoading(true); setError("");
+    try {
+      const endpoint = tab === "login" ? "/api/auth/login" : "/api/auth/register";
+      const res = await axios.post(`${API}${endpoint}`, form);
+      setToken(res.data.token);
+      setUser(res.data.user);
+      onAuth(res.data.user);
+    } catch (err) {
+      setError(err.response?.data?.message || "Something went wrong");
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div style={{
+      minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center",
+      background:"linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)",
+      padding:16
+    }}>
+      <div style={{
+        width:"100%", maxWidth:400,
+        background:"rgba(255,255,255,0.05)", backdropFilter:"blur(20px)",
+        border:"1px solid rgba(255,255,255,0.1)", borderRadius:20,
+        padding:40, boxShadow:"0 32px 80px rgba(0,0,0,0.4)"
+      }}>
+        {/* Logo */}
+        <div style={{ textAlign:"center", marginBottom:32 }}>
+          <div style={{
+            width:56, height:56, borderRadius:16, margin:"0 auto 12px",
+            background:"linear-gradient(135deg,#3b82f6,#7c3aed)",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            fontSize:28, boxShadow:"0 8px 24px rgba(59,130,246,0.4)"
+          }}>✉️</div>
+          <h1 style={{ color:"#fff", fontSize:24, fontWeight:800, margin:0 }}>Email Sender</h1>
+          <p style={{ color:"#94a3b8", fontSize:13, margin:"6px 0 0" }}>Job Hunt Automation</p>
+        </div>
+
+        {/* Tab switcher */}
+        <div style={{
+          display:"flex", background:"rgba(0,0,0,0.3)", borderRadius:10,
+          padding:4, marginBottom:24
+        }}>
+          {["login","register"].map(t => (
+            <button key={t} type="button"
+              onClick={() => { setTab(t); setError(""); }}
+              style={{
+                flex:1, padding:"8px 0", borderRadius:8, border:"none",
+                fontWeight:600, fontSize:13, cursor:"pointer", transition:"all 0.2s",
+                background: tab===t ? "rgba(255,255,255,0.1)" : "transparent",
+                color: tab===t ? "#fff" : "#64748b",
+              }}>
+              {t === "login" ? "🔑 Login" : "✨ Register"}
+            </button>
+          ))}
+        </div>
+
+        <form onSubmit={submit}>
+          {tab === "register" && (
+            <div style={{ marginBottom:14 }}>
+              <label style={{ color:"#94a3b8", fontSize:12, fontWeight:600, display:"block", marginBottom:6 }}>DISPLAY NAME</label>
+              <input name="displayName" value={form.displayName} onChange={handle}
+                placeholder="Anav Bansal" required
+                style={{
+                  width:"100%", padding:"10px 14px", borderRadius:10, border:"1px solid rgba(255,255,255,0.1)",
+                  background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:14, boxSizing:"border-box",
+                  outline:"none"
+                }} />
+            </div>
+          )}
+
+          <div style={{ marginBottom:14 }}>
+            <label style={{ color:"#94a3b8", fontSize:12, fontWeight:600, display:"block", marginBottom:6 }}>USERNAME</label>
+            <input name="username" value={form.username} onChange={handle}
+              placeholder="anav" required autoFocus
+              style={{
+                width:"100%", padding:"10px 14px", borderRadius:10, border:"1px solid rgba(255,255,255,0.1)",
+                background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:14, boxSizing:"border-box",
+                outline:"none"
+              }} />
+          </div>
+
+          <div style={{ marginBottom: tab==="register" ? 14 : 24 }}>
+            <label style={{ color:"#94a3b8", fontSize:12, fontWeight:600, display:"block", marginBottom:6 }}>PASSWORD</label>
+            <input name="password" type="password" value={form.password} onChange={handle}
+              placeholder="••••••••" required
+              style={{
+                width:"100%", padding:"10px 14px", borderRadius:10, border:"1px solid rgba(255,255,255,0.1)",
+                background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:14, boxSizing:"border-box",
+                outline:"none"
+              }} />
+          </div>
+
+          {tab === "register" && (
+            <div style={{ marginBottom:24 }}>
+              <label style={{ color:"#94a3b8", fontSize:12, fontWeight:600, display:"block", marginBottom:6 }}>INVITE CODE</label>
+              <input name="inviteCode" value={form.inviteCode} onChange={handle}
+                placeholder="Ask Anav for the code" required
+                style={{
+                  width:"100%", padding:"10px 14px", borderRadius:10, border:"1px solid rgba(255,255,255,0.1)",
+                  background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:14, boxSizing:"border-box",
+                  outline:"none"
+                }} />
+            </div>
+          )}
+
+          {error && (
+            <div style={{
+              background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.3)",
+              borderRadius:8, padding:"10px 14px", marginBottom:16,
+              color:"#fca5a5", fontSize:13
+            }}>❌ {error}</div>
+          )}
+
+          <button type="submit" disabled={loading}
+            style={{
+              width:"100%", padding:"12px 0", borderRadius:10, border:"none",
+              background:"linear-gradient(135deg,#2563eb,#7c3aed)", color:"#fff",
+              fontWeight:700, fontSize:15, cursor:"pointer", transition:"all 0.2s",
+              boxShadow:"0 4px 16px rgba(37,99,235,0.4)",
+              opacity: loading ? 0.7 : 1
+            }}>
+            {loading ? "⏳ Please wait…" : tab==="login" ? "🔑 Login" : "✨ Create Account"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function App() {
   const [page,          setPage]          = useState("dashboard");
   const [contacts,      setContacts]      = useState([]);
   const [replies,       setReplies]       = useState([]);
