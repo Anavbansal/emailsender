@@ -487,12 +487,14 @@ async function sendApplicationEmail({
   hrEmail, hrName = "", company, role, customNote,
   templateType = "fullstack", readReceipt = false,
   customIntro = "", customHighlights = null, headerTheme = "blue",
+  userCfg = null,
 }) {
+  const userName = userCfg?.profileName || "Anav Bansal";
   const subject = role
-    ? `Application for ${role} Position — Anav Bansal`
+    ? `Application for ${role} Position — ${userName}`
     : templateType === "crm"
-      ? `Job Application — Anav Bansal (Senior CRM & ServiceNow Expert)`
-      : `Job Application — Anav Bansal (Senior Full Stack Developer)`;
+      ? `Job Application — ${userName} (Senior CRM & ServiceNow Expert)`
+      : `Job Application — ${userName}`;
 
   const trackRecord = createTrackingRecord({ hrEmail, hrName, company, role, subject, type: "application" });
   const trackUrl    = `${BASE_URL}/api/track/${trackRecord.trackingId}`;
