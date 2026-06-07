@@ -68,9 +68,12 @@ router.get("/api/gmail/auth", (req, res) => {
   try {
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_REDIRECT_URI)
       return res.status(500).json({ success: false, message: "Google OAuth not configured in .env" });
+    // Pass username in state so callback knows which user to update
+    const username = req.query.username || "";
     const url = getOAuthClient().generateAuthUrl({
       access_type: "offline",
       prompt: "consent",
+      state: username,   // passed back in callback
       scope: [
         "https://www.googleapis.com/auth/gmail.readonly",
         "https://www.googleapis.com/auth/gmail.send",
@@ -84,19 +87,59 @@ router.get("/api/gmail/auth", (req, res) => {
 
 router.get("/api/gmail/callback", async (req, res) => {
   try {
-    const { code } = req.query;
+    const { code, state } = req.query;
     if (!code) return res.status(400).json({ success: false, message: "Missing OAuth code." });
     const auth = getOAuthClient();
     const { tokens } = await auth.getToken(code);
     auth.setCredentials(tokens);
+
+    const username = state || "";
+
+    if (username) {
+      // Save to MongoDB user record
+      try {
+        const mongoose = require("mongoose");
+        if (mongoose.connection.readyState === 1) {
+          const User = mongoose.model("User");
+          const gmail = require("googleapis").google.gmail({ version: "v1", auth });
+          // Get user's Gmail address
+          const profile = await gmail.users.getProfile({ userId: "me" });
+          const gmailUser = profile.data.emailAddress || "";
+          await User.updateOne(
+            { username: username.toLowerCase() },
+            { $set: {
+              gmailRefreshToken: tokens.refresh_token || tokens.access_token,
+              gmailUser: gmailUser,
+            }}
+          );
+          console.log(`✅ Gmail connected for user: ${username} (${gmailUser})`);
+          return res.send(`
+            <html><body style="font-family:sans-serif;text-align:center;padding:40px">
+              <h2>✅ Gmail Connected!</h2>
+              <p><strong>${gmailUser}</strong> linked to account <strong>${username}</strong></p>
+              <p>You can close this tab and return to the app.</p>
+            </body></html>
+          `);
+        }
+      } catch (dbErr) {
+        console.error("DB save error:", dbErr.message);
+      }
+    }
+
+    // Fallback: save to tokens.json (for owner)
     fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens, null, 2), "utf8");
-    res.json({ success: true, message: "Gmail connected successfully." });
+    res.send(`
+      <html><body style="font-family:sans-serif;text-align:center;padding:40px">
+        <h2>✅ Gmail Connected!</h2>
+        <p>You can close this tab and return to the app.</p>
+      </body></html>
+    `);
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
 // ─── GET /api/gmail/inbox?q=...&max=...&pageToken=... ────────────────────────
 // q: Gmail search query (default: in:inbox). pageToken: cursor for pagination.
-router.get("/api/gmail/inbox", async (req, res) => {
+router.get("/api/gmail/inbox", async (req, res) => { // public for now — uses token from file
   try {
     const gmail     = getGmailClient();
     const q         = req.query.q         || "in:inbox";
