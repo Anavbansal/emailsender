@@ -120,8 +120,8 @@ router.get("/api/gmail/auth", (req, res) => {
     const username = req.query.username || "";
     const url = getOAuthClient().generateAuthUrl({
       access_type: "offline",
-      prompt: "consent",
-      state: username,   // passed back in callback
+      prompt: "consent select_account",  // force new refresh_token every time
+      state: username,
       scope: [
         "https://www.googleapis.com/auth/gmail.readonly",
         "https://www.googleapis.com/auth/gmail.send",
@@ -156,7 +156,8 @@ router.get("/api/gmail/callback", async (req, res) => {
           await User.updateOne(
             { username: username.toLowerCase() },
             { $set: {
-              gmailRefreshToken: tokens.refresh_token || tokens.access_token,
+              gmailRefreshToken: tokens.refresh_token || tokens.access_token || "",
+              gmailAccessToken:  tokens.access_token || "",
               gmailUser: gmailUser,
             }}
           );
