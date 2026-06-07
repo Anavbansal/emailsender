@@ -131,14 +131,20 @@ async function requireAuth(req, res, next) {
 
 // ── Get Gmail auth for a specific user ───────────────────────────────────────
 function getUserGmailAuth(user) {
+  const isOwner = user && (user.username === (process.env.OWNER_USERNAME || "anav"));
+  const refreshToken = user?.gmailRefreshToken ||
+    (isOwner ? process.env.GMAIL_REFRESH_TOKEN : null);
+
+  if (!refreshToken) {
+    throw new Error("Gmail not connected. Please connect your Gmail account first via /api/gmail/auth?username=" + (user?.username || ""));
+  }
+
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
     process.env.GOOGLE_REDIRECT_URI
   );
-  oauth2Client.setCredentials({
-    refresh_token: user.gmailRefreshToken || process.env.GMAIL_REFRESH_TOKEN,
-  });
+  oauth2Client.setCredentials({ refresh_token: refreshToken });
   return oauth2Client;
 }
 
