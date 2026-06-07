@@ -183,7 +183,10 @@ function getUserConfig(user) {
     currentLocation:  user.currentLocation  || (isOwner ? "Faridabad, Haryana" : ""),
     preferredLocation:user.preferredLocation|| (isOwner ? "PAN India" : ""),
     totalExp:         user.totalExp         || (isOwner ? "4.7+ Years" : ""),
-    relevantExp:      user.relevantExp      || (isOwner ? "4.7+ Years" : ""),
+    relevantExp:         user.relevantExp         || (isOwner ? "4.7+ Years" : ""),
+    // Gmail credentials — critical for sending emails
+    gmailRefreshToken:   user.gmailRefreshToken   || (isOwner ? process.env.GMAIL_REFRESH_TOKEN : ""),
+    gmailAccessToken:    user.gmailAccessToken    || "",
   };
 }
 
