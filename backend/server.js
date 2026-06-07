@@ -73,18 +73,98 @@ const SentEmailLogSchema = new mongoose.Schema({
   notes:        { type: String,  default: "" },
   status:       { type: String,  default: "Sent" },
   source:       { type: String,  default: "app" },
-  gmailMsgId:   { type: String,  default: null },   // RFC Message-ID header
-  replySnippet: { type: String,  default: "" },      // first reply snippet
-  conversation: { type: Array,   default: [] },      // full thread history
+  gmailMsgId:   { type: String,  default: null },
+  replySnippet: { type: String,  default: "" },
+  conversation: { type: Array,   default: [] },
+  userId:       { type: String,  default: "default" }, // multi-user support
 }, { timestamps: true });
 
 const SentEmailLog = mongoose.models.SentEmailLog ||
   mongoose.model("SentEmailLog", SentEmailLogSchema);
 
-async function saveSentEmail(data) {
+
+// ─── User Model ───────────────────────────────────────────────────────────────
+const UserSchema = new mongoose.Schema({
+  username:     { type: String, required: true, unique: true, lowercase: true, trim: true },
+  passwordHash: { type: String, required: true },
+  displayName:  { type: String, default: "" },
+  // Per-user Gmail & Sheet credentials (override global env)
+  gmailUser:          { type: String, default: "" },
+  gmailRefreshToken:  { type: String, default: "" },
+  googleSheetId:      { type: String, default: "" },
+  sheetTab:           { type: String, default: "Candidate_Status_Log" },
+  linkedinSheetId:    { type: String, default: "" },
+  resumePath:         { type: String, default: "" },
+  // Profile info
+  profileName:        { type: String, default: "Anav Bansal" },
+  profilePhone:       { type: String, default: "+91 7827855635" },
+  profileLinkedIn:    { type: String, default: "linkedin.com/in/anavbansal-51b191162" },
+}, { timestamps: true });
+
+const User = mongoose.models.User || mongoose.model("User", UserSchema);
+
+// ── JWT helpers ───────────────────────────────────────────────────────────────
+const JWT_SECRET = process.env.JWT_SECRET || "emailsender_secret_2026";
+const bcrypt     = require("bcryptjs");
+const jwt        = require("jsonwebtoken");
+
+function signToken(userId) {
+  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: "30d" });
+}
+
+// ── Auth middleware ───────────────────────────────────────────────────────────
+async function requireAuth(req, res, next) {
+  const header = req.headers.authorization || "";
+  const token  = header.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!token) return res.status(401).json({ success: false, message: "Login required" });
+  try {
+    const { userId } = jwt.verify(token, JWT_SECRET);
+    const user = await User.findById(userId).lean();
+    if (!user) return res.status(401).json({ success: false, message: "User not found" });
+    req.user   = user;
+    req.userId = String(user._id);
+    next();
+  } catch {
+    return res.status(401).json({ success: false, message: "Invalid or expired token" });
+  }
+}
+
+// ── Get Gmail auth for a specific user ───────────────────────────────────────
+function getUserGmailAuth(user) {
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI
+  );
+  oauth2Client.setCredentials({
+    refresh_token: user.gmailRefreshToken || process.env.GMAIL_REFRESH_TOKEN,
+  });
+  return oauth2Client;
+}
+
+// ── Get Sheets client for a specific user ────────────────────────────────────
+function getUserSheetsClient(user) {
+  const auth = getUserGmailAuth(user);
+  return google.sheets({ version: "v4", auth });
+}
+
+// ── Get user-specific config ──────────────────────────────────────────────────
+function getUserConfig(user) {
+  return {
+    gmailUser:       user.gmailUser       || process.env.GMAIL_USER       || "",
+    sheetId:         user.googleSheetId   || process.env.GOOGLE_SHEET_ID  || "",
+    sheetTab:        user.sheetTab        || process.env.SHEET_TAB        || "Candidate_Status_Log",
+    linkedinSheetId: user.linkedinSheetId || process.env.LINKEDIN_SHEET_ID|| "",
+    profileName:     user.profileName     || "Anav Bansal",
+    profilePhone:    user.profilePhone    || "+91 7827855635",
+    profileLinkedIn: user.profileLinkedIn || "linkedin.com/in/anavbansal-51b191162",
+  };
+}
+
+async function saveSentEmail(data, userId = "default") {
   try {
     if (mongoose.connection.readyState === 1) {
-      await SentEmailLog.create(data);
+      await SentEmailLog.create({ ...data, userId });
     }
   } catch (e) {
     console.warn("⚠️ saveSentEmail failed:", e.message);
@@ -811,7 +891,7 @@ app.get("/api/track/:trackingId", (req, res) => {
 });
 
 // ─── GET /api/contacts ────────────────────────────────────────────────────────
-app.get("/api/contacts", async (req, res) => {
+app.get("/api/contacts", requireAuth, async (req, res) => {
   const byEmail = new Map();
   let sheetError = null;
 
@@ -902,6 +982,7 @@ app.get("/api/contacts", async (req, res) => {
   if (mongoose.connection.readyState === 1) {
     // Get all unique contacts from DB grouped by email
     const dbContacts = await SentEmailLog.aggregate([
+      { $match: { userId: req.userId || "default" } },
       { $sort: { sentAt: -1 } },
       { $group: {
         _id:          { $toLower: "$hrEmail" },
@@ -1019,13 +1100,13 @@ app.get("/api/emails/:trackingId", (req, res) => {
 
 // ─── GET /api/gmail/replies ───────────────────────────────────────────────────
 // ─── GET /api/sent-log — all sent emails from DB with dates ──────────────────
-app.get("/api/sent-log", async (req, res) => {
+app.get("/api/sent-log", requireAuth, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1)
       return res.json({ success: false, message: "MongoDB not connected", logs: [] });
 
     const { type, email, limit = 100 } = req.query;
-    const filter = {};
+    const filter = { userId: req.userId || "default" };
     if (type)  filter.type  = type;
     if (email) filter.hrEmail = new RegExp(email, "i");
 
@@ -1042,7 +1123,7 @@ app.get("/api/sent-log", async (req, res) => {
 });
 
 // ─── GET /api/gmail/replies — inbox replies from tracked HR emails ─────────────
-app.get("/api/gmail/replies", async (req, res) => {
+app.get("/api/gmail/replies", requireAuth, async (req, res) => {
   try {
     // Use refresh token from env (works on Render without tokens.json)
     if (!process.env.GMAIL_REFRESH_TOKEN) return res.json({ success: true, replies: [] });
@@ -1105,7 +1186,7 @@ app.get("/api/gmail/replies", async (req, res) => {
 });
 
 // ─── POST /api/send-application ───────────────────────────────────────────────
-app.post("/api/send-application", async (req, res) => {
+app.post("/api/send-application", requireAuth, async (req, res) => {
   const { hrEmail, company, force, customIntro, customHighlights, headerTheme, ...rest } = req.body;
   if (!hrEmail || !company)
     return res.status(400).json({ success: false, message: "hrEmail and company are required." });
@@ -1135,7 +1216,7 @@ app.post("/api/send-application", async (req, res) => {
 });
 
 // ─── POST /api/send-followup ──────────────────────────────────────────────────
-app.post("/api/send-followup", async (req, res) => {
+app.post("/api/send-followup", requireAuth, async (req, res) => {
   const { hrEmail, hrName = "", company, role, originalDate, customNote, originalMessageId, originalSubject, originalThreadId } = req.body;
   if (!hrEmail || !company)
     return res.status(400).json({ success: false, message: "hrEmail and company are required." });
@@ -1176,7 +1257,7 @@ app.post("/api/send-followup", async (req, res) => {
 });
 
 // ─── POST /api/schedule-email ─────────────────────────────────────────────────
-app.post("/api/schedule-email", async (req, res) => {
+app.post("/api/schedule-email", requireAuth, async (req, res) => {
   const { hrEmail, company, scheduledTime, ...rest } = req.body;
   if (!hrEmail || !company || !scheduledTime)
     return res.status(400).json({ success: false, message: "hrEmail, company, scheduledTime required." });
@@ -1482,7 +1563,7 @@ app.post("/api/import-contacts", async (req, res) => {
 
 // ─── GET /api/sync-sent-emails ───────────────────────────────────────────────
 // Fetches sent emails from Gmail, saves threadId, detects replies, stores conversation
-app.get("/api/sync-sent-emails", async (req, res) => {
+app.get("/api/sync-sent-emails", requireAuth, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1)
       return res.status(503).json({ success: false, message: "MongoDB not connected" });
@@ -1843,7 +1924,7 @@ app.get("/api/resync-replies", async (req, res) => {
 
 
 // ─── PATCH /api/contact/update — manually update contact status ───────────────
-app.patch("/api/contact/update", async (req, res) => {
+app.patch("/api/contact/update", requireAuth, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1)
       return res.status(503).json({ success: false, message: "MongoDB not connected" });
@@ -1859,8 +1940,9 @@ app.patch("/api/contact/update", async (req, res) => {
     if (status      !== undefined) updates.status       = status;
 
     // Update ALL records for this email (multiple sends)
+    const escaped = hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const result = await SentEmailLog.updateMany(
-      { hrEmail: new RegExp("^" + hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", "i") },
+      { hrEmail: new RegExp("^" + escaped + "$", "i"), userId: req.userId || "default" },
       { $set: updates }
     );
 
@@ -1877,6 +1959,86 @@ app.patch("/api/contact/update", async (req, res) => {
       message: `Updated ${result.modifiedCount} record(s) for ${hrEmail}`,
       modifiedCount: result.modifiedCount,
     });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+
+// ─── POST /api/auth/register ──────────────────────────────────────────────────
+app.post("/api/auth/register", async (req, res) => {
+  const { username, password, displayName, inviteCode } = req.body;
+  if (!username || !password)
+    return res.status(400).json({ success: false, message: "Username and password required" });
+  // Simple invite code protection
+  const INVITE = process.env.INVITE_CODE || "emailsender2026";
+  if (inviteCode !== INVITE)
+    return res.status(403).json({ success: false, message: "Invalid invite code" });
+  try {
+    const exists = await User.findOne({ username: username.toLowerCase() });
+    if (exists) return res.status(409).json({ success: false, message: "Username already taken" });
+    const passwordHash = await bcrypt.hash(password, 10);
+    const user = await User.create({
+      username: username.toLowerCase(), passwordHash,
+      displayName: displayName || username,
+    });
+    const token = signToken(String(user._id));
+    res.json({ success: true, token, user: { id: user._id, username: user.username, displayName: user.displayName } });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// ─── POST /api/auth/login ─────────────────────────────────────────────────────
+app.post("/api/auth/login", async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password)
+    return res.status(400).json({ success: false, message: "Username and password required" });
+  try {
+    const user = await User.findOne({ username: username.toLowerCase() }).lean();
+    if (!user) return res.status(401).json({ success: false, message: "Invalid username or password" });
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) return res.status(401).json({ success: false, message: "Invalid username or password" });
+    const token = signToken(String(user._id));
+    res.json({
+      success: true, token,
+      user: {
+        id: user._id, username: user.username, displayName: user.displayName,
+        gmailUser: user.gmailUser, profileName: user.profileName,
+        profilePhone: user.profilePhone, profileLinkedIn: user.profileLinkedIn,
+        hasGmail: !!(user.gmailRefreshToken || process.env.GMAIL_REFRESH_TOKEN),
+        hasSheet: !!(user.googleSheetId || process.env.GOOGLE_SHEET_ID),
+      }
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// ─── GET /api/auth/me ─────────────────────────────────────────────────────────
+app.get("/api/auth/me", requireAuth, async (req, res) => {
+  const u = req.user;
+  res.json({
+    success: true,
+    user: {
+      id: u._id, username: u.username, displayName: u.displayName,
+      gmailUser: u.gmailUser, profileName: u.profileName,
+      profilePhone: u.profilePhone, profileLinkedIn: u.profileLinkedIn,
+      hasGmail: !!(u.gmailRefreshToken || process.env.GMAIL_REFRESH_TOKEN),
+      hasSheet: !!(u.googleSheetId || process.env.GOOGLE_SHEET_ID),
+    }
+  });
+});
+
+// ─── PATCH /api/auth/settings — update user credentials ──────────────────────
+app.patch("/api/auth/settings", requireAuth, async (req, res) => {
+  try {
+    const allowed = ["displayName","gmailUser","gmailRefreshToken","googleSheetId",
+                     "sheetTab","linkedinSheetId","profileName","profilePhone","profileLinkedIn"];
+    const updates = {};
+    for (const k of allowed) { if (req.body[k] !== undefined) updates[k] = req.body[k]; }
+    await User.updateOne({ _id: req.userId }, { $set: updates });
+    res.json({ success: true, message: "Settings updated" });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }
