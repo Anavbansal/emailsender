@@ -102,6 +102,14 @@ function loadCustomTemplate() {
   catch { return DEFAULT_TEMPLATE; }
 }
 
+
+// Local datetime string for datetime-local input and API (no UTC conversion)
+function toLocalDT(date) {
+  const d = new Date(date);
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function relativeTime(ts) {
   if (!ts) return "—";
   const diff = Date.now() - ts;
@@ -523,7 +531,7 @@ function BulkFollowUpModal({ contacts, onClose, addToast }) {
           baseTime.setMinutes(baseTime.getMinutes() + i * interval);
           await axios.post(`${API}/api/schedule-email`, {
             ...payload, type: "followup",
-            scheduledTime: baseTime.toISOString().slice(0, 16),
+            scheduledTime: toLocalDT(baseTime),   // local time — no UTC shift
           });
         } else {
           // Send now with small delay between each
@@ -544,7 +552,7 @@ function BulkFollowUpModal({ contacts, onClose, addToast }) {
     addToast && addToast(msg);
   };
 
-  const minDateTime = new Date(Date.now() + 5 * 60000).toISOString().slice(0, 16);
+  const minDateTime = toLocalDT(Date.now() + 5 * 60000);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -794,7 +802,7 @@ function FollowUpModal({ contact, onClose, onSent }) {
               <div className="form-group">
                 <label className="form-label" htmlFor="fu-sched"><span className="lbadge">Required</span> Date &amp; Time</label>
                 <input id="fu-sched" type="datetime-local"
-                  min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                  min={toLocalDT(Date.now() + 60000)}
                   value={scheduledTime} onChange={e => setSched(e.target.value)} className="form-input" />
               </div>
             )}
@@ -1402,7 +1410,7 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed }) 
         {mode === "schedule" && (
           <div className="form-group">
             <label className="form-label" htmlFor="ap-sched"><span className="lbadge">Required</span> Date &amp; Time</label>
-            <input id="ap-sched" type="datetime-local" min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+            <input id="ap-sched" type="datetime-local" min={toLocalDT(Date.now() + 60000)}
               value={scheduledTime} onChange={e => setSched(e.target.value)} className="form-input" />
           </div>
         )}
@@ -2568,7 +2576,7 @@ function ScheduleApplyModal({ data, onClose, onSendNow }) {
             <div className="form-group">
               <label className="form-label">Date &amp; Time</label>
               <input type="datetime-local"
-                min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                min={toLocalDT(Date.now() + 60000)}
                 value={scheduledTime} onChange={e => setSched(e.target.value)} className="form-input" />
             </div>
           )}
@@ -2950,7 +2958,7 @@ Bahut helpful hoga agar refer kar sako! 😊`;
         {schedMode === "schedule" && (
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <input type="datetime-local" className="form-input" style={{ maxWidth: 240 }}
-              min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+              min={toLocalDT(Date.now() + 60000)}
               value={schedTime} onChange={e => setSchedTime(e.target.value)} />
             <button className="btn-primary btn-sm" onClick={scheduleFollowup} disabled={scheduling || !schedTime}>
               {scheduling ? <><span className="spinner" /> Scheduling…</> : "Schedule Follow-up"}
