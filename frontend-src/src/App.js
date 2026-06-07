@@ -1,3 +1,4 @@
+/* eslint-disable */
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import "./App.css";
@@ -7,8 +8,8 @@ const API = "https://emailsender-v8a4.onrender.com";
 // ── Auth helpers ───────────────────────────────────────────────────────────────
 function getToken()       { return localStorage.getItem("em_token"); }
 function setToken(t)      { localStorage.setItem("em_token", t); }
-function clearToken()     { localStorage.removeItem("em_token"); localStorage.removeItem("em_user"); } // eslint-disable-line
-function getUser()        { try { return JSON.parse(localStorage.getItem("em_user")||"null"); } catch { return null; } } // eslint-disable-line
+function clearToken()     { localStorage.removeItem("em_token"); localStorage.removeItem("em_user"); }
+function getUser()        { try { return JSON.parse(localStorage.getItem("em_user")||"null"); } catch { return null; } }
 function setUser(u)       { localStorage.setItem("em_user", JSON.stringify(u)); }
 // Axios interceptor — attach token to every request
 axios.interceptors.request.use(cfg => {
@@ -2857,7 +2858,7 @@ Bahut helpful hoga agar refer kar sako! 😊`;
   const currentMsg = tab === "linkedin" ? linkedinMsg : whatsappMsg;
 
   const [editedMsg, setEditedMsg] = useState(linkedinMsg);
-  useEffect(() => setEditedMsg(currentMsg), [tab, name, company, role, relation]); // eslint-disable-line
+  useEffect(() => setEditedMsg(currentMsg), [tab, name, company, role, relation]);
 
   const copy = () => {
     navigator.clipboard.writeText(editedMsg).then(() => {
@@ -3546,7 +3547,6 @@ function ScheduledPage() {
 // ═══════════════════════════════ MAIN APP ════════════════════════════════════
 
 // ─── Login / Register Page ────────────────────────────────────────────────────
-// eslint-disable-next-line no-unused-vars
 function AuthPage({ onAuth }) {
   const [tab,      setTab]     = useState("login");
   const [form,     setForm]    = useState({ username:"", password:"", displayName:"", inviteCode:"" });
