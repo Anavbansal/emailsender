@@ -469,16 +469,278 @@ function TemplateEditorModal({ templateType, onClose, onSave }) {
 }
 
 // ─── Follow-up Modal ──────────────────────────────────────────────────────────
+
+// ─── Bulk Follow-up Scheduler ─────────────────────────────────────────────────
+function BulkFollowUpModal({ contacts, onClose, addToast }) {
+  // Only show contacts that are due for followup or haven't been followed up
+  const eligible = contacts.filter(c =>
+    !c.replied && c.lastSentAt > 0 &&
+    (Date.now() - c.lastSentAt) > 2 * 24 * 60 * 60 * 1000  // sent > 2 days ago
+  ).slice(0, 50);
+
+  const [selected,  setSelected]  = useState(() => new Set(eligible.filter(c => c.needsFollowUp).map(c => c.hrEmail)));
+  const [schedTime, setSchedTime] = useState("");
+  const [interval,  setInterval2] = useState(5);   // minutes between each email
+  const [sending,   setSending]   = useState(false);
+  const [progress,  setProgress]  = useState({ done: 0, total: 0, errors: [] });
+  const [done,      setDone]      = useState(false);
+  useLockBodyScroll();
+
+  const toggle = (email) => setSelected(prev => {
+    const next = new Set(prev);
+    next.has(email) ? next.delete(email) : next.add(email);
+    return next;
+  });
+  const toggleAll = () => {
+    if (selected.size === eligible.length) setSelected(new Set());
+    else setSelected(new Set(eligible.map(c => c.hrEmail)));
+  };
+
+  const send = async () => {
+    if (selected.size === 0) return addToast && addToast("Select at least one contact", "error");
+    const targets = eligible.filter(c => selected.has(c.hrEmail));
+    setSending(true);
+    setProgress({ done: 0, total: targets.length, errors: [] });
+
+    const errors = [];
+    for (let i = 0; i < targets.length; i++) {
+      const c = targets[i];
+      setProgress(p => ({ ...p, done: i }));
+      try {
+        const payload = {
+          hrEmail:           c.hrEmail,
+          hrName:            c.hrName && !c.hrName.includes("@") ? c.hrName : "",
+          company:           c.company || "",
+          role:              c.role    || "",
+          originalMessageId: c.lastMessageId  || "",
+          originalThreadId:  c.lastThreadId   || "",
+          originalDate:      c.lastSentAt > 0 ? new Date(c.lastSentAt).toLocaleDateString("en-IN") : "",
+        };
+
+        if (schedTime) {
+          // Schedule with staggered time — each email interval mins apart
+          const baseTime = new Date(schedTime);
+          baseTime.setMinutes(baseTime.getMinutes() + i * interval);
+          await axios.post(`${API}/api/schedule-email`, {
+            ...payload, type: "followup",
+            scheduledTime: baseTime.toISOString().slice(0, 16),
+          });
+        } else {
+          // Send now with small delay between each
+          await axios.post(`${API}/api/send-followup`, payload);
+          if (i < targets.length - 1) await new Promise(r => setTimeout(r, 2000));
+        }
+      } catch (e) {
+        errors.push(`${c.hrEmail}: ${e.response?.data?.message || e.message}`);
+      }
+    }
+
+    setProgress({ done: targets.length, total: targets.length, errors });
+    setSending(false);
+    setDone(true);
+    const msg = schedTime
+      ? `✅ ${targets.length - errors.length} followups scheduled!`
+      : `✅ ${targets.length - errors.length} followups sent!`;
+    addToast && addToast(msg);
+  };
+
+  const minDateTime = new Date(Date.now() + 5 * 60000).toISOString().slice(0, 16);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box-form modal-wide" onClick={e => e.stopPropagation()} style={{ maxWidth: 680 }}>
+        <div className="modal-header">
+          <div className="modal-title-row">
+            <span>📅</span>
+            <h3 className="modal-title">Bulk Follow-up Scheduler</h3>
+            <span className="modal-hint" style={{ background:"#ede9fe", color:"#5b21b6" }}>
+              {selected.size} selected · {eligible.length} eligible
+            </span>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="modal-scroll" style={{ maxHeight: 520 }}>
+          {done ? (
+            <div style={{ padding: "24px", textAlign: "center" }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>
+                {progress.errors.length === 0 ? "🎉" : "⚠️"}
+              </div>
+              <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>
+                {progress.done - progress.errors.length} of {progress.total} {schedTime ? "scheduled" : "sent"}!
+              </div>
+              {progress.errors.length > 0 && (
+                <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>
+                  {progress.errors.length} failed:<br />
+                  {progress.errors.map((e,i) => <div key={i}>{e}</div>)}
+                </div>
+              )}
+              <button className="btn-primary" style={{ marginTop: 16 }} onClick={onClose}>Done</button>
+            </div>
+          ) : (
+            <>
+              {/* Schedule options */}
+              <div style={{
+                background: "var(--surface-2,#f8fafc)", borderRadius: 12,
+                padding: "14px 16px", marginBottom: 16,
+                display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12
+              }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">
+                    📅 Schedule Time <span style={{ fontWeight:400, fontSize:11 }}>(leave blank = send now)</span>
+                  </label>
+                  <input type="datetime-local" className="form-input"
+                    min={minDateTime} value={schedTime}
+                    onChange={e => setSchedTime(e.target.value)} />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">
+                    ⏱ Gap between emails <span style={{ fontWeight:400, fontSize:11 }}>(minutes)</span>
+                  </label>
+                  <select className="form-select" value={interval} onChange={e => setInterval2(+e.target.value)}>
+                    {[1,2,3,5,10,15,20,30].map(v => (
+                      <option key={v} value={v}>{v} min{v>1?"s":""}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Progress bar when sending */}
+              {sending && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4, fontSize:12 }}>
+                    <span>Sending… {progress.done}/{progress.total}</span>
+                    <span>{Math.round((progress.done/progress.total)*100)}%</span>
+                  </div>
+                  <div style={{ height:8, borderRadius:99, background:"var(--border)", overflow:"hidden" }}>
+                    <div style={{
+                      height:"100%", borderRadius:99,
+                      background:"linear-gradient(90deg,#7c3aed,#a855f7)",
+                      width:`${(progress.done/progress.total)*100}%`,
+                      transition:"width 0.3s ease"
+                    }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Select all */}
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                <button type="button" className="chip" onClick={toggleAll} style={{ fontSize:12 }}>
+                  {selected.size === eligible.length ? "☑ Deselect All" : "☐ Select All Due"}
+                </button>
+                <span style={{ fontSize:11, color:"var(--text-muted,#6b7280)" }}>
+                  {eligible.length} contacts eligible (sent 2+ days ago, no reply)
+                </span>
+              </div>
+
+              {/* Contact list */}
+              {eligible.length === 0 ? (
+                <div className="empty-state">
+                  <span className="empty-icon">✅</span>
+                  <p>No contacts due for follow-up right now!</p>
+                </div>
+              ) : (
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {eligible.map(c => (
+                    <div key={c.hrEmail}
+                      onClick={() => toggle(c.hrEmail)}
+                      style={{
+                        display:"flex", alignItems:"center", gap:10,
+                        padding:"10px 12px", borderRadius:10, cursor:"pointer",
+                        border:`1.5px solid ${selected.has(c.hrEmail) ? "#7c3aed" : "var(--border,#e2e8f0)"}`,
+                        background: selected.has(c.hrEmail)
+                          ? "linear-gradient(135deg,#faf5ff,#ede9fe)"
+                          : "var(--surface,#fff)",
+                        transition:"all 0.15s ease",
+                      }}>
+                      {/* Checkbox */}
+                      <div style={{
+                        width:18, height:18, borderRadius:5, flexShrink:0,
+                        border:`2px solid ${selected.has(c.hrEmail) ? "#7c3aed" : "#d1d5db"}`,
+                        background: selected.has(c.hrEmail) ? "#7c3aed" : "transparent",
+                        display:"flex", alignItems:"center", justifyContent:"center",
+                      }}>
+                        {selected.has(c.hrEmail) && <span style={{ color:"#fff", fontSize:11, fontWeight:800 }}>✓</span>}
+                      </div>
+
+                      {/* Avatar */}
+                      <div style={{
+                        width:32, height:32, borderRadius:"50%", flexShrink:0,
+                        background:"linear-gradient(135deg,#7c3aed,#a855f7)",
+                        display:"flex", alignItems:"center", justifyContent:"center",
+                        fontSize:12, fontWeight:800, color:"#fff"
+                      }}>
+                        {getInitials(c.hrName, c.hrEmail)}
+                      </div>
+
+                      {/* Info */}
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontWeight:600, fontSize:13 }}>
+                          {c.company || "—"}
+                          {c.hrName && !c.hrName.includes("@") && (
+                            <span style={{ fontWeight:400, color:"var(--text-muted,#6b7280)", marginLeft:6, fontSize:12 }}>
+                              · {c.hrName}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize:11, color:"var(--text-muted,#6b7280)", marginTop:1 }}>
+                          {c.hrEmail}
+                        </div>
+                      </div>
+
+                      {/* Days since */}
+                      <div style={{ fontSize:11, color: c.needsFollowUp ? "#d97706" : "#6b7280", fontWeight:600, flexShrink:0 }}>
+                        {c.lastSentAt > 0 ? `${Math.floor((Date.now()-c.lastSentAt)/(1000*60*60*24))}d ago` : ""}
+                        {c.needsFollowUp && <span style={{ marginLeft:4 }}>⏰</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {!done && (
+          <div className="modal-footer">
+            <button className="btn-ghost" onClick={onClose} disabled={sending}>Cancel</button>
+            <button
+              className={`btn-primary ${sending ? "loading" : ""}`}
+              onClick={send}
+              disabled={sending || selected.size === 0}
+              style={{ background:"linear-gradient(135deg,#7c3aed,#a855f7)", minWidth:180 }}>
+              {sending
+                ? <><span className="spinner" /> Sending {progress.done}/{progress.total}…</>
+                : schedTime
+                  ? `📅 Schedule ${selected.size} Follow-up${selected.size>1?"s":""}`
+                  : `🚀 Send ${selected.size} Follow-up${selected.size>1?"s":""} Now`}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function FollowUpModal({ contact, onClose, onSent }) {
+  // hrName: strip email if somehow it got stored as name
+  const cleanName = (name, email) => {
+    if (!name) return "";
+    if (name.trim().toLowerCase() === (email||"").trim().toLowerCase()) return "";
+    if (name.includes("@")) return "";
+    return name.trim();
+  };
+
   const [form, setForm] = useState({
-    hrEmail: contact.hrEmail,
-    hrName: contact.hrName || "",
-    company: contact.company || "",
-    role: contact.role || "",
-    originalDate: contact.lastSentAt ? new Date(contact.lastSentAt).toLocaleDateString("en-IN") : "",
-    customNote: "",
-    originalMessageId: contact.originalMessageId || "",  // auto-filled for threading
-    originalSubject: contact.originalSubject || "",
+    hrEmail:           contact.hrEmail || "",
+    hrName:            cleanName(contact.hrName, contact.hrEmail),
+    company:           contact.company || "",
+    role:              contact.role    || "",
+    originalDate:      contact.lastSentAt ? new Date(contact.lastSentAt).toLocaleDateString("en-IN") : "",
+    customNote:        "",
+    originalMessageId: contact.lastMessageId || contact.originalMessageId || "",
+    originalThreadId:  contact.lastThreadId  || contact.originalThreadId  || "",
+    originalSubject:   contact.originalSubject || "",
   });
   const [mode, setMode]           = useState("now");
   const [scheduledTime, setSched] = useState("");
@@ -512,7 +774,10 @@ function FollowUpModal({ contact, onClose, onSent }) {
         <div className="modal-header">
           <div className="modal-title-row">
             <span>🔁</span><h3 className="modal-title">Send Follow-up</h3>
-            <span className="modal-hint">{contact.company}</span>
+            <span className="modal-hint" style={{ background:"#ede9fe", color:"#5b21b6" }}>
+              {contact.company || contact.hrEmail}
+              {form.hrName && <span> · {form.hrName}</span>}
+            </span>
           </div>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
@@ -626,6 +891,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
   const [clearing,   setClearing]  = useState(null);
   const [syncing,    setSyncing]   = useState(false);
   const [syncResult, setSyncResult]= useState(null);
+  const [bulkModal,  setBulkModal]  = useState(false);
 
   const syncGmailSent = async () => {
     setSyncing(true); setSyncResult(null);
@@ -786,6 +1052,13 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
             style={{ background: "#0d9488", fontSize: 12 }}
           >
             {syncing ? <><span className="spinner" /> Syncing…</> : "📥 Sync Gmail Sent"}
+          </button>
+          <button
+            className="btn-primary btn-sm"
+            onClick={() => setBulkModal(true)}
+            style={{ background:"linear-gradient(135deg,#7c3aed,#a855f7)", fontSize:12 }}
+            title="Send follow-up to multiple contacts at once">
+            📅 Bulk Follow-up
           </button>
           {syncResult && (
             <span style={{ fontSize: 11, color: "var(--text-muted,#64748b)" }}>
@@ -967,6 +1240,13 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
           ))}
         </div>
       )}
+    {bulkModal && (
+      <BulkFollowUpModal
+        contacts={contacts}
+        onClose={() => setBulkModal(false)}
+        addToast={addToast}
+      />
+    )}
     </div>
   );
 }
