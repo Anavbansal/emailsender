@@ -1694,7 +1694,11 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed }) 
             <p className="preview-title">📧 Preview</p>
             <button type="button" className="btn-preview" onClick={openPreview}>View Full Email ↗</button>
           </div>
-          <p className="preview-subject"><strong>Subject:</strong> {form.role ? `Application for ${form.role} Position — Anav Bansal` : "Job Application — Anav Bansal"}</p>
+          <p className="preview-subject"><strong>Subject:</strong> {(() => {
+              const u = getUser();
+              const n = u?.displayName || "Anav Bansal";
+              return form.role ? `Application for ${form.role} Position — ${n}` : `Job Application — ${n}`;
+            })()}</p>
           <p className="preview-line"><strong>To:</strong> {form.hrEmail || "—"}{form.hrName && ` (${form.hrName})`}</p>
           <p className="preview-line"><strong>Template:</strong> <span style={{ color: activeTemplate?.accent }}>{activeTemplate?.icon} {activeTemplate?.name}</span></p>
         </div>
