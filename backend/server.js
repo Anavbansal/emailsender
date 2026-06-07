@@ -150,14 +150,29 @@ function getUserSheetsClient(user) {
 
 // ── Get user-specific config ──────────────────────────────────────────────────
 function getUserConfig(user) {
+  const isOwner = user.username === (process.env.OWNER_USERNAME || "anav");
   return {
-    gmailUser:       user.gmailUser       || process.env.GMAIL_USER       || "",
-    sheetId:         user.googleSheetId   || process.env.GOOGLE_SHEET_ID  || "",
-    sheetTab:        user.sheetTab        || process.env.SHEET_TAB        || "Candidate_Status_Log",
-    linkedinSheetId: user.linkedinSheetId || process.env.LINKEDIN_SHEET_ID|| "",
-    profileName:     user.profileName     || "Anav Bansal",
-    profilePhone:    user.profilePhone    || "+91 7827855635",
-    profileLinkedIn: user.profileLinkedIn || "linkedin.com/in/anavbansal-51b191162",
+    gmailUser:        user.gmailUser        || (isOwner ? process.env.GMAIL_USER      : "") || "",
+    sheetId:          user.googleSheetId    || (isOwner ? process.env.GOOGLE_SHEET_ID : "") || "",
+    sheetTab:         user.sheetTab         || process.env.SHEET_TAB || "Candidate_Status_Log",
+    linkedinSheetId:  user.linkedinSheetId  || (isOwner ? (process.env.LINKEDIN_SHEET_ID || "") : ""),
+    resumePath:       user.resumePath       || (isOwner ? path.join(__dirname, "ANAV_BANSAL_FullStackDeveloper.pdf") : ""),
+    resumeFileName:   user.resumeFileName   || (isOwner ? "Anav_Bansal_Resume.pdf" : ""),
+    profileName:      user.profileName      || (isOwner ? "Anav Bansal" : user.displayName || ""),
+    profilePhone:     user.profilePhone     || (isOwner ? "+91 7827855635" : ""),
+    profileLinkedIn:  user.profileLinkedIn  || (isOwner ? "linkedin.com/in/anavbansal-51b191162" : ""),
+    profileEmail:     user.profileEmail     || user.gmailUser || "",
+    profileLocation:  user.profileLocation  || (isOwner ? "Faridabad, Haryana" : ""),
+    profileTitle:     user.profileTitle     || (isOwner ? "Senior Full Stack Developer" : ""),
+    keySkills:        user.keySkills        || (isOwner ? "Node.js, Angular, AWS, ExpressJS, TypeScript, CTI Integrations, ServiceNow, Chatbot Development" : ""),
+    currentCompany:   user.currentCompany   || (isOwner ? "NovelVox Pvt. Ltd." : ""),
+    currentCTC:       user.currentCTC       || (isOwner ? "₹9 LPA" : ""),
+    expectedCTC:      user.expectedCTC      || (isOwner ? "₹15 LPA" : ""),
+    noticePeriod:     user.noticePeriod     || (isOwner ? "30 Days" : ""),
+    currentLocation:  user.currentLocation  || (isOwner ? "Faridabad, Haryana" : ""),
+    preferredLocation:user.preferredLocation|| (isOwner ? "PAN India" : ""),
+    totalExp:         user.totalExp         || (isOwner ? "4.7+ Years" : ""),
+    relevantExp:      user.relevantExp      || (isOwner ? "4.7+ Years" : ""),
   };
 }
 
@@ -186,15 +201,22 @@ function getGmailAPITransport() {
   return oauth2Client;
 }
 
-async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references = null, threadId = null }) {
-  const auth = getGmailAPITransport();
+async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references = null, threadId = null, userConfig = null }) {
+  const auth = userConfig
+    ? getUserGmailAuth({ gmailRefreshToken: userConfig.gmailRefreshToken || process.env.GMAIL_REFRESH_TOKEN })
+    : getGmailAPITransport();
   const gmail = google.gmail({ version: "v1", auth });
 
   const encodedSubject = `=?UTF-8?B?${Buffer.from(subject).toString("base64")}?=`;
 
-  const boundary = "boundary_" + Date.now();
-  const resumePath = path.join(__dirname, "ANAV_BANSAL_FullStackDeveloper.pdf");
-  const resumeData = fs.readFileSync(resumePath).toString("base64");
+  const boundary   = "boundary_" + Date.now();
+  const resumeFile = userConfig?.resumePath && fs.existsSync(userConfig.resumePath)
+    ? userConfig.resumePath
+    : path.join(__dirname, "ANAV_BANSAL_FullStackDeveloper.pdf");
+  const resumeName = userConfig?.resumeFileName || "Anav_Bansal_Resume.pdf";
+  const senderName = userConfig?.profileName    || "Anav Bansal";
+  const senderEmail= userConfig?.gmailUser      || process.env.GMAIL_USER || "";
+  const resumeData = fs.readFileSync(resumeFile).toString("base64");
 
   // Build threading headers when replying
   const extraHeaders = [];
@@ -202,7 +224,7 @@ async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references
   if (references) extraHeaders.push(`References: ${references}`);
 
   const rawEmail = [
-    `From: "Anav Bansal" <${process.env.GMAIL_USER}>`,
+    `From: "${senderName}" <${senderEmail}>`,
     `To: ${to}`,
     `Subject: ${encodedSubject}`,
     `MIME-Version: 1.0`,
@@ -216,9 +238,9 @@ async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references
     Buffer.from(html).toString("base64"),
     ``,
     `--${boundary}`,
-    `Content-Type: application/pdf; name="Anav_Bansal_Resume.pdf"`,
+    `Content-Type: application/pdf; name="${resumeName}"`,
     `Content-Transfer-Encoding: base64`,
-    `Content-Disposition: attachment; filename="Anav_Bansal_Resume.pdf"`,
+    `Content-Disposition: attachment; filename="${resumeName}"`,
     ``,
     resumeData,
     ``,
@@ -2140,11 +2162,51 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
 app.patch("/api/auth/settings", requireAuth, async (req, res) => {
   try {
     const allowed = ["displayName","gmailUser","gmailRefreshToken","googleSheetId",
-                     "sheetTab","linkedinSheetId","profileName","profilePhone","profileLinkedIn"];
+                     "sheetTab","linkedinSheetId","profileName","profilePhone","profileLinkedIn",
+                     "profileEmail","profileLocation","profileTitle","profileSummary","keySkills",
+                     "currentCompany","currentCTC","expectedCTC","noticePeriod","currentLocation",
+                     "preferredLocation","totalExp","relevantExp","resumePath","resumeFileName"];
     const updates = {};
     for (const k of allowed) { if (req.body[k] !== undefined) updates[k] = req.body[k]; }
     await User.updateOne({ _id: req.userId }, { $set: updates });
     res.json({ success: true, message: "Settings updated" });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+
+// ─── POST /api/auth/init-priyal — one-time setup for Priyal's profile ─────────
+app.post("/api/auth/init-priyal", async (req, res) => {
+  const { secret } = req.body;
+  if (secret !== (process.env.JWT_SECRET || "emailsender_secret_2026"))
+    return res.status(403).json({ success: false, message: "Forbidden" });
+  try {
+    const result = await User.updateOne(
+      { username: "priyal" },
+      { $set: {
+        displayName:      "Priyal Goyal",
+        profileName:      "Priyal Goyal",
+        profilePhone:     "+91 7665941798",
+        profileEmail:     "priyalgoyal1702@gmail.com",
+        profileLinkedIn:  "linkedin.com/in/priyal--goyal/",
+        profileLocation:  "Mumbai, India",
+        profileTitle:     "Finance Professional | Credit Manager | Digital Lending",
+        profileSummary:   "Finance professional with experience in digital lending, credit risk and product implementation within secured retail lending. Exposure to GenAI-based automation, SLOS integration, AI-driven workflow optimization. Skilled in FinnOne, SLOS, SFDC, FICO and Jocata.",
+        keySkills:        "Digital Lending, Credit Risk Assessment, Product Implementation, GenAI Automation, Business Analysis, UAT Support, FinnOne, SLOS, SFDC, FICO, Jocata, Power BI, Advanced Excel",
+        currentCompany:   "Tata Capital Limited",
+        totalExp:         "2+ Years",
+        relevantExp:      "2+ Years",
+        noticePeriod:     "30 Days",
+        currentLocation:  "Mumbai, India",
+        preferredLocation:"PAN India",
+        currentCTC:       "",
+        expectedCTC:      "",
+        resumePath:       require("path").join(__dirname, "Priyal_G_Resume.pdf"),
+        resumeFileName:   "Priyal_Goyal_Resume.pdf",
+      }}
+    );
+    res.json({ success: true, message: "Priyal profile initialized", modified: result.modifiedCount });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }
