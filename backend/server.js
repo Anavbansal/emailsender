@@ -784,7 +784,7 @@ function buildReferralHTML({ employeeName, company, role, customNote, trackUrl =
 }
 
 // ─── POST /api/send-referral ──────────────────────────────────────────────────
-app.post("/api/send-referral", async (req, res) => {
+app.post("/api/send-referral", requireAuth, async (req, res) => {
   const { employeeEmail, employeeName = "", company, role, customNote } = req.body;
   if (!employeeEmail || !company || !role)
     return res.status(400).json({ success: false, message: "employeeEmail, company, and role are required." });
@@ -1388,11 +1388,13 @@ app.post("/api/preview-email", (req, res) => {
 const LINKEDIN_SHEET_ID = "1xQAzAY8hRjmfYhMXB2R7oaw5HPqJZf13BjXM33wWQ5Q";
 const LINKEDIN_TAB      = "Connections";
 
-app.get("/api/linkedin/connections", async (req, res) => {
+app.get("/api/linkedin/connections", requireAuth, async (req, res) => {
   try {
-    const sheets = await getSheetsClient();
+    const cfg    = getUserConfig(req.user);
+    const liSheetId = cfg.linkedinSheetId || LINKEDIN_SHEET_ID;
+    const sheets = getUserSheetsClient(req.user);
     const resp   = await sheets.spreadsheets.values.get({
-      spreadsheetId: LINKEDIN_SHEET_ID,
+      spreadsheetId: liSheetId,
       range: `${LINKEDIN_TAB}!A2:J5000`,  // J = ignored flag
     });
     const rows = resp.data.values || [];
@@ -1437,7 +1439,7 @@ app.get("/api/linkedin/connections", async (req, res) => {
   }
 });
 
-app.post("/api/linkedin/update-connection", async (req, res) => {
+app.post("/api/linkedin/update-connection", requireAuth, async (req, res) => {
   const { rowIndex, field, value } = req.body;
   if (!rowIndex || !field) return res.status(400).json({ success: false, message: "rowIndex and field required" });
   const col = field === "sent" ? "H" : field === "replied" ? "I" : null;
@@ -1459,15 +1461,16 @@ app.post("/api/linkedin/update-connection", async (req, res) => {
 
 
 // ─── POST /api/linkedin/add-connection — add manually ─────────────────────────
-app.post("/api/linkedin/add-connection", async (req, res) => {
+app.post("/api/linkedin/add-connection", requireAuth, async (req, res) => {
   const { firstName, lastName, company, position, email, url, connectedOn } = req.body;
   if (!firstName && !lastName)
     return res.status(400).json({ success: false, message: "Name required" });
   try {
-    const sheets = await getSheetsClient();
-    // Append a new row: A=First B=Last C=URL D=Email E=Company F=Position G=ConnectedOn H=sent I=replied J=ignored
+    const cfg = getUserConfig(req.user);
+    const liSheetId = cfg.linkedinSheetId || LINKEDIN_SHEET_ID;
+    const sheets = getUserSheetsClient(req.user);
     await sheets.spreadsheets.values.append({
-      spreadsheetId: LINKEDIN_SHEET_ID,
+      spreadsheetId: liSheetId,
       range: `${LINKEDIN_TAB}!A:J`,
       valueInputOption: "USER_ENTERED",
       insertDataOption: "INSERT_ROWS",
@@ -1485,14 +1488,15 @@ app.post("/api/linkedin/add-connection", async (req, res) => {
 });
 
 // ─── POST /api/linkedin/ignore-connection — permanently delete row ─────────────
-app.post("/api/linkedin/ignore-connection", async (req, res) => {
+app.post("/api/linkedin/ignore-connection", requireAuth, async (req, res) => {
   const { rowIndex } = req.body;
   if (!rowIndex) return res.status(400).json({ success: false, message: "rowIndex required" });
   try {
-    const sheets     = await getSheetsClient();
-    const sheetsMeta = await sheets.spreadsheets.get({ spreadsheetId: LINKEDIN_SHEET_ID });
+    const cfg       = getUserConfig(req.user);
+    const liSheetId = cfg.linkedinSheetId || LINKEDIN_SHEET_ID;
+    const sheets     = getUserSheetsClient(req.user);
+    const sheetsMeta = await sheets.spreadsheets.get({ spreadsheetId: liSheetId });
 
-    // Find the sheet tab ID for LINKEDIN_TAB
     const tabMeta = sheetsMeta.data.sheets.find(
       s => s.properties.title === LINKEDIN_TAB
     );
@@ -1502,7 +1506,7 @@ app.post("/api/linkedin/ignore-connection", async (req, res) => {
 
     // Delete the actual row from sheet — permanent
     await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: LINKEDIN_SHEET_ID,
+      spreadsheetId: liSheetId,
       requestBody: {
         requests: [{
           deleteDimension: {
@@ -1528,7 +1532,7 @@ app.post("/api/linkedin/ignore-connection", async (req, res) => {
 app.get("/", (req, res) => res.json({ status: "ok" }));
 
 // ─── POST /api/import-contacts — bulk import from xlsx/JSON ──────────────────
-app.post("/api/import-contacts", async (req, res) => {
+app.post("/api/import-contacts", requireAuth, async (req, res) => {
   if (mongoose.connection.readyState !== 1)
     return res.status(503).json({ success: false, message: "MongoDB not connected" });
 
@@ -1762,7 +1766,7 @@ app.get("/api/sync-sent-emails", requireAuth, async (req, res) => {
 
 
 // ─── GET /api/run-import — trigger import from browser (one-time) ─────────────
-app.get("/api/run-import", async (req, res) => {
+app.get("/api/run-import", requireAuth, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1)
       return res.status(503).send("❌ MongoDB not connected");
@@ -1776,7 +1780,7 @@ app.get("/api/run-import", async (req, res) => {
 
 
 // ─── GET /api/thread/:messageId — full conversation history ──────────────────
-app.get("/api/thread/:messageId", async (req, res) => {
+app.get("/api/thread/:messageId", requireAuth, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1)
       return res.status(503).json({ success: false, message: "MongoDB not connected" });
@@ -1880,7 +1884,7 @@ app.get("/api/thread/:messageId", async (req, res) => {
 });
 
 // ─── GET /api/resync-replies — re-check all threads for new replies ────────────
-app.get("/api/resync-replies", async (req, res) => {
+app.get("/api/resync-replies", requireAuth, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1)
       return res.status(503).json({ success: false, message: "MongoDB not connected" });
