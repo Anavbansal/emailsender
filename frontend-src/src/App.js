@@ -3545,7 +3545,6 @@ function ScheduledPage() {
 
 // ═══════════════════════════════ MAIN APP ════════════════════════════════════
 
-export default 
 // ─── Login / Register Page ────────────────────────────────────────────────────
 function AuthPage({ onAuth }) {
   const [tab,      setTab]     = useState("login");
