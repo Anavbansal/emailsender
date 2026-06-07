@@ -3546,6 +3546,7 @@ function ScheduledPage() {
 // ═══════════════════════════════ MAIN APP ════════════════════════════════════
 
 // ─── Login / Register Page ────────────────────────────────────────────────────
+// eslint-disable-next-line no-unused-vars
 function AuthPage({ onAuth }) {
   const [tab,      setTab]     = useState("login");
   const [form,     setForm]    = useState({ username:"", password:"", displayName:"", inviteCode:"" });
