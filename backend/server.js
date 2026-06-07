@@ -91,6 +91,7 @@ const UserSchema = new mongoose.Schema({
   // Per-user Gmail & Sheet credentials (override global env)
   gmailUser:          { type: String, default: "" },
   gmailRefreshToken:  { type: String, default: "" },
+  gmailAccessToken:   { type: String, default: "" },
   googleSheetId:      { type: String, default: "" },
   sheetTab:           { type: String, default: "Candidate_Status_Log" },
   linkedinSheetId:    { type: String, default: "" },
@@ -132,11 +133,12 @@ async function requireAuth(req, res, next) {
 // ── Get Gmail auth for a specific user ───────────────────────────────────────
 function getUserGmailAuth(user) {
   const isOwner = user && (user.username === (process.env.OWNER_USERNAME || "anav"));
-  const refreshToken = user?.gmailRefreshToken ||
+  const refreshToken  = user?.gmailRefreshToken ||
     (isOwner ? process.env.GMAIL_REFRESH_TOKEN : null);
+  const accessToken   = user?.gmailAccessToken || null;
 
-  if (!refreshToken) {
-    throw new Error("Gmail not connected. Please connect your Gmail account first via /api/gmail/auth?username=" + (user?.username || ""));
+  if (!refreshToken && !accessToken) {
+    throw new Error("Gmail not connected. Please connect via /api/gmail/auth?username=" + (user?.username || ""));
   }
 
   const oauth2Client = new google.auth.OAuth2(
@@ -144,7 +146,10 @@ function getUserGmailAuth(user) {
     process.env.GOOGLE_CLIENT_SECRET,
     process.env.GOOGLE_REDIRECT_URI
   );
-  oauth2Client.setCredentials({ refresh_token: refreshToken });
+  const creds = {};
+  if (refreshToken) creds.refresh_token = refreshToken;
+  if (accessToken)  creds.access_token  = accessToken;
+  oauth2Client.setCredentials(creds);
   return oauth2Client;
 }
 
