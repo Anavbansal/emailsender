@@ -2383,12 +2383,13 @@ function MessagesPage({ contacts }) {
   const role    = selectedContact ? (selectedContact.role    || "the open position") : (manualRole || "the open position");
 
   const buildMsg = useCallback((t) => {
+    const _u   = getUser();
+    const _n   = _u?.displayName || "Anav Bansal";
+    const _p   = _u?.username === "anav" ? "+91 7827855635" : "+91 7665941798";
+    const _e   = _u?.username === "anav" ? "anavbansal06@gmail.com" : "priyalgoyal1702@gmail.com";
+    const _l   = _u?.username === "anav" ? "linkedin.com/in/anavbansal-51b191162" : "linkedin.com/in/priyal--goyal/";
+    const _exp = _u?.username === "anav" ? "4.7+ years as a Full Stack Developer" : "2+ years in Digital Lending & Credit Risk";
     if (t === "linkedin")
-      const _u = getUser(); const _n = _u?.displayName || "Anav Bansal";
-      const _p = _u?.username === "anav" ? "+91 7827855635" : "+91 7665941798";
-      const _e = _u?.username === "anav" ? "anavbansal06@gmail.com" : "priyalgoyal1702@gmail.com";
-      const _l = _u?.username === "anav" ? "linkedin.com/in/anavbansal-51b191162" : "linkedin.com/in/priyal--goyal/";
-      const _exp = _u?.username === "anav" ? "4.7+ years as a Full Stack Developer" : "2+ years in Digital Lending & Credit Risk";
       return `Hi ${name},\n\nI recently applied for the ${role} position at ${company} and wanted to connect personally.\n\nI'm ${_n} with ${_exp}. I'd love to discuss how I can contribute to ${company}!\n\nBest regards,\n${_n}\n📞 ${_p}\n📧 ${_e}`;
     return `Hello ${name},\n\nI'm ${_n} with ${_exp}. I've applied for the *${role}* role at *${company}* and wanted to follow up personally.\n\nI'd love to discuss the opportunity at your convenience!\n\n📞 ${_p}\n📧 ${_e}\n🔗 ${_l}`;
   }, [name, company, role]);
