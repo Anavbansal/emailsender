@@ -263,6 +263,7 @@ function StatCard({ icon, label, value, sub, color = "blue", onClick }) {
 
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
 function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
+  const currentUser = getUser();
   const followDue = contacts.filter(c => c.needsFollowUp).length;
   const totalSent   = contacts.reduce((s, c) => s + (c.totalSent || 1), 0);
   const openedCount = contacts.filter(c => c.opened).length;
@@ -293,8 +294,8 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
       {/* Welcome + health pill */}
       <div className="dash-welcome">
         <div>
-          <h2 className="dash-welcome-title">Welcome back, {authUser?.displayName?.split(" ")[0] || authUser?.username} 👋</h2>
-          <p className="dash-welcome-sub">{authUser?.username === "anav" ? "Here's your job search at a glance" : "Here's your career search at a glance"}</p>
+          <h2 className="dash-welcome-title">Welcome back, {currentUser?.displayName?.split(" ")[0] || currentUser?.username} 👋</h2>
+          <p className="dash-welcome-sub">{currentUser?.username === "anav" ? "Here's your job search at a glance" : "Here's your career search at a glance"}</p>
         </div>
         <div className="health-pill" style={{ borderColor: healthColor, color: healthColor }}>
           <span className="health-dot" style={{ background: healthColor }} />
