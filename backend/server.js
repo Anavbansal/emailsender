@@ -1983,6 +1983,20 @@ app.patch("/api/contact/update", requireAuth, async (req, res) => {
 });
 
 
+// ─── POST /api/auth/change-password ─────────────────────────────────────────
+app.post("/api/auth/change-password", requireAuth, async (req, res) => {
+  const { newPassword } = req.body;
+  if (!newPassword || newPassword.length < 4)
+    return res.status(400).json({ success: false, message: "Password too short" });
+  try {
+    const hash = await bcrypt.hash(newPassword, 10);
+    await User.updateOne({ _id: req.userId }, { $set: { passwordHash: hash } });
+    res.json({ success: true, message: "Password updated!" });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // ─── POST /api/auth/register ──────────────────────────────────────────────────
 app.post("/api/auth/register", async (req, res) => {
   const { username, password, displayName, inviteCode } = req.body;
