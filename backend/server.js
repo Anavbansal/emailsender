@@ -982,7 +982,7 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
   if (mongoose.connection.readyState === 1) {
     // Get all unique contacts from DB grouped by email
     const dbContacts = await SentEmailLog.aggregate([
-      { $match: { $or: [{ userId: req.userId }, { userId: "default" }, { userId: { $exists: false } }] } },
+      { $match: { $or: [{ userId: req.userId }, { userId: String(req.userId) }] } },
       { $sort: { sentAt: -1 } },
       { $group: {
         _id:          { $toLower: "$hrEmail" },
@@ -1106,7 +1106,7 @@ app.get("/api/sent-log", requireAuth, async (req, res) => {
       return res.json({ success: false, message: "MongoDB not connected", logs: [] });
 
     const { type, email, limit = 100 } = req.query;
-    const filter = { $or: [{ userId: req.userId }, { userId: "default" }, { userId: { $exists: false } }] };
+    const filter = { userId: req.userId };
     if (type)  filter.type  = type;
     if (email) filter.hrEmail = new RegExp(email, "i");
 
@@ -1133,7 +1133,7 @@ app.get("/api/gmail/replies", requireAuth, async (req, res) => {
     // Pull tracked emails from DB (more complete) with fallback to tracking.json
     let trackedEmails;
     if (mongoose.connection.readyState === 1) {
-      const dbEmails = await SentEmailLog.distinct("hrEmail");
+      const dbEmails = await SentEmailLog.distinct("hrEmail", { userId: req.userId });
       trackedEmails = [...new Set(dbEmails.map(e => e.toLowerCase()))];
     } else {
       trackedEmails = [...new Set(getTrackingRecords().map(r => r.hrEmail.toLowerCase()))];
@@ -1786,8 +1786,8 @@ app.get("/api/thread/:messageId", requireAuth, async (req, res) => {
       return res.status(503).json({ success: false, message: "MongoDB not connected" });
 
     // Try messageId first, then threadId as fallback
-    let log = await SentEmailLog.findOne({ messageId: req.params.messageId }).lean();
-    if (!log) log = await SentEmailLog.findOne({ threadId: req.params.messageId }).lean();
+    let log = await SentEmailLog.findOne({ messageId: req.params.messageId, userId: req.userId }).lean();
+    if (!log) log = await SentEmailLog.findOne({ threadId: req.params.messageId, userId: req.userId }).lean();
     if (!log) {
       // Try to fetch directly from Gmail if not in DB yet
       if (!process.env.GMAIL_REFRESH_TOKEN)
@@ -1959,8 +1959,7 @@ app.patch("/api/contact/update", requireAuth, async (req, res) => {
     // Update ALL records for this email (multiple sends)
     const escaped = hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const result = await SentEmailLog.updateMany(
-      { hrEmail: new RegExp("^" + escaped + "$", "i"),
-        $or: [{ userId: req.userId }, { userId: "default" }, { userId: { $exists: false } }] },
+      { hrEmail: new RegExp("^" + escaped + "$", "i"), userId: req.userId },
       { $set: updates }
     );
 
