@@ -3262,7 +3262,9 @@ const LI_FILTERS = [
 ];
 
 
-// ─── Referral Message Modal ──────────────────────────────────────────────────── LI_FILTERS = [
+// ─── Referral Message Modal ────────────────────────────────────────────────────
+
+const LI_FILTERS = [
   { key: "all",     label: "All"           },
   { key: "hr",      label: "HR / Recruiter" },
   { key: "notsent", label: "Not Sent"       },
