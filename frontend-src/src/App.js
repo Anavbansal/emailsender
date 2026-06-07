@@ -97,7 +97,7 @@ function isScreeningEmail(subject = "", snippet = "") {
   return SCREENING_KEYWORDS.some(kw => text.includes(kw));
 }
 
-const EMAIL_TEMPLATES = [
+const EMAIL_TEMPLATES_ANAV = [
   { id: "fullstack", name: "Full Stack", icon: "⚡", accent: "#2563eb",
     customNote: "I am excited to apply for this opportunity. My full-stack expertise in Node.js, ReactJS, and AWS Lambda makes me an ideal candidate for building scalable, production-ready applications." },
   { id: "cti",      name: "CTI Expert", icon: "📞", accent: "#7c3aed",
@@ -107,9 +107,26 @@ const EMAIL_TEMPLATES = [
   { id: "startup",  name: "Startup",    icon: "🚀", accent: "#059669",
     customNote: "I build fast, ship quality, and love environments where impact matters. My Node.js + AWS stack has powered real-time enterprise solutions." },
   { id: "crm",      name: "CRM Expert", icon: "🏆", accent: "#0d9488",
-    customNote: "With 4.7+ years as a CRM Integration Expert, I specialize in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent) and Freshdesk CTI — delivering real-time ticket automation and telephony-to-CRM sync at enterprise scale." },
+    customNote: "With 4.7+ years as a CRM Integration Expert, I specialize in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent) and Freshdesk CTI." },
 ];
-const BACKEND_TEMPLATE_MAP = { fullstack: "fullstack", cti: "cti", formal: "formal", startup: "fullstack", crm: "crm" };
+
+const EMAIL_TEMPLATES_PRIYAL = [
+  { id: "finance",  name: "Finance Pro",    icon: "💼", accent: "#0d9488",
+    customNote: "With 2+ years in digital lending and credit risk at Tata Capital, I bring expertise in credit underwriting, GenAI automation, and SLOS integration. I am excited to bring this experience to your organization." },
+  { id: "credit",   name: "Credit Manager", icon: "📊", accent: "#2563eb",
+    customNote: "As a Credit Manager with hands-on experience evaluating secured retail auto loan proposals, I excel at FOIR/LTV analysis, portfolio monitoring and cross-functional collaboration across credit, operations and technology teams." },
+  { id: "formal",   name: "Formal",         icon: "🎯", accent: "#1d4ed8",
+    customNote: "I am respectfully submitting my application for this position. I am confident that my background in digital lending and credit risk aligns closely with your requirements." },
+  { id: "genai",    name: "GenAI Focus",    icon: "🤖", accent: "#7c3aed",
+    customNote: "I have hands-on exposure to GenAI-based credit automation, SLOS integration and AI-driven workflow optimization — contributing to a 2.9% reduction in TAT at Tata Capital." },
+];
+
+const getEmailTemplates = () => {
+  const user = getUser();
+  return user?.username === "anav" ? EMAIL_TEMPLATES_ANAV : EMAIL_TEMPLATES_PRIYAL;
+};
+const EMAIL_TEMPLATES = getEmailTemplates();
+const BACKEND_TEMPLATE_MAP = { fullstack: "fullstack", cti: "cti", formal: "formal", startup: "fullstack", crm: "crm", finance: "fullstack", credit: "formal", genai: "fullstack" };
 
 const HEADER_THEMES = [
   { id: "blue",   label: "Blue",   color: "#2563eb" },
@@ -120,7 +137,7 @@ const HEADER_THEMES = [
   { id: "orange", label: "Orange", color: "#d97706" },
 ];
 
-const DEFAULT_TEMPLATE = {
+const DEFAULT_TEMPLATE_ANAV = {
   headerTheme: "blue",
   customIntro: "",
   highlights: [
@@ -276,8 +293,8 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
       {/* Welcome + health pill */}
       <div className="dash-welcome">
         <div>
-          <h2 className="dash-welcome-title">Welcome back, Anav 👋</h2>
-          <p className="dash-welcome-sub">Here's your job search at a glance</p>
+          <h2 className="dash-welcome-title">Welcome back, {authUser?.displayName?.split(" ")[0] || authUser?.username} 👋</h2>
+          <p className="dash-welcome-sub">{authUser?.username === "anav" ? "Here's your job search at a glance" : "Here's your career search at a glance"}</p>
         </div>
         <div className="health-pill" style={{ borderColor: healthColor, color: healthColor }}>
           <span className="health-dot" style={{ background: healthColor }} />
@@ -3051,7 +3068,84 @@ const LI_FILTERS = [
 
 
 // ─── Referral Message Modal ────────────────────────────────────────────────────
-const MSG_TEMPLATES = [
+const MSG_TEMPLATES_PRIYAL = [
+  {
+    id: "finance1",
+    label: "Finance — Casual",
+    icon: "💼",
+    color: "#0d9488",
+    build: (name, company) => {
+      const n = (name || "there").split(" ")[0];
+      const c = company || "your organization";
+      return `Hi ${n},
+
+Hope you're doing well! I came across your profile and wanted to reach out.
+
+I'm Priyal Goyal — a Finance Professional with 2+ years of experience in digital lending and credit risk at Tata Capital Limited. I specialize in credit underwriting, GenAI-based automation, and SLOS integration.
+
+I'm currently exploring new opportunities and would love to connect with someone at ${c}. If there are any suitable openings or if you'd be open to a referral, I'd truly appreciate it!
+
+Happy to share my resume — just let me know.
+
+Thanks so much for your time!
+
+Warm regards,
+Priyal Goyal
+📞 +91 7665941798 | ✉ priyalgoyal1702@gmail.com
+🔗 linkedin.com/in/priyal--goyal/`;
+    }
+  },
+  {
+    id: "finance2",
+    label: "Finance — Professional",
+    icon: "📊",
+    color: "#2563eb",
+    build: (name, company) => {
+      const n = (name || "there").split(" ")[0];
+      const c = company || "your organization";
+      return `Hi ${n},
+
+I hope this message finds you well!
+
+I'm Priyal Goyal, a Finance Professional with 2+ years of experience at Tata Capital Limited, where I work as a Credit Manager handling secured retail auto loan underwriting. I have exposure to GenAI automation, SLOS integration, and cross-functional collaboration across credit, operations and technology teams.
+
+I'm currently evaluating new opportunities and ${c} has caught my attention. I'd be grateful if you could refer me or connect me with the right person on your team.
+
+I'm happy to share my resume at your convenience.
+
+Best regards,
+Priyal Goyal
+📞 +91 7665941798 | ✉ priyalgoyal1702@gmail.com
+🔗 linkedin.com/in/priyal--goyal/`;
+    }
+  },
+  {
+    id: "genai",
+    label: "GenAI Focus",
+    icon: "🤖",
+    color: "#7c3aed",
+    build: (name, company) => {
+      const n = (name || "there").split(" ")[0];
+      const c = company || "your organization";
+      return `Hi ${n},
+
+Hope you're having a great week!
+
+I'm Priyal Goyal — a Finance Professional with hands-on experience in GenAI-powered credit automation, SLOS integration, and AI-driven workflow optimization at Tata Capital Limited. I've contributed to a 2.9% reduction in TAT and improvements in credit quality.
+
+I'm exploring new opportunities and would love to connect with someone at ${c}. If there are any suitable openings or if you'd be open to referring me, I'd truly appreciate it!
+
+Thank you for your time!
+
+Warm regards,
+Priyal Goyal
+📞 +91 7665941798 | ✉ priyalgoyal1702@gmail.com
+🔗 linkedin.com/in/priyal--goyal/`;
+    }
+  },
+];
+
+const MSG_TEMPLATES_ANAV = [
   {
     id: "fullstack1",
     label: "Full Stack — Casual",
