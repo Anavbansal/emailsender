@@ -6,6 +6,54 @@ const { google } = require("googleapis");
 const router     = express.Router();
 const TOKEN_PATH = path.join(__dirname, "tokens.json");
 
+// ── Get Gmail client for a specific user ──────────────────────────────────────
+async function getGmailClientForUser(user) {
+  const mongoose = require("mongoose");
+  let refreshToken = null;
+  let gmailUser    = null;
+
+  if (user) {
+    refreshToken = user.gmailRefreshToken || null;
+    gmailUser    = user.gmailUser         || null;
+  }
+
+  // Fallback to env (owner)
+  if (!refreshToken) refreshToken = process.env.GMAIL_REFRESH_TOKEN;
+
+  const oauth2 = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI
+  );
+
+  if (refreshToken) {
+    oauth2.setCredentials({ refresh_token: refreshToken });
+  } else if (fs.existsSync(TOKEN_PATH)) {
+    try { oauth2.setCredentials(JSON.parse(fs.readFileSync(TOKEN_PATH, "utf8"))); } catch {}
+  }
+  return google.gmail({ version: "v1", auth: oauth2 });
+}
+
+// ── Simple auth middleware (reuses JWT from main server) ─────────────────────
+const jwt = require("jsonwebtoken");
+async function optionalAuth(req, res, next) {
+  try {
+    const header = req.headers.authorization || "";
+    const token  = header.startsWith("Bearer ") ? header.slice(7) : null;
+    if (token) {
+      const JWT_SECRET = process.env.JWT_SECRET || "emailsender_secret_2026";
+      const { userId } = jwt.verify(token, JWT_SECRET);
+      const mongoose = require("mongoose");
+      if (mongoose.connection.readyState === 1) {
+        const User = mongoose.model("User");
+        const user = await User.findById(userId).lean();
+        if (user) req.user = user;
+      }
+    }
+  } catch {}
+  next();
+}
+
 function getOAuthClient() {
   const client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
@@ -139,9 +187,9 @@ router.get("/api/gmail/callback", async (req, res) => {
 
 // ─── GET /api/gmail/inbox?q=...&max=...&pageToken=... ────────────────────────
 // q: Gmail search query (default: in:inbox). pageToken: cursor for pagination.
-router.get("/api/gmail/inbox", async (req, res) => { // public for now — uses token from file
+router.get("/api/gmail/inbox", optionalAuth, async (req, res) => {
   try {
-    const gmail     = getGmailClient();
+    const gmail     = await getGmailClientForUser(req.user || null);
     const q         = req.query.q         || "in:inbox";
     const maxRes    = parseInt(req.query.max) || 30;
     const pageToken = req.query.pageToken || undefined;
@@ -178,9 +226,9 @@ router.get("/api/gmail/inbox", async (req, res) => { // public for now — uses 
 
 // ─── GET /api/gmail/thread/:threadId ─────────────────────────────────────────
 // Returns every message in the thread including full HTML body
-router.get("/api/gmail/thread/:threadId", async (req, res) => {
+router.get("/api/gmail/thread/:threadId", optionalAuth, async (req, res) => {
   try {
-    const gmail  = getGmailClient();
+    const gmail  = await getGmailClientForUser(req.user || null);
     const thread = await gmail.users.threads.get({ userId: "me", id: req.params.threadId, format: "full" });
     const messages = (thread.data.messages || []).map(msg => {
       const h       = msg.payload.headers || [];
@@ -205,12 +253,12 @@ router.get("/api/gmail/thread/:threadId", async (req, res) => {
 
 // ─── POST /api/gmail/reply ────────────────────────────────────────────────────
 // Send a reply in the same Gmail thread
-router.post("/api/gmail/reply", async (req, res) => {
+router.post("/api/gmail/reply", optionalAuth, async (req, res) => {
   try {
     const { threadId, messageId, to, subject, body } = req.body;
     if (!to || !body) return res.status(400).json({ success: false, message: "to and body are required." });
 
-    const gmail  = getGmailClient();
+    const gmail  = await getGmailClientForUser(req.user || null);
     const rSubj  = subject && !subject.startsWith("Re:") ? `Re: ${subject}` : (subject || "Re:");
 
     const rawLines = [
