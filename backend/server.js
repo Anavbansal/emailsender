@@ -507,14 +507,19 @@ async function sendApplicationEmail({
   storeEmailHtml(trackRecord.trackingId, html);
 
   const attachments = [];
-  const resumeFile = templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)
-    ? { filename: "Anav_Bansal_CRMExpert.pdf", path: CRM_RESUME_PATH, contentType: "application/pdf" }
-    : fs.existsSync(RESUME_PATH)
-      ? { filename: "Anav_Bansal_Resume.pdf", path: RESUME_PATH, contentType: "application/pdf" }
-      : null;
-  if (resumeFile) attachments.push(resumeFile);
+  // Use user's resume if available, else fall back to defaults
+  const userResumePath = userCfg?.resumePath;
+  const userResumeName = userCfg?.resumeFileName || "Resume.pdf";
+  const resolvedResume = userResumePath && fs.existsSync(userResumePath)
+    ? { filename: userResumeName, path: userResumePath, contentType: "application/pdf" }
+    : templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)
+      ? { filename: "Anav_Bansal_CRMExpert.pdf", path: CRM_RESUME_PATH, contentType: "application/pdf" }
+      : fs.existsSync(RESUME_PATH)
+        ? { filename: "Anav_Bansal_Resume.pdf", path: RESUME_PATH, contentType: "application/pdf" }
+        : null;
+  if (resolvedResume) attachments.push(resolvedResume);
 
-  const mailOpts = { from: `"Anav Bansal" <${process.env.GMAIL_USER}>`, to: hrEmail, subject, html, attachments };
+  const mailOpts = { to: hrEmail, subject, html, attachments, userConfig: userCfg };
   if (readReceipt) {
     mailOpts.headers = {
       "Disposition-Notification-To": process.env.GMAIL_USER,
@@ -819,7 +824,7 @@ app.post("/api/send-referral", requireAuth, async (req, res) => {
   storeEmailHtml(trackRecord.trackingId, html);
 
   try {
-    const info = await sendViaGmailAPI({ to: employeeEmail, subject, html });
+    const info = await sendViaGmailAPI({ to: employeeEmail, subject, html, userConfig: getUserConfig(req.user) });
     logToSheets([info.id, employeeEmail, company, role, new Date().toISOString(), trackRecord.trackingId, "Referral-Sent", ""]);
     await saveSentEmail({
       messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
@@ -1194,8 +1199,9 @@ app.get("/api/sent-log", requireAuth, async (req, res) => {
 app.get("/api/gmail/replies", requireAuth, async (req, res) => {
   try {
     // Use refresh token from env (works on Render without tokens.json)
-    if (!process.env.GMAIL_REFRESH_TOKEN) return res.json({ success: true, replies: [] });
-    const auth = getGmailAPITransport();
+    const cfg7 = getUserConfig(req.user);
+    if (!cfg7.gmailUser && !process.env.GMAIL_REFRESH_TOKEN) return res.json({ success: true, replies: [] });
+    const auth = getUserGmailAuth(req.user);
     const gmail = google.gmail({ version: "v1", auth });
 
     // Pull tracked emails from DB (more complete) with fallback to tracking.json
@@ -1312,9 +1318,10 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
   try {
     const info = await sendViaGmailAPI({
       to: hrEmail, subject, html,
-      inReplyTo:  originalMessageId || null,
-      references: originalMessageId || null,
-      threadId:   resolvedThreadId,          // ← puts reply inside the SAME thread
+      inReplyTo:   originalMessageId || null,
+      references:  originalMessageId || null,
+      threadId:    resolvedThreadId,
+      userConfig:  getUserConfig(req.user),
     });
     logToSheets([info.id, hrEmail, company||"", role||"", new Date().toISOString(), trackRecord.trackingId, "FollowUp-Sent", ""]);
     await saveSentEmail({
@@ -1663,15 +1670,16 @@ app.get("/api/sync-sent-emails", requireAuth, async (req, res) => {
     if (mongoose.connection.readyState !== 1)
       return res.status(503).json({ success: false, message: "MongoDB not connected" });
 
-    if (!process.env.GMAIL_REFRESH_TOKEN)
-      return res.status(401).json({ success: false, message: "GMAIL_REFRESH_TOKEN not set in env" });
+    const cfg8 = getUserConfig(req.user);
+    if (!req.user.gmailRefreshToken && !process.env.GMAIL_REFRESH_TOKEN)
+      return res.status(401).json({ success: false, message: "Gmail not connected" });
 
-    const auth = getGmailAPITransport();
+    const auth = getUserGmailAuth(req.user);
     const gmail = google.gmail({ version: "v1", auth });
 
     const afterDate  = req.query.after || "2026/05/28";
     const maxResults = parseInt(req.query.max || "200");
-    const myEmail    = (process.env.GMAIL_USER || "").toLowerCase();
+    const myEmail    = (cfg8.gmailUser || process.env.GMAIL_USER || "").toLowerCase();
 
     const query = `in:sent after:${afterDate}`;
     console.log(`📧 Syncing Gmail sent emails: ${query}`);
@@ -1898,12 +1906,12 @@ app.get("/api/thread/:messageId", requireAuth, async (req, res) => {
     }
 
     // Else fetch live from Gmail
-    if (!process.env.GMAIL_REFRESH_TOKEN || !log.threadId)
+    if (!req.user.gmailRefreshToken && !process.env.GMAIL_REFRESH_TOKEN || !log.threadId)
       return res.json({ success: true, conversation: [], cached: false });
 
-    const auth  = getGmailAPITransport();
+    const auth  = getUserGmailAuth(req.user);
     const gmail = google.gmail({ version: "v1", auth });
-    const myEmail = (process.env.GMAIL_USER || "").toLowerCase();
+    const myEmail = (getUserConfig(req.user).gmailUser || process.env.GMAIL_USER || "").toLowerCase();
 
     const thread = await gmail.users.threads.get({
       userId: "me", id: log.threadId, format: "full"
