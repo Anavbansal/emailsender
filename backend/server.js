@@ -1520,12 +1520,13 @@ app.get("/api/prospect", async (req, res) => {
 });
 
 // ─── POST /api/preview-email ──────────────────────────────────────────────────
-app.post("/api/preview-email", (req, res) => {
+app.post("/api/preview-email", requireAuth, async (req, res) => {
   const { hrName, company, role, customNote, templateType = "fullstack", customIntro, customHighlights, headerTheme } = req.body;
   const opts = { hrName, company, role, customNote, customIntro, customHighlights, headerTheme };
+  const userCfg  = getUserConfig(req.user);
+  const isPriyal = userCfg?.profileName?.toLowerCase().includes("priyal");
   let html;
-  const isPriyal2 = userCfg && userCfg.profileName && userCfg.profileName.toLowerCase().includes("priyal");
-  if (isPriyal2)                      html = buildPriyalHTML({ ...opts, templateType });
+  if (isPriyal)                       html = buildPriyalHTML({ ...opts, templateType });
   else if (templateType === "cti")    html = buildCTIHTML(opts);
   else if (templateType === "formal") html = buildFormalHTML(opts);
   else if (templateType === "crm")    html = buildCRMHTML(opts);
