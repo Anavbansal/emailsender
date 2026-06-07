@@ -892,6 +892,43 @@ app.get("/api/track/:trackingId", (req, res) => {
 
 // ─── GET /api/contacts ────────────────────────────────────────────────────────
 app.get("/api/contacts", requireAuth, async (req, res) => {
+  const isOwner = req.user.username === (process.env.OWNER_USERNAME || "anav");
+
+  // Non-owner with no sheet: return only their MongoDB data
+  if (!isOwner && !req.user.googleSheetId) {
+    if (mongoose.connection.readyState === 1) {
+      const toMs = (v) => { if (!v) return null; if (typeof v === "number") return v; const d = new Date(v); return isNaN(d.getTime()) ? null : d.getTime(); };
+      const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+      const rows = await SentEmailLog.aggregate([
+        { $match: { userId: req.userId } },
+        { $sort: { sentAt: -1 } },
+        { $group: {
+          _id: { $toLower: "$hrEmail" },
+          hrEmail: { $first: "$hrEmail" }, hrName: { $first: "$hrName" },
+          company: { $first: "$company" }, role: { $first: "$role" },
+          latestSentAt: { $first: "$sentAt" }, messageId: { $first: "$messageId" },
+          threadId: { $first: "$threadId" }, replied: { $max: "$replied" },
+          repliedAt: { $first: "$repliedAt" }, followupSent: { $max: "$followupSent" },
+          notes: { $first: "$notes" }, totalSent: { $sum: 1 },
+        }}
+      ]);
+      const contacts = rows.map(r => {
+        const ls = toMs(r.latestSentAt) || 0;
+        return {
+          hrEmail: r.hrEmail||"", hrName: r.hrName||"", company: r.company||"", role: r.role||"",
+          lastSentAt: ls, lastMessageId: r.messageId||null, lastThreadId: r.threadId||null,
+          totalSent: r.totalSent||1, followupCount: 0, opened: false, openedAt: null,
+          replied: r.replied||false, repliedAt: toMs(r.repliedAt)||null,
+          followupSent: r.followupSent||false, notes: typeof r.notes==="string"?r.notes:"",
+          needsFollowUp: ls>0 && (Date.now()-ls)>THREE_DAYS_MS && !r.replied,
+          lastTrackingId: null,
+        };
+      }).sort((a,b) => b.lastSentAt - a.lastSentAt);
+      return res.json({ success: true, contacts, fetchedAt: Date.now(), sheetError: null, sheetTab: "" });
+    }
+    return res.json({ success: true, contacts: [], fetchedAt: Date.now(), sheetError: null, sheetTab: "" });
+  }
+
   const byEmail = new Map();
   let sheetError = null;
 
@@ -1285,9 +1322,11 @@ app.post("/api/schedule-email", requireAuth, async (req, res) => {
 
 app.get("/api/scheduled-emails", requireAuth, async (req, res) => {
   const allJobs = await loadScheduled();
-  // Filter by userId — show only this user's scheduled emails
+  const isOwner = req.user.username === (process.env.OWNER_USERNAME || "anav");
   const jobs = allJobs.filter(j =>
-    !j.userId || j.userId === (req.userId || "default") || j.userId === "default"
+    isOwner
+      ? (!j.userId || j.userId === req.userId || j.userId === "default")  // owner sees legacy too
+      : (j.userId === req.userId)  // others see only their own
   );
   res.json({ success: true, jobs });
 });
@@ -1404,7 +1443,11 @@ const LINKEDIN_TAB      = "Connections";
 app.get("/api/linkedin/connections", requireAuth, async (req, res) => {
   try {
     const cfg    = getUserConfig(req.user);
-    const liSheetId = cfg.linkedinSheetId || LINKEDIN_SHEET_ID;
+    const isOwner = req.user.username === (process.env.OWNER_USERNAME || "anav");
+    // Non-owner with no sheet set gets empty list — not owner's data
+    const liSheetId = req.user.linkedinSheetId ||
+      (isOwner ? (process.env.LINKEDIN_SHEET_ID || LINKEDIN_SHEET_ID) : null);
+    if (!liSheetId) return res.json({ success: true, connections: [], total: 0 });
     const sheets = getUserSheetsClient(req.user);
     const resp   = await sheets.spreadsheets.values.get({
       spreadsheetId: liSheetId,
