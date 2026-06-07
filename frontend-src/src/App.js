@@ -169,6 +169,163 @@ const DEFAULT_TEMPLATE_PRIYAL = {
 
 const DEFAULT_TEMPLATE = getUser()?.username === "anav" ? DEFAULT_TEMPLATE_ANAV : DEFAULT_TEMPLATE_PRIYAL;
 
+
+const MSG_TEMPLATES_PRIYAL = [
+  {
+    id: "finance1",
+    label: "Finance — Casual",
+    icon: "💼",
+    color: "#0d9488",
+    build: (name, company) => {
+      const n = (name || "there").split(" ")[0];
+      const c = company || "your organization";
+      return `Hi ${n},
+
+Hope you're doing well! I came across your profile and wanted to reach out.
+
+I'm Priyal Goyal — a Finance Professional with 2+ years of experience in digital lending and credit risk at Tata Capital Limited. I specialize in credit underwriting, GenAI-based automation, and SLOS integration.
+
+I'm currently exploring new opportunities and would love to connect with someone at ${c}. If there are any suitable openings or if you'd be open to a referral, I'd truly appreciate it!
+
+Happy to share my resume — just let me know.
+
+Thanks so much for your time!
+
+Warm regards,
+Priyal Goyal
+📞 +91 7665941798 | ✉ priyalgoyal1702@gmail.com
+🔗 linkedin.com/in/priyal--goyal/`;
+    }
+  },
+  {
+    id: "finance2",
+    label: "Finance — Professional",
+    icon: "📊",
+    color: "#2563eb",
+    build: (name, company) => {
+      const n = (name || "there").split(" ")[0];
+      const c = company || "your organization";
+      return `Hi ${n},
+
+I hope this message finds you well!
+
+I'm Priyal Goyal, a Finance Professional with 2+ years of experience at Tata Capital Limited, where I work as a Credit Manager handling secured retail auto loan underwriting. I have exposure to GenAI automation, SLOS integration, and cross-functional collaboration across credit, operations and technology teams.
+
+I'm currently evaluating new opportunities and ${c} has caught my attention. I'd be grateful if you could refer me or connect me with the right person on your team.
+
+I'm happy to share my resume at your convenience.
+
+Best regards,
+Priyal Goyal
+📞 +91 7665941798 | ✉ priyalgoyal1702@gmail.com
+🔗 linkedin.com/in/priyal--goyal/`;
+    }
+  },
+  {
+    id: "genai",
+    label: "GenAI Focus",
+    icon: "🤖",
+    color: "#7c3aed",
+    build: (name, company) => {
+      const n = (name || "there").split(" ")[0];
+      const c = company || "your organization";
+      return `Hi ${n},
+
+Hope you're having a great week!
+
+I'm Priyal Goyal — a Finance Professional with hands-on experience in GenAI-powered credit automation, SLOS integration, and AI-driven workflow optimization at Tata Capital Limited. I've contributed to a 2.9% reduction in TAT and improvements in credit quality.
+
+I'm exploring new opportunities and would love to connect with someone at ${c}. If there are any suitable openings or if you'd be open to referring me, I'd truly appreciate it!
+
+Thank you for your time!
+
+Warm regards,
+Priyal Goyal
+📞 +91 7665941798 | ✉ priyalgoyal1702@gmail.com
+🔗 linkedin.com/in/priyal--goyal/`;
+    }
+  },
+];
+
+const MSG_TEMPLATES_ANAV = [
+  {
+    id: "fullstack1",
+    label: "Full Stack — Casual",
+    icon: "💻",
+    color: "#2563eb",
+    build: (name, company) => {
+      const n = (name || "there").split(" ")[0];
+      const c = company || "your organization";
+      return `Hi ${n},
+
+Hope you're doing well! I came across your profile and wanted to reach out.
+
+I'm Anav Bansal — a Senior Full Stack Developer with 4.7+ years of experience building production-grade applications using Node.js, Angular, React, AWS Lambda, and DynamoDB. I've worked extensively on enterprise CTI integrations and serverless architectures.
+
+I'm currently exploring a job switch and would love to connect with someone at ${c}. If there are any openings that might be a good fit, or if you'd be open to a referral, I'd really appreciate it!
+
+Even a quick pointer to the right team would mean a lot.
+
+Thanks so much — looking forward to connecting!
+
+Warm regards,
+Anav Bansal
+📞 +91 7827855635 | ✉ anavbansal06@gmail.com
+🔗 linkedin.com/in/anavbansal-51b191162`;
+    }
+  },
+  {
+    id: "fullstack2",
+    label: "Full Stack — Professional",
+    icon: "🚀",
+    color: "#7c3aed",
+    build: (name, company) => {
+      const n = (name || "there").split(" ")[0];
+      const c = company || "your organization";
+      return `Hi ${n},
+
+I hope this message finds you well!
+
+I'm Anav Bansal, a Senior Full Stack Developer with 4.7+ years of experience delivering scalable, end-to-end applications — Node.js, Angular, React, AWS, and enterprise CRM/CTI integrations across platforms like ServiceNow, Salesforce, and Freshdesk.
+
+I'm at a stage in my career where I'm actively evaluating exciting new opportunities, and ${c} has caught my attention. I'd be grateful if you'd consider referring me, or simply connecting me with the right person on your team.
+
+I'm happy to share my resume and portfolio at your convenience. Thank you for your time — it truly means a lot!
+
+Best regards,
+Anav Bansal
+📞 +91 7827855635 | ✉ anavbansal06@gmail.com
+🔗 linkedin.com/in/anavbansal-51b191162`;
+    }
+  },
+  {
+    id: "crm",
+    label: "CRM / ServiceNow Expert",
+    icon: "🏆",
+    color: "#0d9488",
+    build: (name, company) => {
+      const n = (name || "there").split(" ")[0];
+      const c = company || "your organization";
+      return `Hi ${n},
+
+Hope you're having a great week!
+
+I'm Anav Bansal — a Senior CRM Integration Expert with 4.7+ years of specialization in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent, Scripted REST APIs), Freshdesk, Salesforce, and Zendesk. I've published 3 enterprise marketplace apps and led CTI integrations for Fortune 500 contact centers.
+
+I'm currently looking for a new challenge and exploring opportunities where I can make an impact with my CRM & ServiceNow expertise. If ${c} has any relevant openings or if you'd be open to referring me, I'd truly appreciate it!
+
+Happy to send across my resume — just let me know.
+
+Thank you so much for taking the time!
+
+Warm regards,
+Anav Bansal
+📞 +91 7827855635 | ✉ anavbansal06@gmail.com
+🔗 linkedin.com/in/anavbansal-51b191162`;
+    }
+  },
+];
+
 const getMsgTemplates = () => {
   const user = getUser();
   return user?.username === "anav" ? MSG_TEMPLATES_ANAV : MSG_TEMPLATES_PRIYAL;
@@ -3105,162 +3262,17 @@ const LI_FILTERS = [
 ];
 
 
+// ─── Referral Message Modal ──────────────────────────────────────────────────── LI_FILTERS = [
+  { key: "all",     label: "All"           },
+  { key: "hr",      label: "HR / Recruiter" },
+  { key: "notsent", label: "Not Sent"       },
+  { key: "sent",    label: "Applied ✓"      },
+  { key: "replied", label: "Replied ✓"      },
+];
+
+
 // ─── Referral Message Modal ────────────────────────────────────────────────────
-const MSG_TEMPLATES_PRIYAL = [
-  {
-    id: "finance1",
-    label: "Finance — Casual",
-    icon: "💼",
-    color: "#0d9488",
-    build: (name, company) => {
-      const n = (name || "there").split(" ")[0];
-      const c = company || "your organization";
-      return `Hi ${n},
 
-Hope you're doing well! I came across your profile and wanted to reach out.
-
-I'm Priyal Goyal — a Finance Professional with 2+ years of experience in digital lending and credit risk at Tata Capital Limited. I specialize in credit underwriting, GenAI-based automation, and SLOS integration.
-
-I'm currently exploring new opportunities and would love to connect with someone at ${c}. If there are any suitable openings or if you'd be open to a referral, I'd truly appreciate it!
-
-Happy to share my resume — just let me know.
-
-Thanks so much for your time!
-
-Warm regards,
-Priyal Goyal
-📞 +91 7665941798 | ✉ priyalgoyal1702@gmail.com
-🔗 linkedin.com/in/priyal--goyal/`;
-    }
-  },
-  {
-    id: "finance2",
-    label: "Finance — Professional",
-    icon: "📊",
-    color: "#2563eb",
-    build: (name, company) => {
-      const n = (name || "there").split(" ")[0];
-      const c = company || "your organization";
-      return `Hi ${n},
-
-I hope this message finds you well!
-
-I'm Priyal Goyal, a Finance Professional with 2+ years of experience at Tata Capital Limited, where I work as a Credit Manager handling secured retail auto loan underwriting. I have exposure to GenAI automation, SLOS integration, and cross-functional collaboration across credit, operations and technology teams.
-
-I'm currently evaluating new opportunities and ${c} has caught my attention. I'd be grateful if you could refer me or connect me with the right person on your team.
-
-I'm happy to share my resume at your convenience.
-
-Best regards,
-Priyal Goyal
-📞 +91 7665941798 | ✉ priyalgoyal1702@gmail.com
-🔗 linkedin.com/in/priyal--goyal/`;
-    }
-  },
-  {
-    id: "genai",
-    label: "GenAI Focus",
-    icon: "🤖",
-    color: "#7c3aed",
-    build: (name, company) => {
-      const n = (name || "there").split(" ")[0];
-      const c = company || "your organization";
-      return `Hi ${n},
-
-Hope you're having a great week!
-
-I'm Priyal Goyal — a Finance Professional with hands-on experience in GenAI-powered credit automation, SLOS integration, and AI-driven workflow optimization at Tata Capital Limited. I've contributed to a 2.9% reduction in TAT and improvements in credit quality.
-
-I'm exploring new opportunities and would love to connect with someone at ${c}. If there are any suitable openings or if you'd be open to referring me, I'd truly appreciate it!
-
-Thank you for your time!
-
-Warm regards,
-Priyal Goyal
-📞 +91 7665941798 | ✉ priyalgoyal1702@gmail.com
-🔗 linkedin.com/in/priyal--goyal/`;
-    }
-  },
-];
-
-const MSG_TEMPLATES_ANAV = [
-  {
-    id: "fullstack1",
-    label: "Full Stack — Casual",
-    icon: "💻",
-    color: "#2563eb",
-    build: (name, company) => {
-      const n = (name || "there").split(" ")[0];
-      const c = company || "your organization";
-      return `Hi ${n},
-
-Hope you're doing well! I came across your profile and wanted to reach out.
-
-I'm Anav Bansal — a Senior Full Stack Developer with 4.7+ years of experience building production-grade applications using Node.js, Angular, React, AWS Lambda, and DynamoDB. I've worked extensively on enterprise CTI integrations and serverless architectures.
-
-I'm currently exploring a job switch and would love to connect with someone at ${c}. If there are any openings that might be a good fit, or if you'd be open to a referral, I'd really appreciate it!
-
-Even a quick pointer to the right team would mean a lot.
-
-Thanks so much — looking forward to connecting!
-
-Warm regards,
-Anav Bansal
-📞 +91 7827855635 | ✉ anavbansal06@gmail.com
-🔗 linkedin.com/in/anavbansal-51b191162`;
-    }
-  },
-  {
-    id: "fullstack2",
-    label: "Full Stack — Professional",
-    icon: "🚀",
-    color: "#7c3aed",
-    build: (name, company) => {
-      const n = (name || "there").split(" ")[0];
-      const c = company || "your organization";
-      return `Hi ${n},
-
-I hope this message finds you well!
-
-I'm Anav Bansal, a Senior Full Stack Developer with 4.7+ years of experience delivering scalable, end-to-end applications — Node.js, Angular, React, AWS, and enterprise CRM/CTI integrations across platforms like ServiceNow, Salesforce, and Freshdesk.
-
-I'm at a stage in my career where I'm actively evaluating exciting new opportunities, and ${c} has caught my attention. I'd be grateful if you'd consider referring me, or simply connecting me with the right person on your team.
-
-I'm happy to share my resume and portfolio at your convenience. Thank you for your time — it truly means a lot!
-
-Best regards,
-Anav Bansal
-📞 +91 7827855635 | ✉ anavbansal06@gmail.com
-🔗 linkedin.com/in/anavbansal-51b191162`;
-    }
-  },
-  {
-    id: "crm",
-    label: "CRM / ServiceNow Expert",
-    icon: "🏆",
-    color: "#0d9488",
-    build: (name, company) => {
-      const n = (name || "there").split(" ")[0];
-      const c = company || "your organization";
-      return `Hi ${n},
-
-Hope you're having a great week!
-
-I'm Anav Bansal — a Senior CRM Integration Expert with 4.7+ years of specialization in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent, Scripted REST APIs), Freshdesk, Salesforce, and Zendesk. I've published 3 enterprise marketplace apps and led CTI integrations for Fortune 500 contact centers.
-
-I'm currently looking for a new challenge and exploring opportunities where I can make an impact with my CRM & ServiceNow expertise. If ${c} has any relevant openings or if you'd be open to referring me, I'd truly appreciate it!
-
-Happy to send across my resume — just let me know.
-
-Thank you so much for taking the time!
-
-Warm regards,
-Anav Bansal
-📞 +91 7827855635 | ✉ anavbansal06@gmail.com
-🔗 linkedin.com/in/anavbansal-51b191162`;
-    }
-  },
-];
 
 function ReferralMessageModal({ connection, onClose, addToast }) {
   const [activeTemplate, setActiveTemplate] = useState("fullstack1");
