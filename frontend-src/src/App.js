@@ -3264,17 +3264,6 @@ const LI_FILTERS = [
 
 // ─── Referral Message Modal ────────────────────────────────────────────────────
 
-const LI_FILTERS = [
-  { key: "all",     label: "All"           },
-  { key: "hr",      label: "HR / Recruiter" },
-  { key: "notsent", label: "Not Sent"       },
-  { key: "sent",    label: "Applied ✓"      },
-  { key: "replied", label: "Replied ✓"      },
-];
-
-
-// ─── Referral Message Modal ────────────────────────────────────────────────────
-
 
 function ReferralMessageModal({ connection, onClose, addToast }) {
   const [activeTemplate, setActiveTemplate] = useState("fullstack1");
