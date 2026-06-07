@@ -987,7 +987,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
     return <span className="badge badge-sent">📤 Sent</span>;
   }
 
-  return (
+  return (<>
     <div className="page">
       {sheetError && contacts.length === 0 && (
         <div className="sheet-error-banner">
@@ -1249,6 +1249,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
         addToast={addToast}
       />
     )}
+  </>
   );
 }
 
