@@ -814,19 +814,29 @@ function buildFormalHTML({ hrName, company, role, customNote, trackUrl = "", cus
 }
 
 // ─── HTML: Follow-up ──────────────────────────────────────────────────────────
-function buildFollowUpHTML({ hrName, company, role, originalDate, customNote, trackUrl = "" }) {
+function buildFollowUpHTML({ hrName, company, role, originalDate, customNote, trackUrl = "", userCfg = null }) {
   const greeting  = hrName ? `Dear ${hrName},` : "Dear Hiring Manager,";
   const roleText  = role   ? ` for the <strong>${role}</strong> role` : "";
   const dateText  = originalDate ? ` on <strong>${originalDate}</strong>` : " recently";
   const noteBlock = customNote ? `<p style="color:#374151;line-height:1.8;margin:16px 0;">${customNote}</p>` : "";
   const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
+
+  const isPriyal  = userCfg?.profileName?.toLowerCase().includes("priyal");
+  const senderName  = userCfg?.profileName  || "Anav Bansal";
+  const senderTitle = isPriyal
+    ? "Finance Professional · Credit Manager · Digital Lending"
+    : "Senior Full Stack Developer · Node.js · Angular · AWS";
+  const bodyText = isPriyal
+    ? `I remain very enthusiastic and confident that my <strong>2+ years of experience</strong> in digital lending, credit risk assessment, and GenAI automation at Tata Capital would be a strong fit for your team.`
+    : `I remain very enthusiastic and confident that my <strong>4.7+ years of experience</strong> in full-stack development, Node.js, AWS serverless architectures, and enterprise CTI/Telephony integrations would be a strong fit for your team.`;
+
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',sans-serif;">
 <div style="max-width:620px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
   <div style="background:linear-gradient(135deg,#064e3b 0%,#059669 100%);padding:36px 40px;">
     <p style="margin:0 0 6px;color:#a7f3d0;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Follow-Up</p>
-    <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Anav Bansal</h1>
-    <p style="margin:6px 0 0;color:#a7f3d0;font-size:14px;">Senior Full Stack Developer · Node.js · Angular · AWS</p>
+    <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">${senderName}</h1>
+    <p style="margin:6px 0 0;color:#a7f3d0;font-size:14px;">${senderTitle}</p>
   </div>
   <div style="padding:36px 40px;">
     <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
@@ -835,14 +845,9 @@ function buildFollowUpHTML({ hrName, company, role, originalDate, customNote, tr
       <strong>${company||"your organization"}</strong>, which I submitted${dateText}.
     </p>
     ${noteBlock}
-    <p style="color:#374151;line-height:1.8;margin:0 0 24px;">
-      I remain very enthusiastic and confident that my <strong>4.7+ years of experience</strong> in full-stack
-      development, Node.js, AWS serverless architectures, and enterprise CTI/Telephony integrations would be
-      a strong fit for your team.
-    </p>
+    <p style="color:#374151;line-height:1.8;margin:0 0 24px;">${bodyText}</p>
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:18px 24px;margin-bottom:24px;">
       <p style="margin:0 0 10px;font-weight:600;color:#065f46;font-size:14px;">📎 Resume (Re-attached)</p>
-      <a href="${RESUME_DRIVE_LINK}" style="color:#059669;text-decoration:none;font-weight:500;font-size:14px;">🔗 View on Google Drive →</a>
     </div>
     <p style="color:#374151;line-height:1.8;margin:0;">Thank you again for your time and consideration.</p>
   </div>
@@ -1393,7 +1398,7 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
   const subject     = `Re: ${baseSubject}`;
   const trackRecord = createTrackingRecord({ hrEmail, hrName, company, role, subject, type: "followup" });
   const trackUrl    = `${BASE_URL}/api/track/${trackRecord.trackingId}`;
-  const html        = buildFollowUpHTML({ hrName, company, role, originalDate, customNote, trackUrl });
+  const html        = buildFollowUpHTML({ hrName, company, role, originalDate, customNote, trackUrl, userCfg: getUserConfig(req.user) });
 
   storeEmailHtml(trackRecord.trackingId, html);
 
