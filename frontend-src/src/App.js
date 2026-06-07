@@ -3685,6 +3685,7 @@ function AuthPage({ onAuth }) {
 }
 
 function App() {
+  const [authUser,      setAuthUser]      = useState(() => getUser());
   const [page,          setPage]          = useState("dashboard");
   const [contacts,      setContacts]      = useState([]);
   const [replies,       setReplies]       = useState([]);
@@ -3799,6 +3800,11 @@ function App() {
   // Sidebar mini stats
   const openedCount = contacts.filter(c => c.opened).length;
 
+  // Show login page if not authenticated
+  if (!authUser) {
+    return <AuthPage onAuth={user => { setAuthUser(user); }} />;
+  }
+
   return (
     <div className="app-shell">
       <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
@@ -3826,6 +3832,17 @@ function App() {
         </div>
         <div className="sidebar-footer">
           <DarkModeToggle dark={darkMode} onToggle={() => setDarkMode(d => !d)} />
+          <button
+            onClick={() => { clearToken(); setAuthUser(null); }}
+            style={{
+              background:"transparent", border:"none", cursor:"pointer",
+              color:"#64748b", fontSize:12, padding:"6px 8px", borderRadius:8,
+              display:"flex", alignItems:"center", gap:6, width:"100%",
+              transition:"all 0.2s"
+            }}
+            title="Logout">
+            🚪 <span style={{ fontSize:11 }}>{authUser?.displayName || authUser?.username || "Logout"}</span>
+          </button>
         </div>
       </aside>
 
