@@ -1262,16 +1262,29 @@ app.post("/api/schedule-email", requireAuth, async (req, res) => {
   if (!hrEmail || !company || !scheduledTime)
     return res.status(400).json({ success: false, message: "hrEmail, company, scheduledTime required." });
   const jobId = Date.now().toString();
-  await addScheduledJob({ jobId, scheduledTime, status: "pending", emailData: { hrEmail, company, ...rest } });
+  await addScheduledJob({
+    jobId, scheduledTime, status: "pending",
+    userId: req.userId || "default",          // ← save userId
+    emailData: { hrEmail, company, ...rest }
+  });
   return res.json({ success: true, message: `Scheduled for ${new Date(scheduledTime).toLocaleString("en-IN")}`, jobId });
 });
 
-app.get("/api/scheduled-emails", async (req, res) => {
-  const jobs = await loadScheduled();
+app.get("/api/scheduled-emails", requireAuth, async (req, res) => {
+  const allJobs = await loadScheduled();
+  // Filter by userId — show only this user's scheduled emails
+  const jobs = allJobs.filter(j =>
+    !j.userId || j.userId === (req.userId || "default") || j.userId === "default"
+  );
   res.json({ success: true, jobs });
 });
 
-app.delete("/api/scheduled-emails/:jobId", async (req, res) => {
+app.delete("/api/scheduled-emails/:jobId", requireAuth, async (req, res) => {
+  // Only allow deleting own jobs
+  const allJobs = await loadScheduled();
+  const job = allJobs.find(j => j.jobId === req.params.jobId);
+  if (job && job.userId && job.userId !== req.userId && job.userId !== "default")
+    return res.status(403).json({ success: false, message: "Not your job" });
   await deleteJob(req.params.jobId);
   res.json({ success: true });
 });
