@@ -20,19 +20,40 @@ axios.interceptors.request.use(cfg => {
 const DRIVE_LINK = "https://drive.google.com/file/d/1LKc-w9Ggd5I1eZ3t7Wvm9psU-4ITxHxr/view?usp=sharing";
 
 // ── HR Profile answers — edit these anytime ──────────────────────────────────
-const HR_PROFILE = {
-  keySkills:       "Node.js, Angular, AWS, ExpressJS, TypeScript, CTI Integrations, ServiceNow, Chatbot Development",
-  totalExp:        "4.7+ Years",
-  relevantExp:     "4.7+ Years",
-  currentCompany:  "NovelVox Pvt. Ltd.",
-  reasonForChange: "Personal and professional growth",
-  noticePeriod:    "30 Days",
-  currentCTC:      "₹9 LPA",
-  offerInHand:     "No",
-  expectedCTC:     "₹15 LPA",
-  currentLocation: "Faridabad, Haryana",
-  preferredLocation: "PAN India",
+const HR_PROFILE_ANAV = {
+  keySkills:        "Node.js, Angular, AWS, ExpressJS, TypeScript, CTI Integrations, ServiceNow, Chatbot Development",
+  totalExp:         "4.7+ Years",
+  relevantExp:      "4.7+ Years",
+  currentCompany:   "NovelVox Pvt. Ltd.",
+  reasonForChange:  "Personal and professional growth",
+  noticePeriod:     "30 Days",
+  currentCTC:       "₹9 LPA",
+  offerInHand:      "No",
+  expectedCTC:      "₹15 LPA",
+  currentLocation:  "Faridabad, Haryana",
+  preferredLocation:"PAN India",
 };
+
+const HR_PROFILE_PRIYAL = {
+  keySkills:        "Digital Lending, Credit Risk Assessment, Product Implementation, GenAI Automation, Business Analysis, FinnOne, SLOS, SFDC, FICO, Jocata, Power BI, Advanced Excel",
+  totalExp:         "2+ Years",
+  relevantExp:      "2+ Years",
+  currentCompany:   "Tata Capital Limited",
+  reasonForChange:  "Personal and professional growth",
+  noticePeriod:     "30 Days",
+  currentCTC:       "",
+  offerInHand:      "No",
+  expectedCTC:      "",
+  currentLocation:  "Mumbai, India",
+  preferredLocation:"PAN India",
+};
+
+// Dynamic profile based on logged in user
+const getHRProfile = () => {
+  const user = getUser();
+  return user?.username === "anav" ? HR_PROFILE_ANAV : HR_PROFILE_PRIYAL;
+};
+const HR_PROFILE = getHRProfile();
 
 // Keywords that indicate HR is asking screening questions
 const SCREENING_KEYWORDS = [
@@ -3809,10 +3830,10 @@ function App() {
     <div className="app-shell">
       <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
         <div className="sidebar-header">
-          <div className="sidebar-avatar">AB</div>
+          <div className="sidebar-avatar">{(authUser?.displayName||"U").slice(0,2).toUpperCase()}</div>
           <div className="sidebar-brand">
-            <span className="sidebar-name">Anav Bansal</span>
-            <span className="sidebar-role">Senior Dev</span>
+            <span className="sidebar-name">{authUser?.displayName || authUser?.username}</span>
+            <span className="sidebar-role">{authUser?.username === "anav" ? "Senior Dev" : "Finance Pro"}</span>
           </div>
         </div>
         <nav className="sidebar-nav">
@@ -3852,17 +3873,34 @@ function App() {
         <header className="top-header">
           <button className="hamburger" onClick={() => setSidebarOpen(o => !o)}>☰</button>
           <div className="header-user">
-            <div className="header-avatar">AB</div>
+            <div className="header-avatar" style={{
+              background: authUser?.username === "anav"
+                ? "linear-gradient(135deg,#3b82f6,#7c3aed)"
+                : "linear-gradient(135deg,#0d9488,#059669)"
+            }}>
+              {(authUser?.displayName || "U").slice(0,2).toUpperCase()}
+            </div>
             <div className="header-info">
-              <span className="header-name">Anav Bansal</span>
-              <span className="header-title">Senior Software Developer · CTI/Telephony Specialist · Node.js · AWS</span>
+              <span className="header-name">{authUser?.displayName || authUser?.username}</span>
+              <span className="header-title">
+                {authUser?.username === "anav"
+                  ? "Senior Software Developer · CTI/Telephony Specialist · Node.js · AWS"
+                  : "Finance Professional · Credit Manager · Digital Lending · GenAI"}
+              </span>
             </div>
           </div>
           <div className="header-links">
-            <a href="mailto:anavbansal06@gmail.com" className="plink">✉ anavbansal06@gmail.com</a>
-            <a href="tel:+917827855635" className="plink">📞 +91 7827855635</a>
-            <a href="https://linkedin.com/in/anavbansal-51b191162" target="_blank" rel="noreferrer" className="plink">🔗 LinkedIn</a>
-            <a href={DRIVE_LINK} target="_blank" rel="noreferrer" className="plink plink-resume">📄 Resume</a>
+            {authUser?.username === "anav" ? (<>
+              <a href="mailto:anavbansal06@gmail.com" className="plink">✉ anavbansal06@gmail.com</a>
+              <a href="tel:+917827855635" className="plink">📞 +91 7827855635</a>
+              <a href="https://linkedin.com/in/anavbansal-51b191162" target="_blank" rel="noreferrer" className="plink">🔗 LinkedIn</a>
+              <a href={DRIVE_LINK} target="_blank" rel="noreferrer" className="plink plink-resume">📄 Resume</a>
+            </>) : (<>
+              <a href="mailto:priyalgoyal1702@gmail.com" className="plink">✉ priyalgoyal1702@gmail.com</a>
+              <a href="tel:+917665941798" className="plink">📞 +91 7665941798</a>
+              <a href="https://linkedin.com/in/priyal--goyal/" target="_blank" rel="noreferrer" className="plink">🔗 LinkedIn</a>
+              <span className="plink plink-resume">📄 Resume</span>
+            </>)}
           </div>
           <DarkModeToggle dark={darkMode} onToggle={() => setDarkMode(d => !d)} />
         </header>
