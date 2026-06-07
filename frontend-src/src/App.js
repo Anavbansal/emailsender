@@ -7,8 +7,8 @@ const API = "https://emailsender-v8a4.onrender.com";
 // ── Auth helpers ───────────────────────────────────────────────────────────────
 function getToken()       { return localStorage.getItem("em_token"); }
 function setToken(t)      { localStorage.setItem("em_token", t); }
-function clearToken()     { localStorage.removeItem("em_token"); localStorage.removeItem("em_user"); }
-function getUser()        { try { return JSON.parse(localStorage.getItem("em_user")||"null"); } catch { return null; } }
+function clearToken()     { localStorage.removeItem("em_token"); localStorage.removeItem("em_user"); } // eslint-disable-line
+function getUser()        { try { return JSON.parse(localStorage.getItem("em_user")||"null"); } catch { return null; } } // eslint-disable-line
 function setUser(u)       { localStorage.setItem("em_user", JSON.stringify(u)); }
 // Axios interceptor — attach token to every request
 axios.interceptors.request.use(cfg => {
@@ -3905,3 +3905,5 @@ function App() {
     </div>
   );
 }
+
+export default App;
