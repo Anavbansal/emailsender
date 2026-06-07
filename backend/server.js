@@ -982,7 +982,13 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
   if (mongoose.connection.readyState === 1) {
     // Get all unique contacts from DB grouped by email
     const dbContacts = await SentEmailLog.aggregate([
-      { $match: { $or: [{ userId: req.userId }, { userId: String(req.userId) }] } },
+      { $match: { $or: [
+        { userId: req.userId },
+        // First registered user (owner) also sees legacy "default" data
+        ...(req.user.username === (process.env.OWNER_USERNAME || "anav")
+          ? [{ userId: "default" }, { userId: { $exists: false } }]
+          : [])
+      ] } },
       { $sort: { sentAt: -1 } },
       { $group: {
         _id:          { $toLower: "$hrEmail" },
@@ -1106,7 +1112,10 @@ app.get("/api/sent-log", requireAuth, async (req, res) => {
       return res.json({ success: false, message: "MongoDB not connected", logs: [] });
 
     const { type, email, limit = 100 } = req.query;
-    const filter = { userId: req.userId };
+    const isOwner = req.user.username === (process.env.OWNER_USERNAME || "anav");
+    const filter = isOwner
+      ? { $or: [{ userId: req.userId }, { userId: "default" }, { userId: { $exists: false } }] }
+      : { userId: req.userId };
     if (type)  filter.type  = type;
     if (email) filter.hrEmail = new RegExp(email, "i");
 
@@ -1133,7 +1142,11 @@ app.get("/api/gmail/replies", requireAuth, async (req, res) => {
     // Pull tracked emails from DB (more complete) with fallback to tracking.json
     let trackedEmails;
     if (mongoose.connection.readyState === 1) {
-      const dbEmails = await SentEmailLog.distinct("hrEmail", { userId: req.userId });
+      const isOwner2 = req.user.username === (process.env.OWNER_USERNAME || "anav");
+      const emailFilter = isOwner2
+        ? { $or: [{ userId: req.userId }, { userId: "default" }, { userId: { $exists: false } }] }
+        : { userId: req.userId };
+      const dbEmails = await SentEmailLog.distinct("hrEmail", emailFilter);
       trackedEmails = [...new Set(dbEmails.map(e => e.toLowerCase()))];
     } else {
       trackedEmails = [...new Set(getTrackingRecords().map(r => r.hrEmail.toLowerCase()))];
@@ -1959,7 +1972,11 @@ app.patch("/api/contact/update", requireAuth, async (req, res) => {
     // Update ALL records for this email (multiple sends)
     const escaped = hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const result = await SentEmailLog.updateMany(
-      { hrEmail: new RegExp("^" + escaped + "$", "i"), userId: req.userId },
+      { hrEmail: new RegExp("^" + escaped + "$", "i"),
+        $or: req.user.username === (process.env.OWNER_USERNAME || "anav")
+          ? [{ userId: req.userId }, { userId: "default" }, { userId: { $exists: false } }]
+          : [{ userId: req.userId }]
+      },
       { $set: updates }
     );
 
