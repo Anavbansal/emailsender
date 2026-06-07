@@ -2302,4 +2302,33 @@ app.post("/api/auth/init-priyal", async (req, res) => {
   }
 });
 
+
+// ─── GET /api/auth/gmail-status — check if Gmail connected ───────────────────
+app.get("/api/auth/gmail-status", requireAuth, async (req, res) => {
+  const user = req.user;
+  res.json({
+    username:           user.username,
+    hasRefreshToken:    !!(user.gmailRefreshToken),
+    hasAccessToken:     !!(user.gmailAccessToken),
+    gmailUser:          user.gmailUser || null,
+    refreshTokenLength: user.gmailRefreshToken?.length || 0,
+    connectUrl:         `/api/gmail/auth?username=${user.username}`,
+  });
+});
+
+// ─── POST /api/auth/save-gmail-token — manually save token ───────────────────
+app.post("/api/auth/save-gmail-token", requireAuth, async (req, res) => {
+  const { refreshToken, gmailUser } = req.body;
+  if (!refreshToken) return res.status(400).json({ success: false, message: "refreshToken required" });
+  try {
+    await User.updateOne(
+      { _id: req.userId },
+      { $set: { gmailRefreshToken: refreshToken, gmailUser: gmailUser || req.user.gmailUser || "" } }
+    );
+    res.json({ success: true, message: "Gmail token saved!" });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 app.listen(PORT, () => console.log(`\n🚀 Job Mailer API → http://localhost:${PORT}\n`));
