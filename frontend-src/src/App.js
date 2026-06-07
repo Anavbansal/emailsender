@@ -1240,6 +1240,8 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
           ))}
         </div>
       )}
+    </div>
+
     {bulkModal && (
       <BulkFollowUpModal
         contacts={contacts}
@@ -1247,7 +1249,6 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
         addToast={addToast}
       />
     )}
-    </div>
   );
 }
 
