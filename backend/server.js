@@ -982,7 +982,7 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
   if (mongoose.connection.readyState === 1) {
     // Get all unique contacts from DB grouped by email
     const dbContacts = await SentEmailLog.aggregate([
-      { $match: { userId: req.userId || "default" } },
+      { $match: { $or: [{ userId: req.userId }, { userId: "default" }, { userId: { $exists: false } }] } },
       { $sort: { sentAt: -1 } },
       { $group: {
         _id:          { $toLower: "$hrEmail" },
@@ -1106,7 +1106,7 @@ app.get("/api/sent-log", requireAuth, async (req, res) => {
       return res.json({ success: false, message: "MongoDB not connected", logs: [] });
 
     const { type, email, limit = 100 } = req.query;
-    const filter = { userId: req.userId || "default" };
+    const filter = { $or: [{ userId: req.userId }, { userId: "default" }, { userId: { $exists: false } }] };
     if (type)  filter.type  = type;
     if (email) filter.hrEmail = new RegExp(email, "i");
 
@@ -1959,7 +1959,8 @@ app.patch("/api/contact/update", requireAuth, async (req, res) => {
     // Update ALL records for this email (multiple sends)
     const escaped = hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const result = await SentEmailLog.updateMany(
-      { hrEmail: new RegExp("^" + escaped + "$", "i"), userId: req.userId || "default" },
+      { hrEmail: new RegExp("^" + escaped + "$", "i"),
+        $or: [{ userId: req.userId }, { userId: "default" }, { userId: { $exists: false } }] },
       { $set: updates }
     );
 
@@ -2017,6 +2018,21 @@ app.post("/api/auth/login", async (req, res) => {
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ success: false, message: "Invalid username or password" });
     const token = signToken(String(user._id));
+
+    // Claim any unclaimed ("default") records on first login
+    if (mongoose.connection.readyState === 1) {
+      const unclaimed = await SentEmailLog.countDocuments({
+        $or: [{ userId: "default" }, { userId: { $exists: false } }]
+      });
+      if (unclaimed > 0) {
+        await SentEmailLog.updateMany(
+          { $or: [{ userId: "default" }, { userId: { $exists: false } }] },
+          { $set: { userId: String(user._id) } }
+        );
+        console.log(`✅ Claimed ${unclaimed} legacy records for user ${user.username}`);
+      }
+    }
+
     res.json({
       success: true, token,
       user: {
