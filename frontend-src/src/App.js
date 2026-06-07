@@ -65,31 +65,37 @@ const SCREENING_KEYWORDS = [
 ];
 
 function buildScreeningReply(hrName = "") {
+  const profile = getHRProfile();
+  const user    = getUser();
+  const name    = user?.displayName || "Anav Bansal";
+  const phone   = user?.username === "anav" ? "+91 7827855635" : "+91 7665941798";
+  const email   = user?.username === "anav" ? "anavbansal06@gmail.com" : "priyalgoyal1702@gmail.com";
+  const li      = user?.username === "anav" ? "linkedin.com/in/anavbansal-51b191162" : "linkedin.com/in/priyal--goyal/";
   const greeting = hrName ? `Hi ${hrName},` : "Hi,";
   return `${greeting}
 
 Thank you for reaching out! Please find my details below:
 
-📋 Candidate Profile — Anav Bansal
+📋 Candidate Profile — ${name}
 
-• Key Skills             : ${HR_PROFILE.keySkills}
-• Total Experience       : ${HR_PROFILE.totalExp}
-• Relevant Experience    : ${HR_PROFILE.relevantExp}
-• Current Company        : ${HR_PROFILE.currentCompany}
-• Reason for Change      : ${HR_PROFILE.reasonForChange}
-• Notice Period / LWD    : ${HR_PROFILE.noticePeriod}
-• Current CTC            : ${HR_PROFILE.currentCTC}
-• Offer in Hand          : ${HR_PROFILE.offerInHand}
-• Expected CTC           : ${HR_PROFILE.expectedCTC}
-• Current Location       : ${HR_PROFILE.currentLocation}
-• Preferred Location     : ${HR_PROFILE.preferredLocation}
+• Key Skills             : ${profile.keySkills}
+• Total Experience       : ${profile.totalExp}
+• Relevant Experience    : ${profile.relevantExp}
+• Current Company        : ${profile.currentCompany}
+• Reason for Change      : ${profile.reasonForChange}
+• Notice Period / LWD    : ${profile.noticePeriod}
+• Current CTC            : ${profile.currentCTC}
+• Offer in Hand          : ${profile.offerInHand || "No"}
+• Expected CTC           : ${profile.expectedCTC}
+• Current Location       : ${profile.currentLocation}
+• Preferred Location     : ${profile.preferredLocation}
 
 Looking forward to the next steps. Please feel free to reach out for any further information.
 
 Best regards,
-Anav Bansal
-📞 +91 7827855635 | ✉ anavbansal06@gmail.com
-🔗 linkedin.com/in/anavbansal-51b191162`;
+${name}
+📞 ${phone} | ✉ ${email}
+🔗 ${li}`;
 }
 
 function isScreeningEmail(subject = "", snippet = "") {
@@ -148,6 +154,26 @@ const DEFAULT_TEMPLATE_ANAV = {
     "AI-assisted: Claude, GitHub Copilot, ChatGPT",
   ],
 };
+
+const DEFAULT_TEMPLATE_PRIYAL = {
+  headerTheme: "teal",
+  customIntro: "",
+  highlights: [
+    "2+ Years · Digital Lending & Credit Risk · Tata Capital",
+    "Credit Underwriting · FOIR/LTV Analysis · Portfolio Monitoring",
+    "GenAI Automation · SLOS Integration · AI-driven Workflow Optimization",
+    "Tools: FinnOne, SLOS, SFDC, FICO, Jocata, Power BI, Advanced Excel",
+    "COO Achiever's Club Award — Tata Capital (Q1 FY26)",
+  ],
+};
+
+const DEFAULT_TEMPLATE = getUser()?.username === "anav" ? DEFAULT_TEMPLATE_ANAV : DEFAULT_TEMPLATE_PRIYAL;
+
+const getMsgTemplates = () => {
+  const user = getUser();
+  return user?.username === "anav" ? MSG_TEMPLATES_ANAV : MSG_TEMPLATES_PRIYAL;
+};
+const MSG_TEMPLATES = getMsgTemplates();
 
 function loadCustomTemplate() {
   try { return JSON.parse(localStorage.getItem("customEmailTemplate") || "null") || DEFAULT_TEMPLATE; }
@@ -1698,11 +1724,16 @@ function ScreeningReplyModal({ message, contacts, onClose, addToast }) {
   const regenerate = () => {
     // rebuild with current profile values
     const greeting = hrName ? `Hi ${hrName},` : "Hi,";
+    const rUser  = getUser();
+    const rName  = rUser?.displayName || "Anav Bansal";
+    const rPhone = rUser?.username === "anav" ? "+91 7827855635" : "+91 7665941798";
+    const rEmail = rUser?.username === "anav" ? "anavbansal06@gmail.com" : "priyalgoyal1702@gmail.com";
+    const rLi    = rUser?.username === "anav" ? "linkedin.com/in/anavbansal-51b191162" : "linkedin.com/in/priyal--goyal/";
     const txt = `${greeting}
 
 Thank you for reaching out! Please find my details below:
 
-📋 Candidate Profile — Anav Bansal
+📋 Candidate Profile — ${rName}
 
 • Key Skills             : ${profile.keySkills}
 • Total Experience       : ${profile.totalExp}
@@ -1711,7 +1742,7 @@ Thank you for reaching out! Please find my details below:
 • Reason for Change      : ${profile.reasonForChange}
 • Notice Period / LWD    : ${profile.noticePeriod}
 • Current CTC            : ${profile.currentCTC}
-• Offer in Hand          : ${profile.offerInHand}
+• Offer in Hand          : ${profile.offerInHand || "No"}
 • Expected CTC           : ${profile.expectedCTC}
 • Current Location       : ${profile.currentLocation}
 • Preferred Location     : ${profile.preferredLocation}
@@ -1719,9 +1750,9 @@ Thank you for reaching out! Please find my details below:
 Looking forward to the next steps. Please feel free to reach out for any further information.
 
 Best regards,
-Anav Bansal
-📞 +91 7827855635 | ✉ anavbansal06@gmail.com
-🔗 linkedin.com/in/anavbansal-51b191162`;
+${rName}
+📞 ${rPhone} | ✉ ${rEmail}
+🔗 ${rLi}`;
     setReplyText(txt);
     setEditProfile(false);
   };
@@ -2353,8 +2384,13 @@ function MessagesPage({ contacts }) {
 
   const buildMsg = useCallback((t) => {
     if (t === "linkedin")
-      return `Hi ${name},\n\nI recently applied for the ${role} position at ${company} and wanted to connect personally.\n\nI'm a Senior Full Stack Developer with 4.7+ years of experience in Node.js, AWS Lambda, and enterprise CTI integrations (Avaya, Genesys, Webex, Amazon Connect). I've delivered 10+ production systems and published apps on ServiceNow, Freshdesk, and Webex marketplaces.\n\nWould love to connect and discuss how I can contribute to ${company}!\n\nBest regards,\nAnav Bansal`;
-    return `Hello ${name},\n\nI'm Anav Bansal, a Senior Full Stack Developer with 4.7+ years of experience. I've applied for the *${role}* role at *${company}* and wanted to follow up personally.\n\n*My expertise:*\n• Node.js, ReactJS, AngularJS, AWS Lambda\n• CTI Integrations: Avaya, Genesys, Webex, Amazon Connect\n• CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics\n\nI'd love to discuss the opportunity at your convenience!\n\n📞 +91 7827855635\n📧 anavbansal06@gmail.com\n🔗 linkedin.com/in/anavbansal-51b191162`;
+      const _u = getUser(); const _n = _u?.displayName || "Anav Bansal";
+      const _p = _u?.username === "anav" ? "+91 7827855635" : "+91 7665941798";
+      const _e = _u?.username === "anav" ? "anavbansal06@gmail.com" : "priyalgoyal1702@gmail.com";
+      const _l = _u?.username === "anav" ? "linkedin.com/in/anavbansal-51b191162" : "linkedin.com/in/priyal--goyal/";
+      const _exp = _u?.username === "anav" ? "4.7+ years as a Full Stack Developer" : "2+ years in Digital Lending & Credit Risk";
+      return `Hi ${name},\n\nI recently applied for the ${role} position at ${company} and wanted to connect personally.\n\nI'm ${_n} with ${_exp}. I'd love to discuss how I can contribute to ${company}!\n\nBest regards,\n${_n}\n📞 ${_p}\n📧 ${_e}`;
+    return `Hello ${name},\n\nI'm ${_n} with ${_exp}. I've applied for the *${role}* role at *${company}* and wanted to follow up personally.\n\nI'd love to discuss the opportunity at your convenience!\n\n📞 ${_p}\n📧 ${_e}\n🔗 ${_l}`;
   }, [name, company, role]);
 
   const [editedMsg, setEditedMsg] = useState(() => buildMsg("linkedin"));
