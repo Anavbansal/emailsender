@@ -499,7 +499,11 @@ async function sendApplicationEmail({
   const tplOpts     = { hrName, company, role, customNote, trackUrl, customIntro, customHighlights, headerTheme };
 
   let html;
-  if (templateType === "cti")         html = buildCTIHTML(tplOpts);
+  // Check if sending user is Priyal
+  const isPriyal = userCfg && userCfg.profileName && userCfg.profileName.toLowerCase().includes("priyal");
+  if (isPriyal) {
+    html = buildPriyalHTML({ ...tplOpts, templateType });
+  } else if (templateType === "cti")         html = buildCTIHTML(tplOpts);
   else if (templateType === "formal") html = buildFormalHTML(tplOpts);
   else if (templateType === "crm")    html = buildCRMHTML(tplOpts);
   else                                html = buildFullstackHTML(tplOpts);
@@ -604,6 +608,68 @@ function buildCRMHTML({ hrName, company, role, customNote, trackUrl = "", custom
   </div>
   ${footer("#0d9488")}
 </div>${pixel}</body></html>`;
+}
+
+
+// ─── HTML: Priyal Finance/Credit Template ─────────────────────────────────────
+function buildPriyalHTML({ hrName, company, role, customNote, trackUrl = "", templateType = "finance" }) {
+  const greeting  = hrName ? `Dear ${hrName},` : "Dear Hiring Manager,";
+  const roleText  = role   ? ` for the <strong>${role}</strong> position` : "";
+  const noteBlock = customNote ? `<p style="color:#374151;line-height:1.8;margin:16px 0;">${customNote}</p>` : "";
+  const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
+
+  const intros = {
+    finance: `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}. With <strong>2+ years as a Finance Professional</strong> at Tata Capital Limited, I bring expertise in digital lending, credit risk assessment, and GenAI-based automation — having contributed to a <strong>2.9% reduction in TAT</strong> and improvement in credit quality.`,
+    credit:  `I am writing to apply${roleText} at <strong>${company||"your organization"}</strong>. As a <strong>Credit Manager at Tata Capital</strong>, I evaluate secured retail auto loan proposals, manage a monthly productivity target of 250+ cases, and lead cross-functional collaboration across credit, operations and technology teams.`,
+    genai:   `I am reaching out regarding${roleText} at <strong>${company||"your organization"}</strong>. I have hands-on experience contributing to <strong>GenAI-powered credit automation</strong> platforms, SLOS integration, and AI-driven workflow optimization — reducing TAT by 2.9% at Tata Capital Limited.`,
+    formal:  `I am respectfully submitting my application${roleText} at <strong>${company||"your organization"}</strong>. With a strong foundation in digital lending, credit risk, and financial analysis, I am confident my experience aligns well with your requirements.`,
+  };
+
+  const intro = intros[templateType] || intros.finance;
+
+  const highlights = [
+    "2+ Years · Digital Lending & Credit Risk · Tata Capital Limited",
+    "Credit Underwriting · FOIR/LTV Analysis · Portfolio Monitoring",
+    "GenAI Automation · SLOS Integration · AI-driven Workflow Optimization",
+    "Tools: FinnOne, SLOS, SFDC, FICO, Jocata, Power BI, Advanced Excel",
+    "COO Achiever's Club Award — Tata Capital (Q1 FY26)",
+  ].map(h => `<li>${h}</li>`).join("");
+
+  const resumeBox = `
+    <div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:10px;padding:16px 20px;margin:20px 0;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <p style="margin:0 0 4px;font-weight:700;color:#134e4a;font-size:14px;">📎 Resume Attached</p>
+        <p style="margin:0;font-size:12px;color:#0d9488;">Priyal_Goyal_Resume.pdf</p>
+      </div>
+    </div>`;
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',sans-serif;">
+<div style="max-width:620px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+  <div style="background:linear-gradient(135deg,#0f766e,#0d9488);padding:36px 40px;">
+    <p style="margin:0 0 6px;color:#99f6e4;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Finance Professional · Credit Manager</p>
+    <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Priyal Goyal</h1>
+    <p style="margin:6px 0 0;color:#99f6e4;font-size:14px;">Digital Lending · Credit Risk · GenAI Automation · Tata Capital</p>
+  </div>
+  <div style="padding:36px 40px;">
+    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
+    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${intro}</p>
+    ${noteBlock}
+    <div style="background:#f0fdfa;border-left:4px solid #0d9488;border-radius:0 8px 8px 0;padding:20px 24px;margin-bottom:24px;">
+      <p style="margin:0 0 12px;font-weight:600;color:#134e4a;font-size:14px;">🏆 Key Highlights</p>
+      <ul style="margin:0;padding-left:20px;color:#374151;font-size:14px;line-height:2;">${highlights}</ul>
+    </div>
+    ${resumeBox}
+    <p style="color:#374151;line-height:1.8;margin:0;">Thank you for your time and consideration. I would love the opportunity to discuss how my experience can contribute to your team.</p>
+  </div>
+  <div style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;text-align:center;">
+    <p style="margin:0;font-size:12px;color:#64748b;">
+      Priyal Goyal · <a href="mailto:priyalgoyal1702@gmail.com" style="color:#0d9488;">priyalgoyal1702@gmail.com</a> ·
+      <a href="tel:+917665941798" style="color:#0d9488;">+91 7665941798</a> ·
+      <a href="https://linkedin.com/in/priyal--goyal/" style="color:#0d9488;">LinkedIn</a>
+    </p>
+  </div>
+</div></body></html>`;
 }
 
 // ─── HTML: Full Stack Developer ───────────────────────────────────────────────
@@ -1458,7 +1524,9 @@ app.post("/api/preview-email", (req, res) => {
   const { hrName, company, role, customNote, templateType = "fullstack", customIntro, customHighlights, headerTheme } = req.body;
   const opts = { hrName, company, role, customNote, customIntro, customHighlights, headerTheme };
   let html;
-  if (templateType === "cti")         html = buildCTIHTML(opts);
+  const isPriyal2 = userCfg && userCfg.profileName && userCfg.profileName.toLowerCase().includes("priyal");
+  if (isPriyal2)                      html = buildPriyalHTML({ ...opts, templateType });
+  else if (templateType === "cti")    html = buildCTIHTML(opts);
   else if (templateType === "formal") html = buildFormalHTML(opts);
   else if (templateType === "crm")    html = buildCRMHTML(opts);
   else                                html = buildFullstackHTML(opts);
