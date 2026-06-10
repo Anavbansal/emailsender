@@ -215,10 +215,17 @@ function getGmailAPITransport() {
   return oauth2Client;
 }
 
-async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references = null, threadId = null, userConfig = null, templateType = "fullstack" }) {
-  const auth = userConfig
-    ? getUserGmailAuth({ gmailRefreshToken: userConfig.gmailRefreshToken || process.env.GMAIL_REFRESH_TOKEN })
-    : getGmailAPITransport();
+async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references = null, threadId = null, userConfig = null, user = null, templateType = "fullstack" }) {
+  // Use full user object if provided (has gmailRefreshToken directly from DB)
+  // Fallback to userConfig, then env var
+  let auth;
+  if (user && user.gmailRefreshToken) {
+    auth = getUserGmailAuth(user);
+  } else if (userConfig && userConfig.gmailRefreshToken) {
+    auth = getUserGmailAuth({ gmailRefreshToken: userConfig.gmailRefreshToken });
+  } else {
+    auth = getGmailAPITransport();
+  }
   const gmail = google.gmail({ version: "v1", auth });
 
   const encodedSubject = `=?UTF-8?B?${Buffer.from(subject).toString("base64")}?=`;
@@ -501,7 +508,7 @@ async function sendApplicationEmail({
   hrEmail, hrName = "", company, role, customNote,
   templateType = "fullstack", readReceipt = false,
   customIntro = "", customHighlights = null, headerTheme = "blue",
-  userCfg = null,
+  userCfg = null, user = null,
 }) {
   const userName = userCfg?.profileName || "Anav Bansal";
   const subject = role
@@ -550,7 +557,7 @@ async function sendApplicationEmail({
   }
   if (resolvedResume) attachments.push(resolvedResume);
 
-  const mailOpts = { to: hrEmail, subject, html, attachments, userConfig: userCfg };
+  const mailOpts = { to: hrEmail, subject, html, attachments, userConfig: userCfg, user };
   if (readReceipt) {
     mailOpts.headers = {
       "Disposition-Notification-To": process.env.GMAIL_USER,
@@ -922,7 +929,7 @@ app.post("/api/send-referral", requireAuth, async (req, res) => {
   storeEmailHtml(trackRecord.trackingId, html);
 
   try {
-    const info = await sendViaGmailAPI({ to: employeeEmail, subject, html, userConfig: getUserConfig(req.user) });
+    const info = await sendViaGmailAPI({ to: employeeEmail, subject, html, userConfig: getUserConfig(req.user), user: req.user });
     logToSheets([info.id, employeeEmail, company, role, new Date().toISOString(), trackRecord.trackingId, "Referral-Sent", ""]);
     await saveSentEmail({
       messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
@@ -1423,6 +1430,7 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
       references:   originalMessageId || null,
       threadId:     resolvedThreadId,
       userConfig:   fuCfg,
+      user:         req.user,
       templateType: fuTplType,
     });
     logToSheets([info.id, hrEmail, company||"", role||"", new Date().toISOString(), trackRecord.trackingId, "FollowUp-Sent", ""]);
