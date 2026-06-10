@@ -4006,6 +4006,8 @@ function App() {
     { id: "messages",    icon: "💬", label: "Messages" },
     { id: "jobs",        icon: "🔍", label: "Find Jobs" },
     { id: "scheduled",   icon: "🗓", label: "Scheduled",        badge: scheduledCount || null },
+    { id: "ai",          icon: "🤖", label: "AI Intelligence",   badge: null },
+    { id: "settings",    icon: "S",  label: "Settings",          badge: null },
   ];
 
   const [prefillSend, setPrefillSend] = React.useState(null);
@@ -4137,6 +4139,7 @@ function App() {
           {page === "jobs"      && <FindJobsPage onFillApply={goToSendPrefilled} />}
           {page === "scheduled" && <ScheduledPage onRefresh={fetchScheduled} />}
           {page === "settings"   && <SettingsPage addToast={addToast} />}
+          {page === "ai"         && <AIIntelligencePage onFillApply={goToSendPrefilled} addToast={addToast} />}
         </main>
       </div>
 
@@ -4158,6 +4161,443 @@ function App() {
 }
 
 export default App;
+
+
+// ─── AI Intelligence Page ─────────────────────────────────────────────────────
+function AIIntelligencePage({ onFillApply, addToast }) {
+  const [activeTab, setActiveTab] = useState("jd");   // jd | research | match
+  const user = getUser();
+
+  // ── Tab: JD Auto Email ────────────────────────────────────────────────────
+  const [jd,         setJd]         = useState("");
+  const [jdResult,   setJdResult]   = useState(null);
+  const [jdLoading,  setJdLoading]  = useState(false);
+
+  // ── Tab: Company Research ─────────────────────────────────────────────────
+  const [company,    setCompany]    = useState("");
+  const [research,   setResearch]   = useState(null);
+  const [resLoading, setResLoading] = useState(false);
+
+  // ── Tab: Resume Match ─────────────────────────────────────────────────────
+  const [matchJD,    setMatchJD]    = useState("");
+  const [matchRes,   setMatchRes]   = useState(null);
+  const [matchLoading, setMatchLoad] = useState(false);
+
+  const callClaude = async (prompt) => {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1000,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+    const data = await res.json();
+    return data.content?.[0]?.text || "";
+  };
+
+  // ── JD Parser ────────────────────────────────────────────────────────────
+  const analyzeJD = async () => {
+    if (!jd.trim()) return addToast && addToast("JD paste karo", "error");
+    setJdLoading(true); setJdResult(null);
+    try {
+      const isAnav = user?.username === "anav";
+      const profile = isAnav
+        ? "Senior Full Stack Developer with 4.7+ years — Node.js, Angular, AWS Lambda, CTI Integrations, ServiceNow, Freshdesk, Salesforce"
+        : "Finance Professional with 2+ years — Credit Manager at Tata Capital, Digital Lending, Credit Risk, GenAI Automation, SLOS, FinnOne";
+
+      const prompt = `You are helping ${user?.displayName || "a job seeker"} write a personalized job application email.
+
+CANDIDATE PROFILE: ${profile}
+
+JOB DESCRIPTION:
+${jd.slice(0, 3000)}
+
+Extract from the JD and respond in JSON only (no markdown, no backticks):
+{
+  "company": "company name",
+  "role": "exact role title",
+  "hrName": "hiring manager name if mentioned, else empty",
+  "keyRequirements": ["top 3 requirements matching candidate"],
+  "matchScore": 85,
+  "emailSubject": "compelling subject line",
+  "emailIntro": "2-3 sentence personalized intro paragraph that references specific JD details",
+  "customNote": "1-2 sentences highlighting why candidate is perfect fit for THIS specific role",
+  "applyTips": ["one specific tip for this application"]
+}`;
+
+      const raw = await callClaude(prompt);
+      const cleaned = raw.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(cleaned);
+      setJdResult(parsed);
+    } catch (e) {
+      addToast && addToast("AI analysis failed: " + e.message, "error");
+    } finally { setJdLoading(false); }
+  };
+
+  // ── Company Research ──────────────────────────────────────────────────────
+  const researchCompany = async () => {
+    if (!company.trim()) return addToast && addToast("Company name daalo", "error");
+    setResLoading(true); setResearch(null);
+    try {
+      const prompt = `Research the company "${company}" for a job application. Respond in JSON only (no markdown):
+{
+  "overview": "2 sentence company overview",
+  "techStack": ["tech/tools they use"],
+  "culture": "1-2 sentences about work culture",
+  "recentNews": "latest notable news or achievement",
+  "interviewTips": ["2-3 specific interview tips"],
+  "whyJoin": "1 compelling reason to join",
+  "glassdoorRating": "estimated rating out of 5",
+  "companySize": "startup/mid-size/enterprise",
+  "industry": "industry"
+}`;
+      const raw = await callClaude(prompt);
+      const cleaned = raw.replace(/```json|```/g, "").trim();
+      setResearch(JSON.parse(cleaned));
+    } catch (e) {
+      addToast && addToast("Research failed: " + e.message, "error");
+    } finally { setResLoading(false); }
+  };
+
+  // ── Resume Match ──────────────────────────────────────────────────────────
+  const analyzeMatch = async () => {
+    if (!matchJD.trim()) return addToast && addToast("JD paste karo", "error");
+    setMatchLoad(true); setMatchRes(null);
+    try {
+      const isAnav = user?.username === "anav";
+      const resume = isAnav
+        ? `Anav Bansal — Senior Full Stack Developer, 4.7+ years. Skills: Node.js, Express.js, Angular, React, AWS Lambda, DynamoDB, S3, REST APIs, WebSockets. CTI/Telephony: Avaya AACC/AES/IPO, Genesys, Webex, Amazon Connect. CRM: ServiceNow (Flow Designer, IntegrationHub, Scripted REST, Virtual Agent), Salesforce Open CTI, Freshdesk FDK, Zendesk, MS Dynamics. Published 3 marketplace apps. 10+ enterprise integrations. B.Tech CS 2021.`
+        : `Priyal Goyal — Finance Professional, 2+ years. Credit Manager at Tata Capital. Skills: Credit Underwriting, FOIR/LTV Analysis, Digital Lending, GenAI Automation, SLOS Integration, Portfolio Monitoring. Tools: FinnOne, SLOS, SFDC, FICO, Jocata, Power BI, Advanced Excel. PGDM Finance. COO Achievers Club Award.`;
+
+      const prompt = `Compare this resume with the job description. Respond in JSON only (no markdown):
+
+RESUME: ${resume}
+
+JOB DESCRIPTION: ${matchJD.slice(0, 2000)}
+
+{
+  "matchScore": 78,
+  "matchLevel": "Strong Match",
+  "matchingSkills": ["skill1", "skill2", "skill3"],
+  "missingSkills": ["gap1", "gap2"],
+  "strengths": ["why candidate is good fit"],
+  "suggestions": ["how to improve application"],
+  "recommendApply": true,
+  "coverLetterTip": "specific angle to highlight in cover letter"
+}`;
+
+      const raw = await callClaude(prompt);
+      const cleaned = raw.replace(/```json|```/g, "").trim();
+      setMatchRes(JSON.parse(cleaned));
+    } catch (e) {
+      addToast && addToast("Match failed: " + e.message, "error");
+    } finally { setMatchLoad(false); }
+  };
+
+  const TABS = [
+    { id:"jd",       label:"JD → Email",       icon:"✉" },
+    { id:"research", label:"Company Research",  icon:"🏢" },
+    { id:"match",    label:"Resume Match",      icon:"📊" },
+  ];
+
+  const scoreColor = (s) => s >= 80 ? "#059669" : s >= 60 ? "#d97706" : "#dc2626";
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <h2 className="page-title">AI Intelligence</h2>
+        <span style={{ fontSize:12, background:"linear-gradient(135deg,#dbeafe,#ede9fe)",
+          color:"#3730a3", padding:"4px 12px", borderRadius:99, fontWeight:600 }}>
+          Powered by Claude AI
+        </span>
+      </div>
+
+      {/* Tab switcher */}
+      <div style={{ display:"flex", gap:6, marginBottom:20 }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)}
+            style={{
+              padding:"8px 18px", borderRadius:99, border:"1.5px solid",
+              borderColor: activeTab===t.id ? "#6366f1" : "var(--border,#e2e8f0)",
+              background: activeTab===t.id ? "linear-gradient(135deg,#eef2ff,#e0e7ff)" : "var(--surface)",
+              color: activeTab===t.id ? "#4338ca" : "var(--text-500,#6b7280)",
+              fontWeight:600, fontSize:13, cursor:"pointer", transition:"all 0.2s",
+              boxShadow: activeTab===t.id ? "0 2px 8px rgba(99,102,241,0.2)" : "none"
+            }}>
+            {t.icon} {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── TAB: JD Auto Email ── */}
+      {activeTab === "jd" && (
+        <div>
+          <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:"20px 24px", marginBottom:16 }}>
+            <label className="form-label">Paste Job Description</label>
+            <textarea className="form-textarea" rows={8}
+              placeholder="Paste the full JD here — AI will extract company, role, requirements and write a personalized email..."
+              value={jd} onChange={e => setJd(e.target.value)}
+              style={{ fontFamily:"inherit", fontSize:13 }} />
+            <button className={`btn-primary ${jdLoading?"loading":""}`}
+              onClick={analyzeJD} disabled={jdLoading}
+              style={{ marginTop:12, background:"linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
+              {jdLoading ? <><span className="spinner"/> Analyzing…</> : "✨ Analyze & Generate Email"}
+            </button>
+          </div>
+
+          {jdResult && (
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              {/* Match score banner */}
+              <div style={{
+                background:`linear-gradient(135deg, ${scoreColor(jdResult.matchScore)}15, ${scoreColor(jdResult.matchScore)}08)`,
+                border:`1.5px solid ${scoreColor(jdResult.matchScore)}40`,
+                borderRadius:12, padding:"14px 20px",
+                display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10
+              }}>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:15 }}>{jdResult.role} @ {jdResult.company}</div>
+                  {jdResult.hrName && <div style={{ fontSize:12, color:"var(--text-muted)" }}>HR: {jdResult.hrName}</div>}
+                </div>
+                <div style={{ textAlign:"center" }}>
+                  <div style={{ fontSize:28, fontWeight:900, color:scoreColor(jdResult.matchScore) }}>{jdResult.matchScore}%</div>
+                  <div style={{ fontSize:11, color:"var(--text-muted)" }}>Match Score</div>
+                </div>
+              </div>
+
+              {/* Key requirements */}
+              <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"16px 20px" }}>
+                <div style={{ fontWeight:700, marginBottom:10, fontSize:13 }}>Key Requirements Matched</div>
+                {(jdResult.keyRequirements||[]).map((r,i) => (
+                  <div key={i} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6, fontSize:13 }}>
+                    <span style={{ color:"#059669", fontSize:16 }}>✓</span> {r}
+                  </div>
+                ))}
+                {jdResult.applyTips?.[0] && (
+                  <div style={{ marginTop:10, padding:"8px 12px", background:"#fef9c3", borderRadius:8, fontSize:12, color:"#713f12" }}>
+                    💡 {jdResult.applyTips[0]}
+                  </div>
+                )}
+              </div>
+
+              {/* Email preview */}
+              <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"16px 20px" }}>
+                <div style={{ fontWeight:700, marginBottom:10, fontSize:13 }}>Generated Email Content</div>
+                <div style={{ fontSize:12, color:"var(--text-muted)", marginBottom:6 }}>Subject:</div>
+                <div style={{ padding:"8px 12px", background:"var(--surface-2,#f8fafc)", borderRadius:8, marginBottom:12, fontSize:13, fontWeight:600 }}>
+                  {jdResult.emailSubject}
+                </div>
+                <div style={{ fontSize:12, color:"var(--text-muted)", marginBottom:6 }}>Personalized Intro:</div>
+                <div style={{ padding:"10px 14px", background:"var(--surface-2,#f8fafc)", borderRadius:8, fontSize:13, lineHeight:1.7, marginBottom:12 }}>
+                  {jdResult.emailIntro}
+                </div>
+                <div style={{ fontSize:12, color:"var(--text-muted)", marginBottom:6 }}>Custom Note:</div>
+                <div style={{ padding:"10px 14px", background:"#f0f9ff", border:"1px solid #bae6fd", borderRadius:8, fontSize:13, lineHeight:1.7 }}>
+                  {jdResult.customNote}
+                </div>
+              </div>
+
+              {/* Use in email button */}
+              <button className="btn-primary"
+                style={{ background:"linear-gradient(135deg,#059669,#10b981)" }}
+                onClick={() => {
+                  onFillApply && onFillApply({
+                    company: jdResult.company,
+                    role: jdResult.role,
+                    hrName: jdResult.hrName || "",
+                    hrEmail: "",
+                    customNote: jdResult.customNote,
+                    customIntro: jdResult.emailIntro,
+                  });
+                  addToast && addToast("Email form pre-filled! Add HR email and send.");
+                }}>
+                ✉ Use in Send Application →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── TAB: Company Research ── */}
+      {activeTab === "research" && (
+        <div>
+          <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:"20px 24px", marginBottom:16 }}>
+            <label className="form-label">Company Name</label>
+            <div style={{ display:"flex", gap:8 }}>
+              <input className="form-input" placeholder="e.g. Tata Capital, Infosys, Zepto..."
+                value={company} onChange={e => setCompany(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && researchCompany()}
+                style={{ flex:1 }} />
+              <button className={`btn-primary ${resLoading?"loading":""}`}
+                onClick={researchCompany} disabled={resLoading}
+                style={{ whiteSpace:"nowrap", background:"linear-gradient(135deg,#0d9488,#059669)" }}>
+                {resLoading ? <><span className="spinner"/> Researching…</> : "🔍 Research"}
+              </button>
+            </div>
+          </div>
+
+          {research && (
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              {/* Overview card */}
+              <div style={{ background:"linear-gradient(135deg,#f0fdfa,#ccfbf1)", border:"1px solid #0d9488", borderRadius:12, padding:"16px 20px" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+                  <div>
+                    <div style={{ fontWeight:800, fontSize:16 }}>{company}</div>
+                    <div style={{ fontSize:12, color:"#0d9488", marginTop:2 }}>
+                      {research.industry} · {research.companySize}
+                    </div>
+                  </div>
+                  <div style={{ textAlign:"center", background:"#0d9488", color:"#fff", borderRadius:10, padding:"6px 14px" }}>
+                    <div style={{ fontSize:18, fontWeight:800 }}>{research.glassdoorRating}</div>
+                    <div style={{ fontSize:10 }}>Glassdoor</div>
+                  </div>
+                </div>
+                <p style={{ margin:0, fontSize:13, lineHeight:1.7, color:"#134e4a" }}>{research.overview}</p>
+              </div>
+
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                {/* Tech Stack */}
+                <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"14px 16px" }}>
+                  <div style={{ fontWeight:700, marginBottom:8, fontSize:13 }}>Tech Stack</div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                    {(research.techStack||[]).map((t,i) => (
+                      <span key={i} style={{ background:"#ede9fe", color:"#5b21b6", padding:"3px 10px", borderRadius:99, fontSize:12, fontWeight:600 }}>{t}</span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Why Join */}
+                <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"14px 16px" }}>
+                  <div style={{ fontWeight:700, marginBottom:8, fontSize:13 }}>Why Join</div>
+                  <p style={{ margin:0, fontSize:13, lineHeight:1.6, color:"var(--text-700)" }}>{research.whyJoin}</p>
+                </div>
+              </div>
+
+              {/* Culture + News */}
+              <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"14px 16px" }}>
+                <div style={{ fontWeight:700, marginBottom:6, fontSize:13 }}>Culture</div>
+                <p style={{ margin:"0 0 12px", fontSize:13, lineHeight:1.6 }}>{research.culture}</p>
+                <div style={{ fontWeight:700, marginBottom:6, fontSize:13 }}>Recent News</div>
+                <p style={{ margin:0, fontSize:13, color:"var(--text-muted)", lineHeight:1.6 }}>{research.recentNews}</p>
+              </div>
+
+              {/* Interview Tips */}
+              <div style={{ background:"#fef9c3", border:"1px solid #fde047", borderRadius:12, padding:"14px 16px" }}>
+                <div style={{ fontWeight:700, marginBottom:8, fontSize:13, color:"#713f12" }}>Interview Tips</div>
+                {(research.interviewTips||[]).map((tip,i) => (
+                  <div key={i} style={{ display:"flex", gap:8, marginBottom:6, fontSize:13 }}>
+                    <span style={{ color:"#d97706" }}>💡</span> {tip}
+                  </div>
+                ))}
+              </div>
+
+              <button className="btn-primary"
+                style={{ background:"linear-gradient(135deg,#2563eb,#3b82f6)" }}
+                onClick={() => { onFillApply && onFillApply({ company }); addToast && addToast("Company pre-filled in Send Application!"); }}>
+                ✉ Apply to {company} →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── TAB: Resume Match ── */}
+      {activeTab === "match" && (
+        <div>
+          <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:"20px 24px", marginBottom:16 }}>
+            <label className="form-label">Paste Job Description</label>
+            <textarea className="form-textarea" rows={7}
+              placeholder="Paste JD to check how well your resume matches..."
+              value={matchJD} onChange={e => setMatchJD(e.target.value)}
+              style={{ fontFamily:"inherit", fontSize:13 }} />
+            <button className={`btn-primary ${matchLoading?"loading":""}`}
+              onClick={analyzeMatch} disabled={matchLoading}
+              style={{ marginTop:12, background:"linear-gradient(135deg,#dc2626,#ef4444)" }}>
+              {matchLoading ? <><span className="spinner"/> Analyzing…</> : "📊 Check Match Score"}
+            </button>
+          </div>
+
+          {matchRes && (
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              {/* Score circle */}
+              <div style={{
+                background:"var(--surface)", border:`2px solid ${scoreColor(matchRes.matchScore)}`,
+                borderRadius:14, padding:"24px",
+                display:"flex", alignItems:"center", gap:20, flexWrap:"wrap"
+              }}>
+                <div style={{
+                  width:90, height:90, borderRadius:"50%",
+                  background:`conic-gradient(${scoreColor(matchRes.matchScore)} ${matchRes.matchScore*3.6}deg, var(--border,#e2e8f0) 0)`,
+                  display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+                  boxShadow:`0 0 0 6px ${scoreColor(matchRes.matchScore)}20`
+                }}>
+                  <div style={{ width:70, height:70, borderRadius:"50%", background:"var(--surface)", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column" }}>
+                    <span style={{ fontSize:22, fontWeight:900, color:scoreColor(matchRes.matchScore) }}>{matchRes.matchScore}</span>
+                    <span style={{ fontSize:10, color:"var(--text-muted)" }}>/ 100</span>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize:20, fontWeight:800, color:scoreColor(matchRes.matchScore) }}>{matchRes.matchLevel}</div>
+                  <div style={{ fontSize:13, color:"var(--text-muted)", marginTop:4 }}>{matchRes.coverLetterTip}</div>
+                  <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{
+                      padding:"4px 12px", borderRadius:99, fontSize:12, fontWeight:700,
+                      background: matchRes.recommendApply ? "#d1fae5" : "#fee2e2",
+                      color: matchRes.recommendApply ? "#065f46" : "#991b1b"
+                    }}>
+                      {matchRes.recommendApply ? "✅ Recommended to Apply" : "⚠️ Skill Gap Present"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                {/* Matching */}
+                <div style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:12, padding:"14px 16px" }}>
+                  <div style={{ fontWeight:700, marginBottom:8, fontSize:13, color:"#065f46" }}>Matching Skills</div>
+                  {(matchRes.matchingSkills||[]).map((s,i) => (
+                    <div key={i} style={{ display:"flex", gap:6, marginBottom:5, fontSize:13 }}>
+                      <span style={{ color:"#059669" }}>✓</span> {s}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Missing */}
+                <div style={{ background:"#fff7ed", border:"1px solid #fed7aa", borderRadius:12, padding:"14px 16px" }}>
+                  <div style={{ fontWeight:700, marginBottom:8, fontSize:13, color:"#9a3412" }}>Skill Gaps</div>
+                  {(matchRes.missingSkills||[]).map((s,i) => (
+                    <div key={i} style={{ display:"flex", gap:6, marginBottom:5, fontSize:13 }}>
+                      <span style={{ color:"#ea580c" }}>↗</span> {s}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Suggestions */}
+              <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"14px 16px" }}>
+                <div style={{ fontWeight:700, marginBottom:8, fontSize:13 }}>Application Tips</div>
+                {(matchRes.suggestions||[]).map((s,i) => (
+                  <div key={i} style={{ display:"flex", gap:8, marginBottom:6, fontSize:13 }}>
+                    <span style={{ color:"#6366f1" }}>→</span> {s}
+                  </div>
+                ))}
+              </div>
+
+              {matchRes.recommendApply && (
+                <button className="btn-primary"
+                  style={{ background:"linear-gradient(135deg,#059669,#10b981)" }}
+                  onClick={() => { onFillApply && onFillApply({}); addToast && addToast("Go to Send Application to apply!"); }}>
+                  ✉ Apply Now →
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // --- Settings Page ---
 function SettingsPage({ addToast }) {
