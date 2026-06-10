@@ -496,13 +496,53 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
 
       {/* Stats grid */}
       <div className="stats-grid">
-        <StatCard icon="📤" label="Applications Sent"  value={totalSent}   color="blue"   onClick={() => onNavigate("contacts")} />
-        <StatCard icon="👁" label="Emails Opened"       value={openedCount} sub={`${openRate}% open rate`}  color="purple" />
-        <StatCard icon="↩" label="Replies Received"    value={replyCount}  sub={replyRate > 0 ? `${replyRate}% reply rate` : ""}  color="green"  onClick={() => onNavigate("inbox")} />
-        <StatCard icon="⏰" label="Follow-up Due"       value={followDue}   color="amber"  onClick={() => onNavigate("contacts")} />
-        <StatCard icon="🗓" label="Scheduled"           value={scheduled}   color="blue"   onClick={() => onNavigate("scheduled")} />
-        <StatCard icon="👥" label="Companies Reached"  value={contacts.length} color="purple" onClick={() => onNavigate("contacts")} />
+        <StatCard icon="📤" label="Applications Sent"  value={totalSent}
+          sub={totalSent > 0 ? `${contacts.length} companies` : "Start applying!"}
+          color="blue"   onClick={() => onNavigate("contacts")} />
+        <StatCard icon="👁" label="Emails Opened"       value={openedCount}
+          sub={`${openRate}% open rate`}  color="purple" />
+        <StatCard icon="↩" label="Replies Received"    value={replyCount}
+          sub={replyRate > 0 ? `${replyRate}% reply rate` : "Keep following up!"}
+          color="green"  onClick={() => onNavigate("inbox")} />
+        <StatCard icon="⏰" label="Follow-up Due"       value={followDue}
+          sub={followDue > 0 ? "Action needed!" : "All caught up ✓"}
+          color="amber"  onClick={() => onNavigate("contacts")} />
+        <StatCard icon="🗓" label="Scheduled"           value={scheduled}
+          sub={scheduled > 0 ? "Queued to send" : "None scheduled"}
+          color="blue"   onClick={() => onNavigate("scheduled")} />
+        <StatCard icon="🏆" label="Response Rate"
+          value={totalSent > 0 ? `${replyRate}%` : "—"}
+          sub={replyRate >= 10 ? "Great! 🔥" : replyRate > 0 ? "Keep going 💪" : "Aim for 10%+"}
+          color="purple" onClick={() => onNavigate("contacts")} />
       </div>
+
+      {/* Weekly goal tracker */}
+      {(() => {
+        const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        const thisWeek = contacts.filter(c => c.lastSentAt > weekAgo).length;
+        const weekGoal = 20;
+        const pct = Math.min(100, Math.round(thisWeek / weekGoal * 100));
+        const color = pct >= 100 ? "var(--green)" : pct >= 50 ? "var(--amber)" : "var(--blue)";
+        return (
+          <div style={{
+            background: "var(--surface)", border: "1px solid var(--border)",
+            borderRadius: 12, padding: "14px 18px", marginBottom: 8,
+            display: "flex", alignItems: "center", gap: 14
+          }}>
+            <span style={{ fontSize: 22 }}>📅</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ fontWeight: 700, fontSize: 13 }}>Weekly Goal: {thisWeek}/{weekGoal} applications</span>
+                <span style={{ fontSize: 12, color, fontWeight: 700 }}>{pct}%</span>
+              </div>
+              <div style={{ height: 6, borderRadius: 99, background: "var(--border)", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 99, transition: "width 1s ease" }} />
+              </div>
+            </div>
+            {pct >= 100 && <span style={{ fontSize: 20 }}>🎉</span>}
+          </div>
+        );
+      })()}
 
       {/* Quick actions */}
       <div className="dash-section-title">Quick Actions</div>
@@ -3670,7 +3710,23 @@ function LinkedInConnectionsPage({ onFillApply, addToast }) {
 
 // ─── Scheduled Page ───────────────────────────────────────────────────────────
 function ScheduledPage() {
-  const [jobs, setJobs] = useState([]);
+  const [jobs, setJobs]   = useState([]);
+  const [now,  setNow]    = useState(Date.now());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000); // update every 30s
+    return () => clearInterval(t);
+  }, []);
+
+  const countdown = (scheduledTime) => {
+    const diff = new Date(scheduledTime + "+05:30").getTime() - now;
+    if (diff <= 0) return "🔄 Sending soon...";
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    if (h > 24) return `📅 ${Math.floor(h/24)}d ${h%24}h`;
+    if (h > 0)  return `⏰ ${h}h ${m}m`;
+    return `⏰ ${m}m`;
+  };
   useEffect(() => { axios.get(`${API}/api/scheduled-emails`).then(r => setJobs(r.data.jobs || [])).catch(() => {}); }, []);
   const remove = async id => { await axios.delete(`${API}/api/scheduled-emails/${id}`); setJobs(p => p.filter(j => j.jobId !== id)); };
   const pending = jobs.filter(j => j.status === "pending");
@@ -3688,7 +3744,10 @@ function ScheduledPage() {
                     <span className="badge badge-scheduled">Scheduled</span>
                   </div>
                   <p className="contact-email">{job.emailData.hrEmail}</p>
-                  <div className="contact-meta"><span>📅 {new Date(job.scheduledTime).toLocaleString("en-IN")}</span></div>
+                  <div className="contact-meta">
+                    <span>📅 {new Date(job.scheduledTime + "+05:30").toLocaleString("en-IN", { dateStyle:"medium", timeStyle:"short" })}</span>
+                    <span style={{ color:"var(--blue)", fontWeight:600 }}>{countdown(job.scheduledTime)}</span>
+                  </div>
                 </div>
                 <div className="contact-actions">
                   <button className="btn-ghost btn-sm" onClick={() => remove(job.jobId)}>Cancel</button>
@@ -4077,6 +4136,7 @@ function App() {
           {page === "prospect"  && <ProspectPage onFillApply={goToSendPrefilled} addToast={addToast} />}
           {page === "jobs"      && <FindJobsPage onFillApply={goToSendPrefilled} />}
           {page === "scheduled" && <ScheduledPage onRefresh={fetchScheduled} />}
+          {page === "settings"   && <SettingsPage addToast={addToast} />}
         </main>
       </div>
 
@@ -4098,3 +4158,91 @@ function App() {
 }
 
 export default App;
+
+// --- Settings Page ---
+function SettingsPage({ addToast }) {
+  const currentUser = getUser();
+  const [saving, setSaving] = useState(false);
+  const [profile, setProfile] = useState({
+    displayName: currentUser?.displayName || "",
+    totalExp: "", currentCTC: "", expectedCTC: "",
+    noticePeriod: "", currentLocation: "", preferredLocation: "",
+  });
+  const handle = (k, v) => setProfile(p => ({ ...p, [k]: v }));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await axios.patch(`${API}/api/auth/settings`, profile);
+      setUser({ ...getUser(), ...profile });
+      addToast && addToast("Settings saved!");
+    } catch (e) {
+      addToast && addToast("Failed: " + (e.response?.data?.message || e.message), "error");
+    } finally { setSaving(false); }
+  };
+
+  const fields = [
+    { key: "displayName",       label: "Display Name",       ph: "Anav Bansal" },
+    { key: "totalExp",          label: "Total Experience",   ph: "4.7+ Years" },
+    { key: "currentCTC",        label: "Current CTC",        ph: "9 LPA" },
+    { key: "expectedCTC",       label: "Expected CTC",       ph: "15 LPA" },
+    { key: "noticePeriod",      label: "Notice Period",      ph: "30 Days" },
+    { key: "currentLocation",   label: "Current Location",   ph: "Faridabad, Haryana" },
+    { key: "preferredLocation", label: "Preferred Location", ph: "PAN India" },
+  ];
+
+  return (
+    <div className="page">
+      <div className="page-header"><h2 className="page-title">Settings</h2></div>
+
+      <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:"20px 24px", marginBottom:16 }}>
+        <h3 style={{ margin:"0 0 16px", fontSize:15, fontWeight:700 }}>Profile & Screening Answers</h3>
+        <p style={{ fontSize:12, color:"var(--text-muted,#64748b)", marginBottom:16 }}>
+          These values auto-fill in HR screening reply and emails.
+        </p>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+          {fields.map(f => (
+            <div key={f.key} className="form-group" style={{ marginBottom:0 }}>
+              <label className="form-label" style={{ fontSize:11 }}>{f.label}</label>
+              <input className="form-input" style={{ fontSize:13 }}
+                placeholder={f.ph} value={profile[f.key]}
+                onChange={e => handle(f.key, e.target.value)} />
+            </div>
+          ))}
+        </div>
+        <button className={`btn-primary ${saving ? "loading" : ""}`}
+          style={{ marginTop:16 }} onClick={save} disabled={saving}>
+          {saving ? "Saving..." : "Save Changes"}
+        </button>
+      </div>
+
+      <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:"20px 24px", marginBottom:16 }}>
+        <h3 style={{ margin:"0 0 12px", fontSize:15, fontWeight:700 }}>Gmail Connection</h3>
+        <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+          <div style={{
+            background: currentUser?.hasGmail ? "#d1fae5" : "#fee2e2",
+            color: currentUser?.hasGmail ? "#065f46" : "#991b1b",
+            padding:"6px 14px", borderRadius:99, fontSize:13, fontWeight:600
+          }}>
+            {currentUser?.hasGmail ? "Connected" : "Not Connected"}
+          </div>
+          {currentUser?.gmailUser && (
+            <span style={{ fontSize:13, color:"var(--text-muted)" }}>{currentUser.gmailUser}</span>
+          )}
+          <a href={`${API}/api/gmail/auth?username=${currentUser?.username}`}
+            target="_blank" rel="noreferrer" className="btn-ghost btn-sm" style={{ fontSize:12 }}>
+            {currentUser?.hasGmail ? "Reconnect Gmail" : "Connect Gmail"}
+          </a>
+        </div>
+      </div>
+
+      <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:"20px 24px" }}>
+        <h3 style={{ margin:"0 0 12px", fontSize:15, fontWeight:700 }}>Account</h3>
+        <div style={{ fontSize:13, color:"var(--text-muted)", lineHeight:2 }}>
+          <div><strong>Username:</strong> {currentUser?.username}</div>
+          <div><strong>Display Name:</strong> {currentUser?.displayName}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
