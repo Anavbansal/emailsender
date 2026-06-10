@@ -215,7 +215,7 @@ function getGmailAPITransport() {
   return oauth2Client;
 }
 
-async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references = null, threadId = null, userConfig = null }) {
+async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references = null, threadId = null, userConfig = null, templateType = "fullstack" }) {
   const auth = userConfig
     ? getUserGmailAuth({ gmailRefreshToken: userConfig.gmailRefreshToken || process.env.GMAIL_REFRESH_TOKEN })
     : getGmailAPITransport();
@@ -527,16 +527,27 @@ async function sendApplicationEmail({
   storeEmailHtml(trackRecord.trackingId, html);
 
   const attachments = [];
-  // Use user's resume if available, else fall back to defaults
+  // Resume selection priority:
+  // 1. User's own resume (Priyal etc.)
+  // 2. CRM resume for CRM template (Anav)
+  // 3. Default resume
   const userResumePath = userCfg?.resumePath;
   const userResumeName = userCfg?.resumeFileName || "Resume.pdf";
-  const resolvedResume = userResumePath && fs.existsSync(userResumePath)
-    ? { filename: userResumeName, path: userResumePath, contentType: "application/pdf" }
-    : templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)
-      ? { filename: "Anav_Bansal_CRMExpert.pdf", path: CRM_RESUME_PATH, contentType: "application/pdf" }
-      : fs.existsSync(RESUME_PATH)
-        ? { filename: "Anav_Bansal_Resume.pdf", path: RESUME_PATH, contentType: "application/pdf" }
-        : null;
+  const isOwnerForResume = !userCfg?.profileName?.toLowerCase().includes("priyal");
+
+  let resolvedResume;
+  if (userResumePath && fs.existsSync(userResumePath)) {
+    // User has their own resume (e.g. Priyal)
+    resolvedResume = { filename: userResumeName, path: userResumePath, contentType: "application/pdf" };
+  } else if (isOwnerForResume && templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)) {
+    // CRM template for Anav — use CRM Expert resume
+    resolvedResume = { filename: "Anav_Bansal_CRMExpert.pdf", path: CRM_RESUME_PATH, contentType: "application/pdf" };
+  } else if (fs.existsSync(RESUME_PATH)) {
+    // Default Anav resume
+    resolvedResume = { filename: "Anav_Bansal_Resume.pdf", path: RESUME_PATH, contentType: "application/pdf" };
+  } else {
+    resolvedResume = null;
+  }
   if (resolvedResume) attachments.push(resolvedResume);
 
   const mailOpts = { to: hrEmail, subject, html, attachments, userConfig: userCfg };
@@ -1393,8 +1404,9 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
     if (prev && prev.threadId) resolvedThreadId = prev.threadId;
   }
 
+  const fuUserName  = getUserConfig(req.user).profileName || "Anav Bansal";
   const baseSubject = originalSubject ||
-    (role ? `Application for ${role} Position — Anav Bansal` : `Job Application — Anav Bansal`);
+    (role ? `Application for ${role} Position — ${fuUserName}` : `Job Application — ${fuUserName}`);
   const subject     = `Re: ${baseSubject}`;
   const trackRecord = createTrackingRecord({ hrEmail, hrName, company, role, subject, type: "followup" });
   const trackUrl    = `${BASE_URL}/api/track/${trackRecord.trackingId}`;
@@ -1403,12 +1415,15 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
   storeEmailHtml(trackRecord.trackingId, html);
 
   try {
+    const fuCfg  = getUserConfig(req.user);
+    const fuTplType = req.body.templateType || "fullstack";
     const info = await sendViaGmailAPI({
       to: hrEmail, subject, html,
-      inReplyTo:   originalMessageId || null,
-      references:  originalMessageId || null,
-      threadId:    resolvedThreadId,
-      userConfig:  getUserConfig(req.user),
+      inReplyTo:    originalMessageId || null,
+      references:   originalMessageId || null,
+      threadId:     resolvedThreadId,
+      userConfig:   fuCfg,
+      templateType: fuTplType,
     });
     logToSheets([info.id, hrEmail, company||"", role||"", new Date().toISOString(), trackRecord.trackingId, "FollowUp-Sent", ""]);
     await saveSentEmail({
