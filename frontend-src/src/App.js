@@ -339,6 +339,15 @@ function loadCustomTemplate() {
 
 
 // Local datetime string for datetime-local input and API (no UTC conversion)
+
+// Default schedule time — tomorrow 10:00 AM IST
+function defaultScheduleTime() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(10, 0, 0, 0);
+  return toLocalDT(d);
+}
+
 function toLocalDT(date) {
   const d = new Date(date);
   const pad = n => String(n).padStart(2, "0");
@@ -763,7 +772,7 @@ function BulkFollowUpModal({ contacts, onClose, addToast }) {
   ).slice(0, 50);
 
   const [selected,  setSelected]  = useState(() => new Set(eligible.filter(c => c.needsFollowUp).map(c => c.hrEmail)));
-  const [schedTime, setSchedTime] = useState("");
+  const [schedTime, setSchedTime] = useState(() => defaultScheduleTime());
   const [interval,  setInterval2] = useState(5);   // minutes between each email
   const [sending,   setSending]   = useState(false);
   const [progress,  setProgress]  = useState({ done: 0, total: 0, errors: [] });
@@ -1027,7 +1036,7 @@ function FollowUpModal({ contact, onClose, onSent }) {
     originalSubject:   contact.originalSubject || "",
   });
   const [mode, setMode]           = useState("now");
-  const [scheduledTime, setSched] = useState("");
+  const [scheduledTime, setSched] = useState(() => defaultScheduleTime());
   const [loading, setLoading]     = useState(false);
   const [status, setStatus]       = useState(null);
   useLockBodyScroll();
@@ -1555,7 +1564,7 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed }) 
   }, [prefill, onPrefillConsumed]);
   const [templateId, setTemplateId] = useState("fullstack");
   const [mode, setMode]           = useState("now");
-  const [scheduledTime, setSched] = useState("");
+  const [scheduledTime, setSched] = useState(() => defaultScheduleTime());
   const [readReceipt, setRR]      = useState(false);
   const [loading, setLoading]     = useState(false);
   const [status, setStatus]       = useState(null);
