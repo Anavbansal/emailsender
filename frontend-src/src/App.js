@@ -1322,18 +1322,28 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
   const [syncResult, setSyncResult]= useState(null);
   const [bulkModal,  setBulkModal]  = useState(false);
 
-  const syncGmailSent = async () => {
-    setSyncing(true); setSyncResult(null);
+  const [syncModal,  setSyncModal]  = useState(false);
+  const [syncParams, setSyncParams] = useState({
+    after: new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10).replace(/-/g,"/"),
+    max: 100,
+  });
+
+  const syncGmailSent = async (params) => {
+    setSyncing(true); setSyncResult(null); setSyncModal(false);
     try {
       const r = await axios.get(`${API}/api/sync-sent-emails`, {
-        params: { after: "2026/05/28", max: 500 }
+        params: { after: params.after, max: params.max },
+        timeout: 120000,  // 2 min timeout
       });
       const { inserted, skipped, totalFetched } = r.data;
       setSyncResult({ inserted, skipped, totalFetched });
-      addToast && addToast(`✅ Gmail sync done! ${inserted} new contacts saved.`);
+      addToast && addToast(`✅ Sync done! ${inserted} new, ${skipped} skipped.`);
       onRefresh();
     } catch (e) {
-      addToast && addToast("❌ Gmail sync failed: " + (e.response?.data?.message || e.message), "error");
+      if (e.code === "ECONNABORTED" || e.message?.includes("timeout"))
+        addToast && addToast("⏱ Sync timed out — try with fewer emails (lower max)", "error");
+      else
+        addToast && addToast("❌ Sync failed: " + (e.response?.data?.message || e.message), "error");
     } finally { setSyncing(false); }
   };
 
@@ -1475,12 +1485,12 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
           <button className="btn-ghost btn-sm" onClick={onRefresh}>↻ Refresh</button>
           <button
             className={`btn-primary btn-sm ${syncing ? "loading" : ""}`}
-            onClick={syncGmailSent}
+            onClick={() => syncing ? null : setSyncModal(true)}
             disabled={syncing}
-            title="Fetch new sent emails from Gmail, detect replies, save thread history"
+            title="Fetch sent emails from Gmail"
             style={{ background: "#0d9488", fontSize: 12 }}
           >
-            {syncing ? <><span className="spinner" /> Syncing…</> : "📥 Sync Gmail Sent"}
+            {syncing ? <><span className="spinner" /> Syncing…</> : "📥 Sync Gmail"}
           </button>
           <button className="btn-ghost btn-sm" style={{ fontSize:12 }}
             title="Export contacts as CSV"
@@ -1714,6 +1724,100 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
         onClose={() => setBulkModal(false)}
         addToast={addToast}
       />
+    )}
+
+    {syncModal && (
+      <div className="modal-overlay" onClick={() => setSyncModal(false)}>
+        <div className="modal-box modal-box-form" onClick={e => e.stopPropagation()} style={{ maxWidth:420 }}>
+          <div className="modal-header">
+            <div className="modal-title-row">
+              <span>📥</span>
+              <h3 className="modal-title">Sync Gmail Sent</h3>
+            </div>
+            <button className="modal-close" onClick={() => setSyncModal(false)}>✕</button>
+          </div>
+          <div className="modal-scroll">
+            <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+              {/* Date from */}
+              <div className="form-group" style={{ marginBottom:0 }}>
+                <label className="form-label">📅 Sync emails sent after</label>
+                <input type="date" className="form-input"
+                  value={syncParams.after.replace(/\//g,"-")}
+                  onChange={e => setSyncParams(p => ({ ...p, after: e.target.value.replace(/-/g,"/") }))}
+                  max={new Date().toISOString().slice(0,10)} />
+                <div style={{ display:"flex", gap:6, marginTop:6, flexWrap:"wrap" }}>
+                  {[
+                    { label:"Last 7 days",  days:7  },
+                    { label:"Last 30 days", days:30 },
+                    { label:"Last 3 months",days:90 },
+                    { label:"Last 6 months",days:180},
+                  ].map(({ label, days }) => (
+                    <button key={days} type="button"
+                      className="chip"
+                      style={{ fontSize:11, padding:"3px 10px" }}
+                      onClick={() => setSyncParams(p => ({
+                        ...p,
+                        after: new Date(Date.now()-days*24*60*60*1000).toISOString().slice(0,10).replace(/-/g,"/")
+                      }))}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Max emails */}
+              <div className="form-group" style={{ marginBottom:0 }}>
+                <label className="form-label">
+                  📊 Max emails to fetch
+                  <span style={{ marginLeft:8, fontWeight:400, fontSize:11, color:"var(--text-muted)" }}>
+                    (lower = faster)
+                  </span>
+                </label>
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <input type="range" min={10} max={500} step={10}
+                    value={syncParams.max}
+                    onChange={e => setSyncParams(p => ({ ...p, max: +e.target.value }))}
+                    style={{ flex:1 }} />
+                  <span style={{ fontWeight:700, fontSize:15, minWidth:36, color:"var(--blue)" }}>
+                    {syncParams.max}
+                  </span>
+                </div>
+                <div style={{ display:"flex", gap:6, marginTop:6 }}>
+                  {[50, 100, 200, 500].map(n => (
+                    <button key={n} type="button" className="chip"
+                      style={{ fontSize:11, padding:"3px 10px",
+                        background: syncParams.max===n ? "var(--blue)" : undefined,
+                        color: syncParams.max===n ? "#fff" : undefined }}
+                      onClick={() => setSyncParams(p => ({ ...p, max: n }))}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Warning for large fetch */}
+              {syncParams.max > 200 && (
+                <div style={{ background:"#fef9c3", border:"1px solid #fde047", borderRadius:8, padding:"8px 12px", fontSize:12, color:"#713f12" }}>
+                  ⚠️ Fetching {syncParams.max} emails may take 2-3 minutes. Start with 100 first.
+                </div>
+              )}
+
+              <div style={{ fontSize:12, color:"var(--text-muted)", background:"var(--surface-2)", borderRadius:8, padding:"8px 12px" }}>
+                📅 Syncing from: <strong>{syncParams.after}</strong> · Max: <strong>{syncParams.max} emails</strong>
+              </div>
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button className="btn-ghost" onClick={() => setSyncModal(false)}>Cancel</button>
+            <button className="btn-primary"
+              style={{ background:"linear-gradient(135deg,#0d9488,#059669)" }}
+              onClick={() => syncGmailSent(syncParams)}>
+              📥 Start Sync
+            </button>
+          </div>
+        </div>
+      </div>
     )}
   </>
   );
