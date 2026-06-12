@@ -4258,6 +4258,874 @@ function App() {
     { id: "messages",    icon: "💬", label: "Messages" },
     { id: "jobs",        icon: "🔍", label: "Find Jobs" },
     { id: "scheduled",   icon: "🗓", label: "Scheduled",        badge: scheduledCount || null },
+    { id: "settings",    icon: "S",  label: "Settings",          badge: null },
+  ];
+
+  const [prefillSend, setPrefillSend] = React.useState(null);
+
+  const navigate = id => { setPage(id); setSidebarOpen(false); };
+  const goToSendPrefilled = (data) => { setPrefillSend(data); setPage("send"); setSidebarOpen(false); };
+
+  // Sidebar mini stats
+  const openedCount = contacts.filter(c => c.opened).length;
+
+  // Show login page if not authenticated
+  if (!authUser) {
+    return <AuthPage onAuth={user => { setAuthUser(user); }} />;
+  }
+
+  return (
+    <div className="app-shell">
+      <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
+        <div className="sidebar-header">
+          <div className="sidebar-avatar">{(authUser?.displayName||"U").slice(0,2).toUpperCase()}</div>
+          <div className="sidebar-brand">
+            <span className="sidebar-name">{authUser?.displayName || authUser?.username}</span>
+            <span className="sidebar-role">{authUser?.username === "anav" ? "Senior Dev" : "Finance Pro"}</span>
+          </div>
+        </div>
+        <nav className="sidebar-nav">
+          {NAV.map(n => (
+            <button key={n.id} className={`nav-item ${page === n.id ? "nav-item-active" : ""}`} onClick={() => navigate(n.id)}>
+              <span className="nav-icon">{n.icon}</span>
+              <span className="nav-label">{n.label}</span>
+              {n.badge ? <span className="nav-badge">{n.badge}</span> : null}
+            </button>
+          ))}
+        </nav>
+        {/* Mini stats in sidebar */}
+        <div className="sidebar-stats">
+          <div className="sidebar-stat"><span className="ss-val">{contacts.length}</span><span className="ss-lbl">Applied</span></div>
+          <div className="sidebar-stat"><span className="ss-val">{openedCount}</span><span className="ss-lbl">Opened</span></div>
+          <div className="sidebar-stat"><span className="ss-val">{replyCount}</span><span className="ss-lbl">Replies</span></div>
+        </div>
+        <div className="sidebar-footer">
+          <DarkModeToggle dark={darkMode} onToggle={() => setDarkMode(d => !d)} />
+          <button
+            onClick={() => { clearToken(); setAuthUser(null); }}
+            style={{
+              background:"transparent", border:"none", cursor:"pointer",
+              color:"#64748b", fontSize:12, padding:"6px 8px", borderRadius:8,
+              display:"flex", alignItems:"center", gap:6, width:"100%",
+              transition:"all 0.2s"
+            }}
+            title="Logout">
+            🚪 <span style={{ fontSize:11 }}>{authUser?.displayName || authUser?.username || "Logout"}</span>
+          </button>
+        </div>
+      </aside>
+
+      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
+
+      <div className="main-wrap">
+        <header className="top-header">
+          <button className="hamburger" onClick={() => setSidebarOpen(o => !o)}>☰</button>
+          <div className="header-user">
+            <div className="header-avatar" style={{
+              background: authUser?.username === "anav"
+                ? "linear-gradient(135deg,#3b82f6,#7c3aed)"
+                : "linear-gradient(135deg,#0d9488,#059669)"
+            }}>
+              {(authUser?.displayName || "U").slice(0,2).toUpperCase()}
+            </div>
+            <div className="header-info">
+              <span className="header-name">{authUser?.displayName || authUser?.username}</span>
+              <span className="header-title">
+                {authUser?.username === "anav"
+                  ? "Senior Software Developer · CTI/Telephony Specialist · Node.js · AWS"
+                  : "Finance Professional · Credit Manager · Digital Lending · GenAI"}
+              </span>
+            </div>
+          </div>
+          <div className="header-links">
+            {authUser?.username === "anav" ? (<>
+              <a href="mailto:anavbansal06@gmail.com" className="plink">✉ anavbansal06@gmail.com</a>
+              <a href="tel:+917827855635" className="plink">📞 +91 7827855635</a>
+              <a href="https://linkedin.com/in/anavbansal-51b191162" target="_blank" rel="noreferrer" className="plink">🔗 LinkedIn</a>
+              <a href={DRIVE_LINK} target="_blank" rel="noreferrer" className="plink plink-resume">📄 Resume</a>
+            </>) : (<>
+              <a href="mailto:priyalgoyal1702@gmail.com" className="plink">✉ priyalgoyal1702@gmail.com</a>
+              <a href="tel:+917665941798" className="plink">📞 +91 7665941798</a>
+              <a href="https://linkedin.com/in/priyal--goyal/" target="_blank" rel="noreferrer" className="plink">🔗 LinkedIn</a>
+              <span className="plink plink-resume">📄 Resume</span>
+            </>)}
+          </div>
+          <DarkModeToggle dark={darkMode} onToggle={() => setDarkMode(d => !d)} />
+        </header>
+
+        <main className="main-content">
+          <div className="page-header">
+            <h2 className="page-title">{NAV.find(n => n.id === page)?.icon} {NAV.find(n => n.id === page)?.label}</h2>
+          </div>
+
+          {page === "dashboard" && (
+            <DashboardPage
+              contacts={contacts}
+              replies={replies}
+              scheduledJobs={scheduledJobs}
+              onNavigate={navigate}
+            />
+          )}
+          {page === "contacts" && (
+            <HRContactsPage
+              contacts={contacts}
+              replies={replies}
+              fetchedAt={fetchedAt}
+              sheetError={sheetError}
+              onViewEmail={trackingId => setModal({ type: "emailBody", trackingId })}
+              onFollowUp={contact  => setModal({ type: "followUp",  contact })}
+              onMessage={contact   => { navigate("messages"); }}
+              onRefresh={() => { fetchContacts(); fetchReplies(); }}
+              addToast={addToast}
+              onViewThread={contact => setThreadModal({ contact })}
+              onManualUpdate={contact => setManualUpdateModal({ contact })}
+            />
+          )}
+          {page === "send"      && <SendApplicationPage onContactsRefresh={fetchContacts} prefill={prefillSend} onPrefillConsumed={() => setPrefillSend(null)} addToast={addToast} />}
+          {page === "linkedin"  && <LinkedInConnectionsPage onFillApply={goToSendPrefilled} addToast={addToast} />}
+          {page === "referral"  && <ReferralPage addToast={addToast} />}
+          {page === "inbox"     && <InboxPage contacts={contacts} onFollowUp={contact => setModal({ type: "followUp", contact })} addToast={addToast} />}
+          {page === "messages"  && <MessagesPage contacts={contacts} />}
+          {page === "prospect"  && <ProspectPage onFillApply={goToSendPrefilled} addToast={addToast} />}
+          {page === "jobs"      && <FindJobsPage onFillApply={goToSendPrefilled} />}
+          {page === "scheduled" && <ScheduledPage onRefresh={fetchScheduled} />}
+          {page === "settings"   && <SettingsPage addToast={addToast} />}
+        </main>
+      </div>
+
+      {modal?.type === "emailBody" && <EmailBodyModal trackingId={modal.trackingId} onClose={() => setModal(null)} />}
+      {threadModal && <ThreadModal messageId={threadModal.contact?.lastMessageId} contact={threadModal.contact} onClose={() => setThreadModal(null)} />}
+      {manualUpdateModal && (
+        <ManualUpdateModal
+          contact={manualUpdateModal.contact}
+          onClose={() => setManualUpdateModal(null)}
+          onSaved={() => { setManualUpdateModal(null); fetchContacts(); }}
+          addToast={addToast}
+        />
+      )}
+      {modal?.type === "followUp"  && <FollowUpModal  contact={modal.contact} onClose={() => setModal(null)} onSent={() => { setModal(null); fetchContacts(); addToast("Follow-up sent!"); }} />}
+
+      <ToastContainer toasts={toasts} />
+    </div>
+  );
+}
+
+export default App;
+
+
+// ─── LinkedIn Connections Page ────────────────────────────────────────────────
+const LI_FILTERS = [
+  { key: "all",     label: "All"           },
+  { key: "hr",      label: "HR / Recruiter" },
+  { key: "notsent", label: "Not Sent"       },
+  { key: "sent",    label: "Applied ✓"      },
+  { key: "replied", label: "Replied ✓"      },
+];
+
+
+// ─── Referral Message Modal ────────────────────────────────────────────────────
+
+
+function ReferralMessageModal({ connection, onClose, addToast }) {
+  const [activeTemplate, setActiveTemplate] = useState("fullstack1");
+  const [msg,    setMsg]    = useState(() => MSG_TEMPLATES[0].build(connection.name, connection.company));
+  const [copied, setCopied] = useState(false);
+  useLockBodyScroll();
+
+  const applyTemplate = (tplId) => {
+    const tpl = MSG_TEMPLATES.find(t => t.id === tplId);
+    if (tpl) { setActiveTemplate(tplId); setMsg(tpl.build(connection.name, connection.company)); setCopied(false); }
+  };
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(msg);
+      setCopied(true);
+      addToast && addToast("✅ Message copied! Paste on LinkedIn.");
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // fallback
+      const ta = document.createElement("textarea");
+      ta.value = msg; document.body.appendChild(ta);
+      ta.select(); document.execCommand("copy");
+      document.body.removeChild(ta);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }
+  };
+
+  const openLinkedIn = () => {
+    if (connection.url) window.open(connection.url, "_blank");
+    else addToast && addToast("No LinkedIn URL for this connection", "error");
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box-form" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
+        <div className="modal-header">
+          <div className="modal-title-row">
+            <span>💬</span>
+            <h3 className="modal-title">Referral Message</h3>
+            <span className="modal-hint" style={{ background:"#e0f2fe", color:"#0369a1" }}>
+              🏢 {connection.company || "—"} · {(connection.name||"").split(" ")[0]}
+            </span>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="modal-scroll">
+          {/* Tips */}
+          <div style={{
+            background:"linear-gradient(135deg,#f0f9ff,#e0f2fe)",
+            border:"1px solid #bae6fd", borderRadius:10,
+            padding:"10px 14px", marginBottom:14, fontSize:12, color:"#0369a1"
+          }}>
+            💡 <strong>Tip:</strong> Copy → Open LinkedIn → Go to {(connection.name||"their")} profile → Message → Paste
+          </div>
+
+          {/* Template selector */}
+          <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
+            {MSG_TEMPLATES.map(tpl => (
+              <button key={tpl.id} type="button"
+                onClick={() => applyTemplate(tpl.id)}
+                style={{
+                  display:"flex", alignItems:"center", gap:5,
+                  padding:"6px 12px", borderRadius:99, fontSize:12, fontWeight:600,
+                  border: `1.5px solid ${activeTemplate === tpl.id ? tpl.color : "var(--border,#e2e8f0)"}`,
+                  background: activeTemplate === tpl.id
+                    ? `color-mix(in srgb, ${tpl.color} 12%, transparent)`
+                    : "var(--surface,#fff)",
+                  color: activeTemplate === tpl.id ? tpl.color : "var(--text-500,#6b7280)",
+                  cursor:"pointer", transition:"all 0.15s ease",
+                  boxShadow: activeTemplate === tpl.id ? `0 2px 8px ${tpl.color}30` : "none",
+                }}>
+                {tpl.icon} {tpl.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Editable message */}
+          <div className="form-group">
+            <label className="form-label" style={{ display:"flex", justifyContent:"space-between" }}>
+              <span>📝 Message — edit if needed</span>
+              <span style={{ fontSize:11, color:"var(--text-muted,#64748b)", fontWeight:400 }}>
+                {msg.length} chars
+              </span>
+            </label>
+            <textarea
+              className="form-textarea"
+              rows={14}
+              value={msg}
+              onChange={e => setMsg(e.target.value)}
+              style={{ fontFamily:"inherit", fontSize:13, lineHeight:1.7 }}
+            />
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          {connection.url && (
+            <button className="btn-ghost" onClick={openLinkedIn} style={{ color:"#0077b5", borderColor:"#0077b5" }}>
+              🔗 Open Profile
+            </button>
+          )}
+          <button
+            className="btn-primary"
+            onClick={copy}
+            style={{ background: copied ? "linear-gradient(135deg,#059669,#10b981)" : undefined, minWidth:140 }}
+          >
+            {copied ? "✅ Copied!" : "📋 Copy Message"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ─── Add Connection Modal ──────────────────────────────────────────────────────
+function AddConnectionModal({ onClose, onAdded, addToast }) {
+  const [form, setForm] = useState({
+    firstName: "", lastName: "", company: "", position: "",
+    email: "", url: "", connectedOn: new Date().toLocaleDateString("en-IN"),
+  });
+  const [loading, setSaving] = useState(false);
+  useLockBodyScroll();
+
+  const handle = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const submit = async () => {
+    if (!form.firstName && !form.lastName)
+      return addToast && addToast("Name required", "error");
+    setSaving(true);
+    try {
+      await axios.post(`${API}/api/linkedin/add-connection`, form);
+      addToast && addToast(`✅ ${form.firstName} ${form.lastName} added!`);
+      onAdded && onAdded();
+      onClose();
+    } catch (e) {
+      addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error");
+    } finally { setSaving(false); }
+  };
+
+  const fields = [
+    [{ key:"firstName", label:"First Name *", ph:"Radmila", half:true },
+     { key:"lastName",  label:"Last Name",    ph:"Neykova", half:true }],
+    [{ key:"company",   label:"Company",      ph:"Wiser Technology", half:true },
+     { key:"position",  label:"Position",     ph:"Talent Manager", half:true }],
+    [{ key:"email",     label:"Email",        ph:"radmila@example.com", half:true },
+     { key:"url",       label:"LinkedIn URL", ph:"https://linkedin.com/in/...", half:true }],
+    [{ key:"connectedOn", label:"Connected On", ph:"19 May 2026", half:true }],
+  ];
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box-form" onClick={e => e.stopPropagation()} style={{ maxWidth:500 }}>
+        <div className="modal-header">
+          <div className="modal-title-row">
+            <span>➕</span>
+            <h3 className="modal-title">Add Connection</h3>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="modal-scroll">
+          {fields.map((row, ri) => (
+            <div key={ri} style={{ display:"grid", gridTemplateColumns: row.length > 1 ? "1fr 1fr" : "1fr", gap:10, marginBottom:10 }}>
+              {row.map(f => (
+                <div key={f.key} className="form-group" style={{ marginBottom:0 }}>
+                  <label className="form-label" style={{ fontSize:11 }}>{f.label}</label>
+                  <input className="form-input" style={{ fontSize:13 }}
+                    placeholder={f.ph}
+                    value={form[f.key]}
+                    onChange={e => handle(f.key, e.target.value)} />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className={`btn-primary ${loading ? "loading" : ""}`}
+            onClick={submit} disabled={loading}>
+            {loading ? <><span className="spinner" /> Adding…</> : "➕ Add Connection"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LinkedInConnectionsPage({ onFillApply, addToast }) {
+  const [connections, setConnections] = useState([]);
+  const [loading,     setLoading]     = useState(false);
+  const [search,      setSearch]      = useState("");
+  const [filter,      setFilter]      = useState("all");
+  const [total,       setTotal]       = useState(0);
+  const [updating,    setUpdating]    = useState({});
+  const [refModal,       setRefModal]       = useState(null);
+  const [ignoring,       setIgnoring]       = useState({});
+  const [addConnModal,   setAddConnModal]   = useState(false);
+
+  const fetchConnections = useCallback(async (q, f) => {
+    setLoading(true);
+    try {
+      const r = await axios.get(`${API}/api/linkedin/connections`, {
+        params: { q: q || undefined, filter: f || "all" },
+      });
+      setConnections(r.data.connections || []);
+      setTotal(r.data.total || 0);
+    } catch (e) {
+      const msg = e.response?.data?.message || e.message || "Failed to load connections";
+      addToast && addToast(msg, "error");
+      console.error("LinkedIn connections error:", msg);
+    } finally { setLoading(false); }
+  }, [addToast]);
+
+  useEffect(() => { fetchConnections("", "all"); }, [fetchConnections]);
+
+  const doSearch = (e) => { e.preventDefault(); fetchConnections(search, filter); };
+  const applyFilter = (f) => { setFilter(f); fetchConnections(search, f); };
+
+  const toggle = async (conn, field) => {
+    const key = `${conn.rowIndex}-${field}`;
+    setUpdating(p => ({ ...p, [key]: true }));
+    const newVal = !conn[field];
+    try {
+      await axios.post(`${API}/api/linkedin/update-connection`, {
+        rowIndex: conn.rowIndex, field, value: newVal,
+      });
+      setConnections(prev => prev.map(c =>
+        c.rowIndex === conn.rowIndex ? { ...c, [field]: newVal } : c
+      ));
+      addToast && addToast(`${field === "sent" ? "Applied" : "Replied"} status updated!`);
+    } catch {
+      addToast && addToast("Update failed", "error");
+    } finally { setUpdating(p => ({ ...p, [key]: false })); }
+  };
+
+  const ignore = async (conn) => {
+    setIgnoring(p => ({ ...p, [conn.rowIndex]: true }));
+    try {
+      await axios.post(`${API}/api/linkedin/ignore-connection`, { rowIndex: conn.rowIndex });
+      setConnections(prev => prev.filter(c => c.rowIndex !== conn.rowIndex));
+      addToast && addToast(`🚫 ${conn.name || "Contact"} ignored and removed.`);
+    } catch {
+      addToast && addToast("Failed to ignore contact", "error");
+    } finally { setIgnoring(p => ({ ...p, [conn.rowIndex]: false })); }
+  };
+
+  // Stats from ALL connections (not filtered)
+  const hrCount      = connections.filter(c => /\b(hr|recruit|talent|hiring|people|staffing|acquisition)\b/i.test(c.position)).length;
+  const sentCount    = connections.filter(c => c.sent).length;
+  const repliedCount = connections.filter(c => c.replied).length;
+
+  const initials = (c) => {
+    const n = c.name || "?";
+    return n.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  };
+  const avatarColor = (c) => {
+    const colors = ["#2563eb","#7c3aed","#059669","#d97706","#dc2626","#0d9488"];
+    let h = 0; for (const ch of (c.company || c.name || "")) h = (h * 31 + ch.charCodeAt(0)) % colors.length;
+    return colors[Math.abs(h)];
+  };
+
+  return (
+    <>
+    <div className="page">
+      {/* Stats row */}
+      <div className="li-stats-row">
+        <div className="li-stat"><span className="li-stat-val">{total}</span><span className="li-stat-lbl">Shown</span></div>
+        <div className="li-stat"><span className="li-stat-val" style={{ color: "var(--purple)" }}>{hrCount}</span><span className="li-stat-lbl">HR/Recruiter</span></div>
+        <div className="li-stat"><span className="li-stat-val" style={{ color: "var(--blue)" }}>{sentCount}</span><span className="li-stat-lbl">Applied</span></div>
+        <div className="li-stat"><span className="li-stat-val" style={{ color: "var(--green)" }}>{repliedCount}</span><span className="li-stat-lbl">Replied</span></div>
+      </div>
+
+      {/* Toolbar: Search + Add */}
+      <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:8 }}>
+        <button className="btn-primary btn-sm"
+          style={{ whiteSpace:"nowrap", gap:5, display:"flex", alignItems:"center" }}
+          onClick={() => setAddConnModal(true)}>
+          ➕ Add Connection
+        </button>
+      </div>
+
+      {/* Search */}
+      <form onSubmit={doSearch} className="li-search-row">
+        <div className="search-bar-wrap" style={{ flex: 1 }}>
+          <span className="search-icon">🔍</span>
+          <input className="search-input" type="text" placeholder="Search name, company, position, email…"
+            value={search} onChange={e => setSearch(e.target.value)} />
+          {search && <button type="button" className="search-clear" onClick={() => { setSearch(""); fetchConnections("", filter); }}>✕</button>}
+        </div>
+        <button type="submit" className="btn-primary btn-sm" disabled={loading}>{loading ? "…" : "Search"}</button>
+        <button type="button" className="btn-ghost btn-sm" onClick={() => fetchConnections(search, filter)} disabled={loading}>↻</button>
+      </form>
+
+      {/* Filter chips */}
+      <div className="chip-row" style={{ marginBottom: 12 }}>
+        {LI_FILTERS.map(f => (
+          <button key={f.key} type="button"
+            className={`chip ${filter === f.key ? "chip-active" : ""}`}
+            onClick={() => applyFilter(f.key)}>{f.label}</button>
+        ))}
+      </div>
+
+      {/* Connection count */}
+      {!loading && <p className="li-count">{connections.length} connection{connections.length !== 1 ? "s" : ""}</p>}
+
+      {/* Grid */}
+      {connections.length === 0 ? (
+        <div className="empty-state">
+          <span className="empty-icon">🔗</span>
+          <p>{loading ? "Loading connections…" : "No connections found. Try a different search or filter."}</p>
+        </div>
+      ) : (
+        <div className="li-grid">
+          {connections.map((c, i) => (
+            <div key={i} className={`li-card ${c.sent ? "li-card-sent" : ""} ${c.replied ? "li-card-replied" : ""}`}>
+              {/* Avatar */}
+              <div className="li-avatar" style={{ background: avatarColor(c) }}>{initials(c)}</div>
+
+              {/* Body */}
+              <div className="li-body">
+                <div className="li-name">{c.name || "—"}</div>
+                {c.position && <div className="li-position">{c.position}</div>}
+                {c.company  && <div className="li-company">🏢 {c.company}</div>}
+                {c.email    && <div className="li-email">✉ {c.email}</div>}
+                <div className="li-meta">
+                  {c.connectedOn && <span>🔗 Connected {c.connectedOn}</span>}
+                </div>
+
+                {/* Sent / Replied toggles */}
+                <div className="li-toggles">
+                  <button
+                    className={`li-toggle-btn ${c.sent ? "li-toggle-on" : ""}`}
+                    disabled={updating[`${c.rowIndex}-sent`]}
+                    onClick={() => toggle(c, "sent")}
+                    title="Mark as Applied"
+                  >
+                    {updating[`${c.rowIndex}-sent`] ? "…" : c.sent ? "✓ Applied" : "Mark Applied"}
+                  </button>
+                  <button
+                    className={`li-toggle-btn ${c.replied ? "li-toggle-replied" : ""}`}
+                    disabled={updating[`${c.rowIndex}-replied`]}
+                    onClick={() => toggle(c, "replied")}
+                    title="Mark as Replied"
+                  >
+                    {updating[`${c.rowIndex}-replied`] ? "…" : c.replied ? "↩ Replied" : "Mark Replied"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="li-actions" style={{ flexDirection:"column", gap:5, alignItems:"stretch" }}>
+                {c.url && (
+                  <a href={c.url} target="_blank" rel="noreferrer" className="btn-linkedin btn-sm"
+                    title="Open LinkedIn profile" style={{ textAlign:"center" }}>
+                    🔗 Profile
+                  </a>
+                )}
+                <button
+                  className="btn-primary btn-sm"
+                  title="Generate referral message to copy-paste on LinkedIn"
+                  style={{ background:"linear-gradient(135deg,#0077b5,#005f8f)", fontSize:11 }}
+                  onClick={() => setRefModal(c)}>
+                  💬 Message
+                </button>
+                <button
+                  className="btn-ghost btn-sm"
+                  title="Ignore — remove from list"
+                  style={{ fontSize:10, color:"var(--text-400,#9ca3af)", borderColor:"transparent" }}
+                  disabled={ignoring[c.rowIndex]}
+                  onClick={() => ignore(c)}>
+                  {ignoring[c.rowIndex] ? "…" : "🚫 Ignore"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+
+    {/* Modals rendered outside page div to avoid overflow clipping */}
+    {refModal && (
+      <ReferralMessageModal
+        connection={refModal}
+        onClose={() => setRefModal(null)}
+        addToast={addToast}
+      />
+    )}
+    {addConnModal && (
+      <AddConnectionModal
+        onClose={() => setAddConnModal(false)}
+        onAdded={() => fetchConnections(search, filter)}
+        addToast={addToast}
+      />
+    )}
+    </>
+  );
+}
+
+// ─── Scheduled Page ───────────────────────────────────────────────────────────
+function ScheduledPage() {
+  const [jobs, setJobs]   = useState([]);
+  const [now,  setNow]    = useState(Date.now());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000); // update every 30s
+    return () => clearInterval(t);
+  }, []);
+
+  const countdown = (scheduledTime) => {
+    const diff = new Date(scheduledTime + "+05:30").getTime() - now;
+    if (diff <= 0) return "🔄 Sending soon...";
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    if (h > 24) return `📅 ${Math.floor(h/24)}d ${h%24}h`;
+    if (h > 0)  return `⏰ ${h}h ${m}m`;
+    return `⏰ ${m}m`;
+  };
+  useEffect(() => { axios.get(`${API}/api/scheduled-emails`).then(r => setJobs(r.data.jobs || [])).catch(() => {}); }, []);
+  const remove = async id => { await axios.delete(`${API}/api/scheduled-emails/${id}`); setJobs(p => p.filter(j => j.jobId !== id)); };
+  const pending = jobs.filter(j => j.status === "pending");
+  return (
+    <div className="page">
+      {pending.length === 0
+        ? <div className="empty-state"><span className="empty-icon">🗓</span><p>No scheduled emails.</p></div>
+        : <div className="contacts-list">
+            {pending.map(job => (
+              <div key={job.jobId} className="contact-card">
+                <div className="contact-avatar" style={{ background: "#7c3aed" }}>🗓</div>
+                <div className="contact-body">
+                  <div className="contact-top">
+                    <span className="contact-company">{job.emailData.company}</span>
+                    <span className="badge badge-scheduled">Scheduled</span>
+                  </div>
+                  <p className="contact-email">{job.emailData.hrEmail}</p>
+                  <div className="contact-meta">
+                    <span>📅 {new Date(job.scheduledTime + "+05:30").toLocaleString("en-IN", { dateStyle:"medium", timeStyle:"short" })}</span>
+                    <span style={{ color:"var(--blue)", fontWeight:600 }}>{countdown(job.scheduledTime)}</span>
+                  </div>
+                </div>
+                <div className="contact-actions">
+                  <button className="btn-ghost btn-sm" onClick={() => remove(job.jobId)}>Cancel</button>
+                </div>
+              </div>
+            ))}
+          </div>
+      }
+    </div>
+  );
+}
+
+// ═══════════════════════════════ MAIN APP ════════════════════════════════════
+
+// ─── Login / Register Page ────────────────────────────────────────────────────
+function AuthPage({ onAuth }) {
+  const [tab,      setTab]     = useState("login");
+  const [form,     setForm]    = useState({ username:"", password:"", displayName:"", inviteCode:"" });
+  const [loading,  setLoading] = useState(false);
+  const [error,    setError]   = useState("");
+  const handle = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
+
+  const submit = async e => {
+    e.preventDefault();
+    setLoading(true); setError("");
+    try {
+      const endpoint = tab === "login" ? "/api/auth/login" : "/api/auth/register";
+      const res = await axios.post(`${API}${endpoint}`, form);
+      setToken(res.data.token);
+      setUser(res.data.user);
+      onAuth(res.data.user);
+    } catch (err) {
+      setError(err.response?.data?.message || "Something went wrong");
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div style={{
+      minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center",
+      background:"linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)",
+      padding:16
+    }}>
+      <div style={{
+        width:"100%", maxWidth:400,
+        background:"rgba(255,255,255,0.05)", backdropFilter:"blur(20px)",
+        border:"1px solid rgba(255,255,255,0.1)", borderRadius:20,
+        padding:40, boxShadow:"0 32px 80px rgba(0,0,0,0.4)"
+      }}>
+        {/* Logo */}
+        <div style={{ textAlign:"center", marginBottom:32 }}>
+          <div style={{
+            width:56, height:56, borderRadius:16, margin:"0 auto 12px",
+            background:"linear-gradient(135deg,#3b82f6,#7c3aed)",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            fontSize:28, boxShadow:"0 8px 24px rgba(59,130,246,0.4)"
+          }}>✉️</div>
+          <h1 style={{ color:"#fff", fontSize:24, fontWeight:800, margin:0 }}>Email Sender</h1>
+          <p style={{ color:"#94a3b8", fontSize:13, margin:"6px 0 0" }}>Job Hunt Automation</p>
+        </div>
+
+        {/* Tab switcher */}
+        <div style={{
+          display:"flex", background:"rgba(0,0,0,0.3)", borderRadius:10,
+          padding:4, marginBottom:24
+        }}>
+          {["login","register"].map(t => (
+            <button key={t} type="button"
+              onClick={() => { setTab(t); setError(""); }}
+              style={{
+                flex:1, padding:"8px 0", borderRadius:8, border:"none",
+                fontWeight:600, fontSize:13, cursor:"pointer", transition:"all 0.2s",
+                background: tab===t ? "rgba(255,255,255,0.1)" : "transparent",
+                color: tab===t ? "#fff" : "#64748b",
+              }}>
+              {t === "login" ? "🔑 Login" : "✨ Register"}
+            </button>
+          ))}
+        </div>
+
+        <form onSubmit={submit}>
+          {tab === "register" && (
+            <div style={{ marginBottom:14 }}>
+              <label style={{ color:"#94a3b8", fontSize:12, fontWeight:600, display:"block", marginBottom:6 }}>DISPLAY NAME</label>
+              <input name="displayName" value={form.displayName} onChange={handle}
+                placeholder="Anav Bansal" required
+                style={{
+                  width:"100%", padding:"10px 14px", borderRadius:10, border:"1px solid rgba(255,255,255,0.1)",
+                  background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:14, boxSizing:"border-box",
+                  outline:"none"
+                }} />
+            </div>
+          )}
+
+          <div style={{ marginBottom:14 }}>
+            <label style={{ color:"#94a3b8", fontSize:12, fontWeight:600, display:"block", marginBottom:6 }}>USERNAME</label>
+            <input name="username" value={form.username} onChange={handle}
+              placeholder="anav" required autoFocus
+              style={{
+                width:"100%", padding:"10px 14px", borderRadius:10, border:"1px solid rgba(255,255,255,0.1)",
+                background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:14, boxSizing:"border-box",
+                outline:"none"
+              }} />
+          </div>
+
+          <div style={{ marginBottom: tab==="register" ? 14 : 24 }}>
+            <label style={{ color:"#94a3b8", fontSize:12, fontWeight:600, display:"block", marginBottom:6 }}>PASSWORD</label>
+            <input name="password" type="password" value={form.password} onChange={handle}
+              placeholder="••••••••" required
+              style={{
+                width:"100%", padding:"10px 14px", borderRadius:10, border:"1px solid rgba(255,255,255,0.1)",
+                background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:14, boxSizing:"border-box",
+                outline:"none"
+              }} />
+          </div>
+
+          {tab === "register" && (
+            <div style={{ marginBottom:24 }}>
+              <label style={{ color:"#94a3b8", fontSize:12, fontWeight:600, display:"block", marginBottom:6 }}>INVITE CODE</label>
+              <input name="inviteCode" value={form.inviteCode} onChange={handle}
+                placeholder="Ask Anav for the code" required
+                style={{
+                  width:"100%", padding:"10px 14px", borderRadius:10, border:"1px solid rgba(255,255,255,0.1)",
+                  background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:14, boxSizing:"border-box",
+                  outline:"none"
+                }} />
+            </div>
+          )}
+
+          {error && (
+            <div style={{
+              background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.3)",
+              borderRadius:8, padding:"10px 14px", marginBottom:16,
+              color:"#fca5a5", fontSize:13
+            }}>❌ {error}</div>
+          )}
+
+          <button type="submit" disabled={loading}
+            style={{
+              width:"100%", padding:"12px 0", borderRadius:10, border:"none",
+              background:"linear-gradient(135deg,#2563eb,#7c3aed)", color:"#fff",
+              fontWeight:700, fontSize:15, cursor:"pointer", transition:"all 0.2s",
+              boxShadow:"0 4px 16px rgba(37,99,235,0.4)",
+              opacity: loading ? 0.7 : 1
+            }}>
+            {loading ? "⏳ Please wait…" : tab==="login" ? "🔑 Login" : "✨ Create Account"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [authUser,      setAuthUser]      = useState(() => getUser());
+  const [page,          setPage]          = useState("dashboard");
+  const [contacts,      setContacts]      = useState([]);
+  const [replies,       setReplies]       = useState([]);
+  const [scheduledJobs, setScheduledJobs] = useState([]);
+  const [fetchedAt,     setFetchedAt]     = useState(null);
+  const [darkMode,      setDarkMode]      = useState(() => localStorage.getItem("darkMode") === "true");
+  const [sidebarOpen,   setSidebarOpen]   = useState(false);
+  const [modal,         setModal]         = useState(null);
+  const [threadModal,       setThreadModal]       = useState(null);
+  const [manualUpdateModal, setManualUpdateModal] = useState(null); // { contact }
+  const [sheetError,    setSheetError]    = useState(null);
+  const [toasts,        setToasts]        = useState([]);
+
+  const addToast = useCallback((message, type = "success") => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3800);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
+    localStorage.setItem("darkMode", darkMode);
+  }, [darkMode]);
+
+  const fetchContacts = useCallback(async () => {
+    try {
+      const r = await axios.get(`${API}/api/contacts`);
+      setContacts(r.data.contacts || []);
+      setFetchedAt(r.data.fetchedAt || Date.now());
+      setSheetError(r.data.sheetError || null);
+    } catch {}
+  }, []);
+
+  const fetchReplies = useCallback(async () => {
+    try { const r = await axios.get(`${API}/api/gmail/replies`); setReplies(r.data.replies || []); } catch {}
+  }, []);
+
+  const fetchScheduled = useCallback(async () => {
+    try { const r = await axios.get(`${API}/api/scheduled-emails`); setScheduledJobs(r.data.jobs || []); } catch {}
+  }, []);
+
+  useEffect(() => { fetchContacts(); fetchReplies(); fetchScheduled(); }, [fetchContacts, fetchReplies, fetchScheduled]);
+
+  // ── Auto-poll replies every 2 minutes + notify on new replies ───────────────
+  const prevReplyCountRef = React.useRef(0);
+  useEffect(() => {
+    // Request notification permission on load
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+
+    const poll = setInterval(async () => {
+      try {
+        const r = await axios.get(`${API}/api/gmail/replies`);
+        const newReplies = r.data.replies || [];
+        setReplies(newReplies);
+
+        // Notify if new replies came in since last poll
+        const prev = prevReplyCountRef.current;
+        if (newReplies.length > prev && prev > 0) {
+          const diff = newReplies.length - prev;
+          // Browser notification
+          if ("Notification" in window && Notification.permission === "granted") {
+            new Notification("📬 New HR Reply!", {
+              body: `${diff} new reply${diff > 1 ? "s" : ""} in your inbox`,
+              icon: "/favicon.ico",
+              tag: "hr-reply",
+            });
+          }
+          addToast(`📬 ${diff} new HR repl${diff > 1 ? "ies" : "y"} received!`, "success");
+        }
+        prevReplyCountRef.current = newReplies.length;
+      } catch {}
+    }, 2 * 60 * 1000); // every 2 minutes
+
+    return () => clearInterval(poll);
+  }, [addToast, fetchReplies]);
+
+  // ── Follow-up reminders toast on load ─────────────────────────────────────
+  const reminderShownRef = React.useRef(false);
+  useEffect(() => {
+    if (reminderShownRef.current) return;
+    const due = contacts.filter(c => c.needsFollowUp);
+    if (due.length > 0) {
+      reminderShownRef.current = true;
+      addToast(`⏰ ${due.length} follow-up${due.length > 1 ? "s" : ""} due today!`, "success");
+    }
+  }, [contacts, addToast]);
+
+  const reminderCount  = contacts.filter(c => c.needsFollowUp).length;
+  const replyCount     = replies.length;
+  const scheduledCount = scheduledJobs.filter(j => j.status === "pending").length;
+
+  const NAV = [
+    { id: "dashboard",   icon: "🏠", label: "Dashboard" },
+    { id: "contacts",    icon: "👥", label: "HR Contacts",      badge: reminderCount  || null },
+    { id: "send",        icon: "✉",  label: "Send Application" },
+    { id: "linkedin",    icon: "🔗", label: "Connections" },
+    { id: "referral",    icon: "🤝", label: "Referral" },
+    { id: "prospect",    icon: "🎯", label: "Find HR Emails" },
+    { id: "inbox",       icon: "📥", label: "Inbox",            badge: replyCount     || null },
+    { id: "messages",    icon: "💬", label: "Messages" },
+    { id: "jobs",        icon: "🔍", label: "Find Jobs" },
+    { id: "scheduled",   icon: "🗓", label: "Scheduled",        badge: scheduledCount || null },
     { id: "ai",          icon: "🤖", label: "AI Intelligence",   badge: null },
     { id: "settings",    icon: "S",  label: "Settings",          badge: null },
   ];
@@ -4391,7 +5259,6 @@ function App() {
           {page === "jobs"      && <FindJobsPage onFillApply={goToSendPrefilled} />}
           {page === "scheduled" && <ScheduledPage onRefresh={fetchScheduled} />}
           {page === "settings"   && <SettingsPage addToast={addToast} />}
-          {page === "ai"         && <AIIntelligencePage onFillApply={goToSendPrefilled} addToast={addToast} />}
         </main>
       </div>
 
@@ -4412,477 +5279,9 @@ function App() {
   );
 }
 
-export default App;
 
 
 // ─── AI Intelligence Page ─────────────────────────────────────────────────────
-function AIIntelligencePage({ onFillApply, addToast }) {
-  const [activeTab, setActiveTab] = useState("jd");   // jd | research | match
-  const user = getUser();
-
-  // ── Tab: JD Auto Email ────────────────────────────────────────────────────
-  const [jd,         setJd]         = useState("");
-  const [jdResult,   setJdResult]   = useState(null);
-  const [jdLoading,  setJdLoading]  = useState(false);
-
-  // ── Tab: Company Research ─────────────────────────────────────────────────
-  const [company,    setCompany]    = useState("");
-  const [research,   setResearch]   = useState(null);
-  const [resLoading, setResLoading] = useState(false);
-
-  // ── Tab: Resume Match ─────────────────────────────────────────────────────
-  const [matchJD,    setMatchJD]    = useState("");
-  const [matchRes,   setMatchRes]   = useState(null);
-  const [matchLoading, setMatchLoad] = useState(false);
-
-  const callClaude = async (prompt) => {
-    // Use backend proxy to avoid CORS
-    const res = await axios.post(`${API}/api/claude`, { prompt, max_tokens: 1000 });
-    return res.data.text || "";
-  };
-
-  // ── JD Parser ────────────────────────────────────────────────────────────
-  const analyzeJD = async () => {
-    if (!jd.trim()) return addToast && addToast("JD paste karo", "error");
-    setJdLoading(true); setJdResult(null);
-    try {
-      const isAnav = user?.username === "anav";
-      const profile = isAnav
-        ? "Senior Full Stack Developer with 4.7+ years — Node.js, Angular, AWS Lambda, CTI Integrations, ServiceNow, Freshdesk, Salesforce"
-        : "Finance Professional with 2+ years — Credit Manager at Tata Capital, Digital Lending, Credit Risk, GenAI Automation, SLOS, FinnOne";
-
-      const prompt = `You are helping ${user?.displayName || "a job seeker"} write a personalized job application email.
-
-CANDIDATE PROFILE: ${profile}
-
-JOB DESCRIPTION:
-${jd.slice(0, 3000)}
-
-Extract from the JD and respond in JSON only (no markdown, no backticks):
-{
-  "company": "company name",
-  "role": "exact role title",
-  "hrName": "hiring manager name if mentioned, else empty",
-  "keyRequirements": ["top 3 requirements matching candidate"],
-  "matchScore": 85,
-  "emailSubject": "compelling subject line",
-  "emailIntro": "2-3 sentence personalized intro paragraph that references specific JD details",
-  "customNote": "1-2 sentences highlighting why candidate is perfect fit for THIS specific role",
-  "applyTips": ["one specific tip for this application"]
-}`;
-
-      const raw = await callClaude(prompt);
-      const cleaned = raw.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(cleaned);
-      setJdResult(parsed);
-    } catch (e) {
-      addToast && addToast("AI analysis failed: " + e.message, "error");
-    } finally { setJdLoading(false); }
-  };
-
-  // ── Company Research ──────────────────────────────────────────────────────
-  const researchCompany = async () => {
-    if (!company.trim()) return addToast && addToast("Company name daalo", "error");
-    setResLoading(true); setResearch(null);
-    try {
-      const prompt = `Research the company "${company}" for a job application. Respond in JSON only (no markdown):
-{
-  "overview": "2 sentence company overview",
-  "techStack": ["tech/tools they use"],
-  "culture": "1-2 sentences about work culture",
-  "recentNews": "latest notable news or achievement",
-  "interviewTips": ["2-3 specific interview tips"],
-  "whyJoin": "1 compelling reason to join",
-  "glassdoorRating": "estimated rating out of 5",
-  "companySize": "startup/mid-size/enterprise",
-  "industry": "industry"
-}`;
-      const raw = await callClaude(prompt);
-      const cleaned = raw.replace(/```json|```/g, "").trim();
-      setResearch(JSON.parse(cleaned));
-    } catch (e) {
-      addToast && addToast("Research failed: " + e.message, "error");
-    } finally { setResLoading(false); }
-  };
-
-  // ── Resume Match ──────────────────────────────────────────────────────────
-  const analyzeMatch = async () => {
-    if (!matchJD.trim()) return addToast && addToast("JD paste karo", "error");
-    setMatchLoad(true); setMatchRes(null);
-    try {
-      const isAnav = user?.username === "anav";
-      const resume = isAnav
-        ? `Anav Bansal — Senior Full Stack Developer, 4.7+ years. Skills: Node.js, Express.js, Angular, React, AWS Lambda, DynamoDB, S3, REST APIs, WebSockets. CTI/Telephony: Avaya AACC/AES/IPO, Genesys, Webex, Amazon Connect. CRM: ServiceNow (Flow Designer, IntegrationHub, Scripted REST, Virtual Agent), Salesforce Open CTI, Freshdesk FDK, Zendesk, MS Dynamics. Published 3 marketplace apps. 10+ enterprise integrations. B.Tech CS 2021.`
-        : `Priyal Goyal — Finance Professional, 2+ years. Credit Manager at Tata Capital. Skills: Credit Underwriting, FOIR/LTV Analysis, Digital Lending, GenAI Automation, SLOS Integration, Portfolio Monitoring. Tools: FinnOne, SLOS, SFDC, FICO, Jocata, Power BI, Advanced Excel. PGDM Finance. COO Achievers Club Award.`;
-
-      const prompt = `Compare this resume with the job description. Respond in JSON only (no markdown):
-
-RESUME: ${resume}
-
-JOB DESCRIPTION: ${matchJD.slice(0, 2000)}
-
-{
-  "matchScore": 78,
-  "matchLevel": "Strong Match",
-  "matchingSkills": ["skill1", "skill2", "skill3"],
-  "missingSkills": ["gap1", "gap2"],
-  "strengths": ["why candidate is good fit"],
-  "suggestions": ["how to improve application"],
-  "recommendApply": true,
-  "coverLetterTip": "specific angle to highlight in cover letter"
-}`;
-
-      const raw = await callClaude(prompt);
-      const cleaned = raw.replace(/```json|```/g, "").trim();
-      setMatchRes(JSON.parse(cleaned));
-    } catch (e) {
-      addToast && addToast("Match failed: " + e.message, "error");
-    } finally { setMatchLoad(false); }
-  };
-
-  const TABS = [
-    { id:"jd",       label:"JD → Email",      icon:"✉" },
-    { id:"research", label:"Company Research", icon:"🏢" },
-    { id:"match",    label:"Resume Match",     icon:"📊" },
-    { id:"salary",   label:"Salary Negotiation", icon:"💰" },
-  ];
-
-  // ── Tab: Salary Negotiation ────────────────────────────────────────────────
-  const [offered,    setOffered]    = useState("");
-  const [expected,   setExpected]   = useState("");
-  const [salRole,    setSalRole]    = useState("");
-  const [salResult,  setSalResult]  = useState(null);
-  const [salLoading, setSalLoading] = useState(false);
-
-  const analyzeSalary = async () => {
-    if (!offered || !expected) return addToast && addToast("Fill offered and expected CTC", "error");
-    setSalLoading(true); setSalResult(null);
-    try {
-      const u = getUser();
-      const exp = u?.username === "anav" ? "4.7 years in Full Stack Development and CTI Integrations" : "2+ years in Digital Lending and Credit Risk";
-      const prompt = `You are a salary negotiation coach for a job candidate in India.
-
-Candidate profile: ${u?.displayName || "Professional"} with ${exp}
-Role: ${salRole || "Software Developer"}
-Offered CTC: ${offered} LPA
-Expected CTC: ${expected} LPA
-
-Generate a salary negotiation response in JSON only (no markdown):
-{
-  "strategy": "negotiate/accept/counter",
-  "counterOffer": "${expected}",
-  "emailScript": "Professional email to negotiate salary",
-  "phoneScript": "Verbal script for phone call negotiation",
-  "keyPoints": ["strong argument 1", "strong argument 2", "strong argument 3"],
-  "walkawayPoint": "minimum acceptable CTC",
-  "marketInsight": "salary market context for this role in India",
-  "tips": ["negotiation tip 1", "tip 2"]
-}`;
-
-      const raw = await callClaude(prompt);
-      setSalResult(JSON.parse(raw.replace(/```json|```/g,"").trim()));
-    } catch(e) {
-      addToast && addToast("Failed: " + e.message, "error");
-    } finally { setSalLoading(false); }
-  };
-
-  const scoreColor = (s) => s >= 80 ? "#059669" : s >= 60 ? "#d97706" : "#dc2626";
-
-  return (
-    <div className="page">
-      <div className="page-header">
-        <h2 className="page-title">AI Intelligence</h2>
-        <span style={{ fontSize:12, background:"linear-gradient(135deg,#dbeafe,#ede9fe)",
-          color:"#3730a3", padding:"4px 12px", borderRadius:99, fontWeight:600 }}>
-          Powered by Claude AI
-        </span>
-      </div>
-
-      {/* Tab switcher */}
-      <div style={{ display:"flex", gap:6, marginBottom:20 }}>
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setActiveTab(t.id)}
-            style={{
-              padding:"8px 18px", borderRadius:99, border:"1.5px solid",
-              borderColor: activeTab===t.id ? "#6366f1" : "var(--border,#e2e8f0)",
-              background: activeTab===t.id ? "linear-gradient(135deg,#eef2ff,#e0e7ff)" : "var(--surface)",
-              color: activeTab===t.id ? "#4338ca" : "var(--text-500,#6b7280)",
-              fontWeight:600, fontSize:13, cursor:"pointer", transition:"all 0.2s",
-              boxShadow: activeTab===t.id ? "0 2px 8px rgba(99,102,241,0.2)" : "none"
-            }}>
-            {t.icon} {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* ── TAB: JD Auto Email ── */}
-      {activeTab === "jd" && (
-        <div>
-          <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:"20px 24px", marginBottom:16 }}>
-            <label className="form-label">Paste Job Description</label>
-            <textarea className="form-textarea" rows={8}
-              placeholder="Paste the full JD here — AI will extract company, role, requirements and write a personalized email..."
-              value={jd} onChange={e => setJd(e.target.value)}
-              style={{ fontFamily:"inherit", fontSize:13 }} />
-            <button className={`btn-primary ${jdLoading?"loading":""}`}
-              onClick={analyzeJD} disabled={jdLoading}
-              style={{ marginTop:12, background:"linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
-              {jdLoading ? <><span className="spinner"/> Analyzing…</> : "✨ Analyze & Generate Email"}
-            </button>
-          </div>
-
-          {jdResult && (
-            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-              {/* Match score banner */}
-              <div style={{
-                background:`linear-gradient(135deg, ${scoreColor(jdResult.matchScore)}15, ${scoreColor(jdResult.matchScore)}08)`,
-                border:`1.5px solid ${scoreColor(jdResult.matchScore)}40`,
-                borderRadius:12, padding:"14px 20px",
-                display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10
-              }}>
-                <div>
-                  <div style={{ fontWeight:700, fontSize:15 }}>{jdResult.role} @ {jdResult.company}</div>
-                  {jdResult.hrName && <div style={{ fontSize:12, color:"var(--text-muted)" }}>HR: {jdResult.hrName}</div>}
-                </div>
-                <div style={{ textAlign:"center" }}>
-                  <div style={{ fontSize:28, fontWeight:900, color:scoreColor(jdResult.matchScore) }}>{jdResult.matchScore}%</div>
-                  <div style={{ fontSize:11, color:"var(--text-muted)" }}>Match Score</div>
-                </div>
-              </div>
-
-              {/* Key requirements */}
-              <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"16px 20px" }}>
-                <div style={{ fontWeight:700, marginBottom:10, fontSize:13 }}>Key Requirements Matched</div>
-                {(jdResult.keyRequirements||[]).map((r,i) => (
-                  <div key={i} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6, fontSize:13 }}>
-                    <span style={{ color:"#059669", fontSize:16 }}>✓</span> {r}
-                  </div>
-                ))}
-                {jdResult.applyTips?.[0] && (
-                  <div style={{ marginTop:10, padding:"8px 12px", background:"#fef9c3", borderRadius:8, fontSize:12, color:"#713f12" }}>
-                    💡 {jdResult.applyTips[0]}
-                  </div>
-                )}
-              </div>
-
-              {/* Email preview */}
-              <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"16px 20px" }}>
-                <div style={{ fontWeight:700, marginBottom:10, fontSize:13 }}>Generated Email Content</div>
-                <div style={{ fontSize:12, color:"var(--text-muted)", marginBottom:6 }}>Subject:</div>
-                <div style={{ padding:"8px 12px", background:"var(--surface-2,#f8fafc)", borderRadius:8, marginBottom:12, fontSize:13, fontWeight:600 }}>
-                  {jdResult.emailSubject}
-                </div>
-                <div style={{ fontSize:12, color:"var(--text-muted)", marginBottom:6 }}>Personalized Intro:</div>
-                <div style={{ padding:"10px 14px", background:"var(--surface-2,#f8fafc)", borderRadius:8, fontSize:13, lineHeight:1.7, marginBottom:12 }}>
-                  {jdResult.emailIntro}
-                </div>
-                <div style={{ fontSize:12, color:"var(--text-muted)", marginBottom:6 }}>Custom Note:</div>
-                <div style={{ padding:"10px 14px", background:"#f0f9ff", border:"1px solid #bae6fd", borderRadius:8, fontSize:13, lineHeight:1.7 }}>
-                  {jdResult.customNote}
-                </div>
-              </div>
-
-              {/* Use in email button */}
-              <button className="btn-primary"
-                style={{ background:"linear-gradient(135deg,#059669,#10b981)" }}
-                onClick={() => {
-                  onFillApply && onFillApply({
-                    company: jdResult.company,
-                    role: jdResult.role,
-                    hrName: jdResult.hrName || "",
-                    hrEmail: "",
-                    customNote: jdResult.customNote,
-                    customIntro: jdResult.emailIntro,
-                  });
-                  addToast && addToast("Email form pre-filled! Add HR email and send.");
-                }}>
-                ✉ Use in Send Application →
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── TAB: Company Research ── */}
-      {activeTab === "research" && (
-        <div>
-          <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:"20px 24px", marginBottom:16 }}>
-            <label className="form-label">Company Name</label>
-            <div style={{ display:"flex", gap:8 }}>
-              <input className="form-input" placeholder="e.g. Tata Capital, Infosys, Zepto..."
-                value={company} onChange={e => setCompany(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && researchCompany()}
-                style={{ flex:1 }} />
-              <button className={`btn-primary ${resLoading?"loading":""}`}
-                onClick={researchCompany} disabled={resLoading}
-                style={{ whiteSpace:"nowrap", background:"linear-gradient(135deg,#0d9488,#059669)" }}>
-                {resLoading ? <><span className="spinner"/> Researching…</> : "🔍 Research"}
-              </button>
-            </div>
-          </div>
-
-          {research && (
-            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-              {/* Overview card */}
-              <div style={{ background:"linear-gradient(135deg,#f0fdfa,#ccfbf1)", border:"1px solid #0d9488", borderRadius:12, padding:"16px 20px" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
-                  <div>
-                    <div style={{ fontWeight:800, fontSize:16 }}>{company}</div>
-                    <div style={{ fontSize:12, color:"#0d9488", marginTop:2 }}>
-                      {research.industry} · {research.companySize}
-                    </div>
-                  </div>
-                  <div style={{ textAlign:"center", background:"#0d9488", color:"#fff", borderRadius:10, padding:"6px 14px" }}>
-                    <div style={{ fontSize:18, fontWeight:800 }}>{research.glassdoorRating}</div>
-                    <div style={{ fontSize:10 }}>Glassdoor</div>
-                  </div>
-                </div>
-                <p style={{ margin:0, fontSize:13, lineHeight:1.7, color:"#134e4a" }}>{research.overview}</p>
-              </div>
-
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-                {/* Tech Stack */}
-                <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"14px 16px" }}>
-                  <div style={{ fontWeight:700, marginBottom:8, fontSize:13 }}>Tech Stack</div>
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-                    {(research.techStack||[]).map((t,i) => (
-                      <span key={i} style={{ background:"#ede9fe", color:"#5b21b6", padding:"3px 10px", borderRadius:99, fontSize:12, fontWeight:600 }}>{t}</span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Why Join */}
-                <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"14px 16px" }}>
-                  <div style={{ fontWeight:700, marginBottom:8, fontSize:13 }}>Why Join</div>
-                  <p style={{ margin:0, fontSize:13, lineHeight:1.6, color:"var(--text-700)" }}>{research.whyJoin}</p>
-                </div>
-              </div>
-
-              {/* Culture + News */}
-              <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"14px 16px" }}>
-                <div style={{ fontWeight:700, marginBottom:6, fontSize:13 }}>Culture</div>
-                <p style={{ margin:"0 0 12px", fontSize:13, lineHeight:1.6 }}>{research.culture}</p>
-                <div style={{ fontWeight:700, marginBottom:6, fontSize:13 }}>Recent News</div>
-                <p style={{ margin:0, fontSize:13, color:"var(--text-muted)", lineHeight:1.6 }}>{research.recentNews}</p>
-              </div>
-
-              {/* Interview Tips */}
-              <div style={{ background:"#fef9c3", border:"1px solid #fde047", borderRadius:12, padding:"14px 16px" }}>
-                <div style={{ fontWeight:700, marginBottom:8, fontSize:13, color:"#713f12" }}>Interview Tips</div>
-                {(research.interviewTips||[]).map((tip,i) => (
-                  <div key={i} style={{ display:"flex", gap:8, marginBottom:6, fontSize:13 }}>
-                    <span style={{ color:"#d97706" }}>💡</span> {tip}
-                  </div>
-                ))}
-              </div>
-
-              <button className="btn-primary"
-                style={{ background:"linear-gradient(135deg,#2563eb,#3b82f6)" }}
-                onClick={() => { onFillApply && onFillApply({ company }); addToast && addToast("Company pre-filled in Send Application!"); }}>
-                ✉ Apply to {company} →
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── TAB: Resume Match ── */}
-      {activeTab === "match" && (
-        <div>
-          <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:"20px 24px", marginBottom:16 }}>
-            <label className="form-label">Paste Job Description</label>
-            <textarea className="form-textarea" rows={7}
-              placeholder="Paste JD to check how well your resume matches..."
-              value={matchJD} onChange={e => setMatchJD(e.target.value)}
-              style={{ fontFamily:"inherit", fontSize:13 }} />
-            <button className={`btn-primary ${matchLoading?"loading":""}`}
-              onClick={analyzeMatch} disabled={matchLoading}
-              style={{ marginTop:12, background:"linear-gradient(135deg,#dc2626,#ef4444)" }}>
-              {matchLoading ? <><span className="spinner"/> Analyzing…</> : "📊 Check Match Score"}
-            </button>
-          </div>
-
-          {matchRes && (
-            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-              {/* Score circle */}
-              <div style={{
-                background:"var(--surface)", border:`2px solid ${scoreColor(matchRes.matchScore)}`,
-                borderRadius:14, padding:"24px",
-                display:"flex", alignItems:"center", gap:20, flexWrap:"wrap"
-              }}>
-                <div style={{
-                  width:90, height:90, borderRadius:"50%",
-                  background:`conic-gradient(${scoreColor(matchRes.matchScore)} ${matchRes.matchScore*3.6}deg, var(--border,#e2e8f0) 0)`,
-                  display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
-                  boxShadow:`0 0 0 6px ${scoreColor(matchRes.matchScore)}20`
-                }}>
-                  <div style={{ width:70, height:70, borderRadius:"50%", background:"var(--surface)", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column" }}>
-                    <span style={{ fontSize:22, fontWeight:900, color:scoreColor(matchRes.matchScore) }}>{matchRes.matchScore}</span>
-                    <span style={{ fontSize:10, color:"var(--text-muted)" }}>/ 100</span>
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize:20, fontWeight:800, color:scoreColor(matchRes.matchScore) }}>{matchRes.matchLevel}</div>
-                  <div style={{ fontSize:13, color:"var(--text-muted)", marginTop:4 }}>{matchRes.coverLetterTip}</div>
-                  <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:8 }}>
-                    <span style={{
-                      padding:"4px 12px", borderRadius:99, fontSize:12, fontWeight:700,
-                      background: matchRes.recommendApply ? "#d1fae5" : "#fee2e2",
-                      color: matchRes.recommendApply ? "#065f46" : "#991b1b"
-                    }}>
-                      {matchRes.recommendApply ? "✅ Recommended to Apply" : "⚠️ Skill Gap Present"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-                {/* Matching */}
-                <div style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:12, padding:"14px 16px" }}>
-                  <div style={{ fontWeight:700, marginBottom:8, fontSize:13, color:"#065f46" }}>Matching Skills</div>
-                  {(matchRes.matchingSkills||[]).map((s,i) => (
-                    <div key={i} style={{ display:"flex", gap:6, marginBottom:5, fontSize:13 }}>
-                      <span style={{ color:"#059669" }}>✓</span> {s}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Missing */}
-                <div style={{ background:"#fff7ed", border:"1px solid #fed7aa", borderRadius:12, padding:"14px 16px" }}>
-                  <div style={{ fontWeight:700, marginBottom:8, fontSize:13, color:"#9a3412" }}>Skill Gaps</div>
-                  {(matchRes.missingSkills||[]).map((s,i) => (
-                    <div key={i} style={{ display:"flex", gap:6, marginBottom:5, fontSize:13 }}>
-                      <span style={{ color:"#ea580c" }}>↗</span> {s}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Suggestions */}
-              <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"14px 16px" }}>
-                <div style={{ fontWeight:700, marginBottom:8, fontSize:13 }}>Application Tips</div>
-                {(matchRes.suggestions||[]).map((s,i) => (
-                  <div key={i} style={{ display:"flex", gap:8, marginBottom:6, fontSize:13 }}>
-                    <span style={{ color:"#6366f1" }}>→</span> {s}
-                  </div>
-                ))}
-              </div>
-
-              {matchRes.recommendApply && (
-                <button className="btn-primary"
-                  style={{ background:"linear-gradient(135deg,#059669,#10b981)" }}
-                  onClick={() => { onFillApply && onFillApply({}); addToast && addToast("Go to Send Application to apply!"); }}>
-                  ✉ Apply Now →
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // --- Settings Page ---
 function SettingsPage({ addToast }) {
   const currentUser = getUser();
