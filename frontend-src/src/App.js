@@ -1594,18 +1594,15 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
                     {c.hrEmail}
                   </a>
                   {c.hrName && <span className="contact-hrname"> · {c.hrName}</span>}
-                  {/* Phone + Stage from localStorage */}
+                  {/* Phone + Stage from MongoDB */}
                   {(() => {
-                    try {
-                      const ex = JSON.parse(localStorage.getItem(`contact_extra_${c.hrEmail}`) || "{}");
-                      const sc = { "Offer Received":"#059669","Final Round":"#7c3aed","Technical":"#2563eb","HR Round":"#0d9488","Shortlisted":"#d97706","Rejected":"#dc2626" };
-                      return (<>
-                        {ex.phone && <a href={`tel:${ex.phone}`} onClick={e=>e.stopPropagation()} style={{ marginLeft:6,fontSize:12,textDecoration:"none" }} title={ex.phone}>📞</a>}
-                        {ex.stage && ex.stage!=="Applied" && <span style={{ marginLeft:5,fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:99,background:(sc[ex.stage]||"#6b7280")+"20",color:sc[ex.stage]||"#6b7280" }}>{ex.stage}</span>}
-                        {ex.priority==="Hot 🔥" && <span style={{ marginLeft:4,fontSize:12 }}>🔥</span>}
-                        {ex.interviewDate && new Date(ex.interviewDate)>new Date() && <span style={{ marginLeft:5,fontSize:10,color:"#7c3aed",fontWeight:700 }}>📅 {new Date(ex.interviewDate).toLocaleDateString("en-IN",{day:"numeric",month:"short"})}</span>}
-                      </>);
-                    } catch { return null; }
+                    const sc = { "Offer Received":"#059669","Final Round":"#7c3aed","Technical":"#2563eb","HR Round":"#0d9488","Shortlisted":"#d97706","Rejected":"#dc2626" };
+                    return (<>
+                      {c.phone && <a href={`tel:${c.phone}`} onClick={e=>e.stopPropagation()} style={{ marginLeft:6,fontSize:12,textDecoration:"none" }} title={c.phone}>📞</a>}
+                      {c.stage && c.stage!=="Applied" && <span style={{ marginLeft:5,fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:99,background:(sc[c.stage]||"#6b7280")+"20",color:sc[c.stage]||"#6b7280" }}>{c.stage}</span>}
+                      {c.priority==="Hot 🔥" && <span style={{ marginLeft:4,fontSize:12 }}>🔥</span>}
+                      {c.interviewDate && new Date(c.interviewDate)>new Date() && <span style={{ marginLeft:5,fontSize:10,color:"#7c3aed",fontWeight:700 }}>📅 {new Date(c.interviewDate).toLocaleDateString("en-IN",{day:"numeric",month:"short"})}</span>}
+                    </>);
                   })()}
                 </p>
 
@@ -2385,22 +2382,18 @@ function ThreadModal({ messageId, contact, onClose }) {
 // ─── Manual Contact Update Modal ──────────────────────────────────────────────
 function ManualUpdateModal({ contact, onClose, onSaved, addToast }) {
   // Load saved phone/stage from localStorage per contact
-  const storageKey = `contact_extra_${contact.hrEmail}`;
-  const savedExtra = (() => { try { return JSON.parse(localStorage.getItem(storageKey)||"{}"); } catch { return {}; } })();
-
   const [form, setForm] = useState({
-    replied:       contact.replied      || false,
-    repliedAt:     contact.repliedAt    ? new Date(contact.repliedAt).toISOString().slice(0,16) : new Date().toISOString().slice(0,16),
-    replyNote:     contact.replySnippet || "",
-    notes:         contact.notes        || "",
-    followupSent:  contact.followupSent || false,
-    // Extra fields stored locally
-    phone:         savedExtra.phone     || "",
-    stage:         savedExtra.stage     || "Applied",
-    priority:      savedExtra.priority  || "Normal",
-    interviewDate: savedExtra.interviewDate || "",
-    callLog:       savedExtra.callLog   || "",
-    interviewRound:savedExtra.interviewRound || "",
+    replied:       contact.replied       || false,
+    repliedAt:     contact.repliedAt     ? new Date(contact.repliedAt).toISOString().slice(0,16) : new Date().toISOString().slice(0,16),
+    replyNote:     contact.replySnippet  || "",
+    notes:         contact.notes         || "",
+    followupSent:  contact.followupSent  || false,
+    phone:         contact.phone         || "",
+    stage:         contact.stage         || "Applied",
+    priority:      contact.priority      || "Normal",
+    interviewDate: contact.interviewDate ? new Date(contact.interviewDate).toISOString().slice(0,16) : "",
+    callLog:       contact.callLog       || "",
+    interviewRound:contact.interviewRound|| "",
   });
   const [loading, setLoading] = useState(false);
   const [saved,   setSaved]   = useState(false);
@@ -2429,20 +2422,20 @@ function ManualUpdateModal({ contact, onClose, onSaved, addToast }) {
   const submit = async () => {
     setLoading(true);
     try {
-      // Save extra fields locally
-      localStorage.setItem(storageKey, JSON.stringify({
-        phone: form.phone, stage: form.stage, priority: form.priority,
-        interviewDate: form.interviewDate, callLog: form.callLog,
-        interviewRound: form.interviewRound,
-      }));
-      // Save replied/notes/followup to DB
+      // Save everything to MongoDB
       await axios.patch(`${API}/api/contact/update`, {
-        hrEmail:      contact.hrEmail,
-        replied:      form.replied,
-        repliedAt:    form.replied ? form.repliedAt : null,
-        replyNote:    form.replyNote,
-        notes:        form.notes,
-        followupSent: form.followupSent,
+        hrEmail:       contact.hrEmail,
+        replied:       form.replied,
+        repliedAt:     form.replied ? form.repliedAt : null,
+        replyNote:     form.replyNote,
+        notes:         form.notes,
+        followupSent:  form.followupSent,
+        phone:         form.phone,
+        stage:         form.stage,
+        priority:      form.priority,
+        interviewRound:form.interviewRound,
+        interviewDate: form.interviewDate || null,
+        callLog:       form.callLog,
       });
       setSaved(true);
       addToast && addToast(`✅ ${contact.company || contact.hrEmail} updated!`);
