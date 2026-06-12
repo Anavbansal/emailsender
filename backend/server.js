@@ -2362,4 +2362,39 @@ app.post("/api/auth/save-gmail-token", requireAuth, async (req, res) => {
   }
 });
 
+
+// ─── POST /api/claude — proxy Claude API (avoids CORS from frontend) ──────────
+app.post("/api/claude", requireAuth, async (req, res) => {
+  try {
+    const { prompt, max_tokens = 1000 } = req.body;
+    if (!prompt) return res.status(400).json({ success: false, message: "prompt required" });
+
+    const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+    if (!ANTHROPIC_API_KEY)
+      return res.status(500).json({ success: false, message: "ANTHROPIC_API_KEY not set in env" });
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type":         "application/json",
+        "x-api-key":            ANTHROPIC_API_KEY,
+        "anthropic-version":    "2023-06-01",
+      },
+      body: JSON.stringify({
+        model:      "claude-sonnet-4-20250514",
+        max_tokens,
+        messages:   [{ role: "user", content: prompt }],
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) return res.status(response.status).json({ success: false, message: data.error?.message || "Claude API error" });
+
+    const text = data.content?.[0]?.text || "";
+    res.json({ success: true, text });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 app.listen(PORT, () => console.log(`\n🚀 Job Mailer API → http://localhost:${PORT}\n`));
