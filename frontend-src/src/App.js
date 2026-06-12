@@ -4377,6 +4377,24 @@ function AuthPage({ onAuth }) {
 
 function App() {
   const [authUser,      setAuthUser]      = useState(() => getUser());
+
+  // On mount — verify token is still valid, refresh user data from server
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+    axios.get(`${API}/api/auth/me`)
+      .then(r => {
+        if (r.data.success) {
+          setUser(r.data.user);
+          setAuthUser(r.data.user);
+        }
+      })
+      .catch(() => {
+        // Token invalid — logout
+        clearToken();
+        setAuthUser(null);
+      });
+  }, []); // runs once on mount
   const [page,          setPage]          = useState("dashboard");
   const [contacts,      setContacts]      = useState([]);
   const [replies,       setReplies]       = useState([]);
@@ -4418,7 +4436,13 @@ function App() {
     try { const r = await axios.get(`${API}/api/scheduled-emails`); setScheduledJobs(r.data.jobs || []); } catch {}
   }, []);
 
-  useEffect(() => { fetchContacts(); fetchReplies(); fetchScheduled(); }, [fetchContacts, fetchReplies, fetchScheduled]);
+  // Re-fetch ALL data when user logs in/changes
+  useEffect(() => {
+    if (!authUser) return; // not logged in yet
+    fetchContacts();
+    fetchReplies();
+    fetchScheduled();
+  }, [authUser, fetchContacts, fetchReplies, fetchScheduled]);
 
   // ── Auto-poll replies every 2 minutes + notify on new replies ───────────────
   const prevReplyCountRef = React.useRef(0);
@@ -4494,7 +4518,13 @@ function App() {
 
   // Show login page if not authenticated
   if (!authUser) {
-    return <AuthPage onAuth={user => { setAuthUser(user); }} />;
+    return <AuthPage onAuth={user => {
+      setAuthUser(user);
+      // Clear any stale data from previous session
+      setContacts([]);
+      setReplies([]);
+      setScheduledJobs([]);
+    }} />;
   }
 
   return (
@@ -4525,7 +4555,13 @@ function App() {
         <div className="sidebar-footer">
           <DarkModeToggle dark={darkMode} onToggle={() => setDarkMode(d => !d)} />
           <button
-            onClick={() => { clearToken(); setAuthUser(null); }}
+            onClick={() => {
+              clearToken();
+              setAuthUser(null);
+              setContacts([]);
+              setReplies([]);
+              setScheduledJobs([]);
+            }}
             style={{
               background:"transparent", border:"none", cursor:"pointer",
               color:"#64748b", fontSize:12, padding:"6px 8px", borderRadius:8,
