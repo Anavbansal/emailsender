@@ -1803,11 +1803,14 @@ app.get("/api/sync-sent-emails", requireAuth, async (req, res) => {
     const auth = getUserGmailAuth(req.user);
     const gmail = google.gmail({ version: "v1", auth });
 
-    const afterDate  = req.query.after || "2026/05/28";
-    const maxResults = parseInt(req.query.max || "200");
+    const afterDate  = req.query.after  || "2026/05/28";
+    const beforeDate = req.query.before || "";
+    const maxResults = parseInt(req.query.max || "100");
     const myEmail    = (cfg8.gmailUser || process.env.GMAIL_USER || "").toLowerCase();
 
-    const query = `in:sent after:${afterDate}`;
+    const query = beforeDate
+      ? `in:sent after:${afterDate} before:${beforeDate}`
+      : `in:sent after:${afterDate}`;
     console.log(`📧 Syncing Gmail sent emails: ${query} (max: ${maxResults})`);
 
     let allMessages = [];
