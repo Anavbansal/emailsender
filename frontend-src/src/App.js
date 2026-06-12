@@ -53,7 +53,7 @@ const getHRProfile = () => {
   const user = getUser();
   return user?.username === "anav" ? HR_PROFILE_ANAV : HR_PROFILE_PRIYAL;
 };
-const HR_PROFILE = getHRProfile();
+// getHRProfile() is computed dynamically via getHRProfile()
 
 // Keywords that indicate HR is asking screening questions
 const SCREENING_KEYWORDS = [
@@ -131,7 +131,7 @@ const getEmailTemplates = () => {
   const user = getUser();
   return user?.username === "anav" ? EMAIL_TEMPLATES_ANAV : EMAIL_TEMPLATES_PRIYAL;
 };
-const EMAIL_TEMPLATES = getEmailTemplates();
+// getEmailTemplates() is computed dynamically via getEmailTemplates()
 const BACKEND_TEMPLATE_MAP = { fullstack: "fullstack", cti: "cti", formal: "formal", startup: "fullstack", crm: "crm", finance: "fullstack", credit: "formal", genai: "fullstack" };
 
 const HEADER_THEMES = [
@@ -167,7 +167,8 @@ const DEFAULT_TEMPLATE_PRIYAL = {
   ],
 };
 
-const DEFAULT_TEMPLATE = getUser()?.username === "anav" ? DEFAULT_TEMPLATE_ANAV : DEFAULT_TEMPLATE_PRIYAL;
+// getDefaultTemplate() is computed dynamically
+const getDefaultTemplate = () => getUser()?.username === "anav" ? DEFAULT_TEMPLATE_ANAV : DEFAULT_TEMPLATE_PRIYAL;
 
 
 const MSG_TEMPLATES_PRIYAL = [
@@ -330,11 +331,11 @@ const getMsgTemplates = () => {
   const user = getUser();
   return user?.username === "anav" ? MSG_TEMPLATES_ANAV : MSG_TEMPLATES_PRIYAL;
 };
-const MSG_TEMPLATES = getMsgTemplates();
+// getMsgTemplates() is computed dynamically via getMsgTemplates()
 
 function loadCustomTemplate() {
-  try { return JSON.parse(localStorage.getItem("customEmailTemplate") || "null") || DEFAULT_TEMPLATE; }
-  catch { return DEFAULT_TEMPLATE; }
+  try { return JSON.parse(localStorage.getItem("customEmailTemplate") || "null") || getDefaultTemplate(); }
+  catch { return getDefaultTemplate(); }
 }
 
 
@@ -800,7 +801,7 @@ function TemplateEditorModal({ templateType, onClose, onSave }) {
   };
 
   const reset = () => {
-    setTpl(DEFAULT_TEMPLATE);
+    setTpl(getDefaultTemplate());
     localStorage.removeItem("customEmailTemplate");
   };
 
@@ -1934,7 +1935,7 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed }) 
   };
 
   const valid = form.hrEmail && form.company;
-  const activeTemplate = EMAIL_TEMPLATES.find(t => t.id === templateId);
+  const activeTemplate = getEmailTemplates().find(t => t.id === templateId);
 
   return (
     <div className="page">
@@ -1966,7 +1967,7 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed }) 
       </div>
 
       <div className="template-grid">
-        {EMAIL_TEMPLATES.map(t => (
+        {getEmailTemplates().map(t => (
           <button key={t.id} type="button"
             className={`template-card ${templateId === t.id ? "template-card-active" : ""}`}
             style={templateId === t.id ? { borderColor: t.accent } : {}}
@@ -1986,7 +1987,7 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed }) 
           </span>
           {customTpl.customIntro && ", custom intro"}
           <button className="tpl-reset-link" onClick={() => {
-            setCustomTpl(DEFAULT_TEMPLATE);
+            setCustomTpl(getDefaultTemplate());
             localStorage.removeItem("customEmailTemplate");
           }}>Reset</button>
         </div>
@@ -2234,7 +2235,7 @@ function ScreeningReplyModal({ message, contacts, onClose, addToast }) {
   const [loading,   setLoading]   = useState(false);
   const [sent,      setSent]      = useState(false);
   const [editProfile, setEditProfile] = useState(false);
-  const [profile, setProfile] = useState({ ...HR_PROFILE });
+  const [profile, setProfile] = useState({ ...getHRProfile() });
   useLockBodyScroll();
 
   const handleProfileChange = (k, v) => setProfile(p => ({ ...p, [k]: v }));
@@ -3782,12 +3783,12 @@ const LI_FILTERS = [
 
 function ReferralMessageModal({ connection, onClose, addToast }) {
   const [activeTemplate, setActiveTemplate] = useState("fullstack1");
-  const [msg,    setMsg]    = useState(() => MSG_TEMPLATES[0].build(connection.name, connection.company));
+  const [msg,    setMsg]    = useState(() => getMsgTemplates()[0].build(connection.name, connection.company));
   const [copied, setCopied] = useState(false);
   useLockBodyScroll();
 
   const applyTemplate = (tplId) => {
-    const tpl = MSG_TEMPLATES.find(t => t.id === tplId);
+    const tpl = getMsgTemplates().find(t => t.id === tplId);
     if (tpl) { setActiveTemplate(tplId); setMsg(tpl.build(connection.name, connection.company)); setCopied(false); }
   };
 
@@ -3839,7 +3840,7 @@ function ReferralMessageModal({ connection, onClose, addToast }) {
 
           {/* Template selector */}
           <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
-            {MSG_TEMPLATES.map(tpl => (
+            {getMsgTemplates().map(tpl => (
               <button key={tpl.id} type="button"
                 onClick={() => applyTemplate(tpl.id)}
                 style={{
