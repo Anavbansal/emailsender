@@ -1594,6 +1594,19 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
                     {c.hrEmail}
                   </a>
                   {c.hrName && <span className="contact-hrname"> · {c.hrName}</span>}
+                  {/* Phone + Stage from localStorage */}
+                  {(() => {
+                    try {
+                      const ex = JSON.parse(localStorage.getItem(`contact_extra_${c.hrEmail}`) || "{}");
+                      const sc = { "Offer Received":"#059669","Final Round":"#7c3aed","Technical":"#2563eb","HR Round":"#0d9488","Shortlisted":"#d97706","Rejected":"#dc2626" };
+                      return (<>
+                        {ex.phone && <a href={`tel:${ex.phone}`} onClick={e=>e.stopPropagation()} style={{ marginLeft:6,fontSize:12,textDecoration:"none" }} title={ex.phone}>📞</a>}
+                        {ex.stage && ex.stage!=="Applied" && <span style={{ marginLeft:5,fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:99,background:(sc[ex.stage]||"#6b7280")+"20",color:sc[ex.stage]||"#6b7280" }}>{ex.stage}</span>}
+                        {ex.priority==="Hot 🔥" && <span style={{ marginLeft:4,fontSize:12 }}>🔥</span>}
+                        {ex.interviewDate && new Date(ex.interviewDate)>new Date() && <span style={{ marginLeft:5,fontSize:10,color:"#7c3aed",fontWeight:700 }}>📅 {new Date(ex.interviewDate).toLocaleDateString("en-IN",{day:"numeric",month:"short"})}</span>}
+                      </>);
+                    } catch { return null; }
+                  })()}
                 </p>
 
                 {/* Row 3: Meta info chips */}
@@ -2371,12 +2384,23 @@ function ThreadModal({ messageId, contact, onClose }) {
 
 // ─── Manual Contact Update Modal ──────────────────────────────────────────────
 function ManualUpdateModal({ contact, onClose, onSaved, addToast }) {
+  // Load saved phone/stage from localStorage per contact
+  const storageKey = `contact_extra_${contact.hrEmail}`;
+  const savedExtra = (() => { try { return JSON.parse(localStorage.getItem(storageKey)||"{}"); } catch { return {}; } })();
+
   const [form, setForm] = useState({
-    replied:     contact.replied     || false,
-    repliedAt:   contact.repliedAt   ? new Date(contact.repliedAt).toISOString().slice(0,16) : new Date().toISOString().slice(0,16),
-    replyNote:   contact.replySnippet|| "",
-    notes:       contact.notes       || "",
-    followupSent:contact.followupSent|| false,
+    replied:       contact.replied      || false,
+    repliedAt:     contact.repliedAt    ? new Date(contact.repliedAt).toISOString().slice(0,16) : new Date().toISOString().slice(0,16),
+    replyNote:     contact.replySnippet || "",
+    notes:         contact.notes        || "",
+    followupSent:  contact.followupSent || false,
+    // Extra fields stored locally
+    phone:         savedExtra.phone     || "",
+    stage:         savedExtra.stage     || "Applied",
+    priority:      savedExtra.priority  || "Normal",
+    interviewDate: savedExtra.interviewDate || "",
+    callLog:       savedExtra.callLog   || "",
+    interviewRound:savedExtra.interviewRound || "",
   });
   const [loading, setLoading] = useState(false);
   const [saved,   setSaved]   = useState(false);
@@ -2384,16 +2408,41 @@ function ManualUpdateModal({ contact, onClose, onSaved, addToast }) {
 
   const handle = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
+  const STAGES   = ["Applied", "Shortlisted", "HR Round", "Technical", "Final Round", "Offer Received", "Rejected", "On Hold"];
+  const PRIORITY = ["Low", "Normal", "High", "Hot 🔥"];
+  const ROUNDS   = ["HR Round", "Technical Round", "System Design", "Managerial", "Final Round"];
+
+  const Toggle = ({ value, onChange, colorOn="#0d9488" }) => (
+    <div onClick={() => onChange(!value)} style={{
+      width:44, height:24, borderRadius:99, cursor:"pointer", flexShrink:0,
+      background: value ? colorOn : "var(--border,#e2e8f0)",
+      position:"relative", transition:"all 0.2s ease"
+    }}>
+      <div style={{
+        position:"absolute", top:3, left: value ? 22 : 3,
+        width:18, height:18, borderRadius:"50%", background:"#fff",
+        transition:"left 0.2s ease", boxShadow:"0 1px 4px rgba(0,0,0,0.2)"
+      }} />
+    </div>
+  );
+
   const submit = async () => {
     setLoading(true);
     try {
+      // Save extra fields locally
+      localStorage.setItem(storageKey, JSON.stringify({
+        phone: form.phone, stage: form.stage, priority: form.priority,
+        interviewDate: form.interviewDate, callLog: form.callLog,
+        interviewRound: form.interviewRound,
+      }));
+      // Save replied/notes/followup to DB
       await axios.patch(`${API}/api/contact/update`, {
-        hrEmail:     contact.hrEmail,
-        replied:     form.replied,
-        repliedAt:   form.replied ? form.repliedAt : null,
-        replyNote:   form.replyNote,
-        notes:       form.notes,
-        followupSent:form.followupSent,
+        hrEmail:      contact.hrEmail,
+        replied:      form.replied,
+        repliedAt:    form.replied ? form.repliedAt : null,
+        replyNote:    form.replyNote,
+        notes:        form.notes,
+        followupSent: form.followupSent,
       });
       setSaved(true);
       addToast && addToast(`✅ ${contact.company || contact.hrEmail} updated!`);
@@ -2415,109 +2464,144 @@ function ManualUpdateModal({ contact, onClose, onSaved, addToast }) {
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
 
-        <div className="modal-scroll">
-          {/* Replied toggle */}
+        <div className="modal-scroll" style={{ maxHeight:560 }}>
+
+          {/* ── Contact Info ── */}
+          <div style={{ background:"var(--surface-2,#f8fafc)", borderRadius:12, padding:"12px 14px", marginBottom:14 }}>
+            <div style={{ fontSize:11, color:"var(--text-muted)", fontWeight:600, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.5px" }}>Contact Info</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+              <div className="form-group" style={{ marginBottom:0 }}>
+                <label className="form-label" style={{ fontSize:11 }}>📞 Phone Number</label>
+                <div style={{ display:"flex", gap:6 }}>
+                  <input className="form-input" style={{ fontSize:13 }}
+                    placeholder="+91 98765 43210"
+                    value={form.phone}
+                    onChange={e => handle("phone", e.target.value)} />
+                  {form.phone && (
+                    <a href={`tel:${form.phone}`}
+                      style={{ display:"flex", alignItems:"center", padding:"0 10px", background:"#d1fae5", borderRadius:8, color:"#065f46", fontSize:18, textDecoration:"none" }}
+                      title="Call">📞</a>
+                  )}
+                </div>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                {form.phone && (
+                  <>
+                    <a href={`https://wa.me/${form.phone.replace(/[^0-9]/g,"")}`}
+                      target="_blank" rel="noreferrer"
+                      style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 10px", background:"#dcfce7", borderRadius:8, color:"#166534", fontSize:12, fontWeight:600, textDecoration:"none" }}>
+                      💬 WhatsApp
+                    </a>
+                    <button style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 10px", background:"#dbeafe", borderRadius:8, color:"#1d4ed8", fontSize:12, fontWeight:600, border:"none", cursor:"pointer" }}
+                      onClick={() => { navigator.clipboard?.writeText(form.phone); addToast && addToast("Number copied!"); }}>
+                      📋 Copy Number
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Stage + Priority ── */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <label className="form-label" style={{ fontSize:11 }}>🎯 Application Stage</label>
+              <select className="form-select" style={{ fontSize:13 }}
+                value={form.stage} onChange={e => handle("stage", e.target.value)}>
+                {STAGES.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <label className="form-label" style={{ fontSize:11 }}>⭐ Priority</label>
+              <select className="form-select" style={{ fontSize:13 }}
+                value={form.priority} onChange={e => handle("priority", e.target.value)}>
+                {PRIORITY.map(p => <option key={p}>{p}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* ── Interview ── */}
+          <div style={{ background:"#ede9fe", border:"1px solid #c4b5fd", borderRadius:12, padding:"12px 14px", marginBottom:14 }}>
+            <div style={{ fontSize:11, color:"#5b21b6", fontWeight:600, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.5px" }}>Interview Details</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+              <div className="form-group" style={{ marginBottom:0 }}>
+                <label className="form-label" style={{ fontSize:11 }}>Round</label>
+                <select className="form-select" style={{ fontSize:13 }}
+                  value={form.interviewRound} onChange={e => handle("interviewRound", e.target.value)}>
+                  <option value="">Not Scheduled</option>
+                  {ROUNDS.map(r => <option key={r}>{r}</option>)}
+                </select>
+              </div>
+              <div className="form-group" style={{ marginBottom:0 }}>
+                <label className="form-label" style={{ fontSize:11 }}>Date & Time</label>
+                <input type="datetime-local" className="form-input" style={{ fontSize:12 }}
+                  value={form.interviewDate}
+                  onChange={e => handle("interviewDate", e.target.value)} />
+              </div>
+            </div>
+          </div>
+
+          {/* ── Replied toggle ── */}
           <div style={{
             background: form.replied ? "linear-gradient(135deg,#f0fdfa,#ccfbf1)" : "var(--surface-2,#f8fafc)",
             border: `1.5px solid ${form.replied ? "#0d9488" : "var(--border,#e2e8f0)"}`,
-            borderRadius: 12, padding: "14px 16px", marginBottom: 14,
-            transition: "all 0.2s ease"
+            borderRadius:12, padding:"12px 14px", marginBottom:10, transition:"all 0.2s"
           }}>
-            <label style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
-              <div
-                onClick={() => handle("replied", !form.replied)}
-                style={{
-                  width: 44, height: 24, borderRadius: 99,
-                  background: form.replied ? "#0d9488" : "var(--border,#e2e8f0)",
-                  position: "relative", transition: "all 0.2s ease", cursor: "pointer", flexShrink: 0
-                }}
-              >
-                <div style={{
-                  position:"absolute", top: 3, left: form.replied ? 22 : 3,
-                  width: 18, height: 18, borderRadius: "50%", background: "#fff",
-                  transition: "left 0.2s ease", boxShadow: "0 1px 4px rgba(0,0,0,0.2)"
-                }} />
-              </div>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <Toggle value={form.replied} onChange={v => handle("replied", v)} colorOn="#0d9488" />
               <div>
-                <div style={{ fontWeight: 700, fontSize: 14, color: form.replied ? "#0d9488" : "var(--text-900,#111)" }}>
-                  {form.replied ? "✅ Marked as Replied" : "Mark as Replied"}
+                <div style={{ fontWeight:700, fontSize:13, color: form.replied ? "#0d9488" : "var(--text-900)" }}>
+                  {form.replied ? "✅ Replied" : "Mark as Replied"}
                 </div>
-                <div style={{ fontSize: 11, color: "var(--text-500,#6b7280)", marginTop: 2 }}>
-                  Phone call, LinkedIn, WhatsApp — any channel
+                <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:1 }}>Phone / LinkedIn / WhatsApp / Email</div>
+              </div>
+            </div>
+            {form.replied && (
+              <div style={{ marginTop:10, display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                <div className="form-group" style={{ marginBottom:0 }}>
+                  <label className="form-label" style={{ fontSize:11 }}>Reply Date</label>
+                  <input type="datetime-local" className="form-input" style={{ fontSize:12 }}
+                    value={form.repliedAt} onChange={e => handle("repliedAt", e.target.value)} />
+                </div>
+                <div className="form-group" style={{ marginBottom:0 }}>
+                  <label className="form-label" style={{ fontSize:11 }}>Reply Summary</label>
+                  <input className="form-input" style={{ fontSize:12 }}
+                    placeholder="Called, said shortlisted..."
+                    value={form.replyNote} onChange={e => handle("replyNote", e.target.value)} />
                 </div>
               </div>
-            </label>
+            )}
           </div>
 
-          {/* Reply date — only when replied */}
-          {form.replied && (
-            <div className="form-group" style={{ marginBottom: 12 }}>
-              <label className="form-label">Reply Date & Time</label>
-              <input
-                type="datetime-local"
-                className="form-input"
-                value={form.repliedAt}
-                onChange={e => handle("repliedAt", e.target.value)}
-              />
-            </div>
-          )}
-
-          {/* Reply note */}
-          {form.replied && (
-            <div className="form-group" style={{ marginBottom: 12 }}>
-              <label className="form-label">Reply Summary <span className="lbadge lbadge-opt">Optional</span></label>
-              <textarea
-                className="form-textarea"
-                rows={2}
-                placeholder="e.g. Called on phone, said resume looks good, interview next week…"
-                value={form.replyNote}
-                onChange={e => handle("replyNote", e.target.value)}
-              />
-            </div>
-          )}
-
-          {/* Follow-up sent toggle */}
-          <div style={{
-            background: "var(--surface-2,#f8fafc)",
-            border: "1.5px solid var(--border,#e2e8f0)",
-            borderRadius: 12, padding: "12px 16px", marginBottom: 12
-          }}>
-            <label style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
-              <div
-                onClick={() => handle("followupSent", !form.followupSent)}
-                style={{
-                  width: 44, height: 24, borderRadius: 99,
-                  background: form.followupSent ? "#7c3aed" : "var(--border,#e2e8f0)",
-                  position: "relative", transition: "all 0.2s ease", cursor: "pointer", flexShrink: 0
-                }}
-              >
-                <div style={{
-                  position:"absolute", top: 3, left: form.followupSent ? 22 : 3,
-                  width: 18, height: 18, borderRadius: "50%", background: "#fff",
-                  transition: "left 0.2s ease", boxShadow: "0 1px 4px rgba(0,0,0,0.2)"
-                }} />
-              </div>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 13, color: form.followupSent ? "#7c3aed" : "var(--text-700,#374151)" }}>
+          {/* ── Follow-up + Call Log row ── */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:8, marginBottom:10 }}>
+            <div style={{
+              background:"var(--surface-2,#f8fafc)", border:"1.5px solid var(--border)",
+              borderRadius:12, padding:"10px 14px"
+            }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <Toggle value={form.followupSent} onChange={v => handle("followupSent", v)} colorOn="#7c3aed" />
+                <div style={{ fontWeight:600, fontSize:13, color: form.followupSent ? "#7c3aed" : "var(--text-700)" }}>
                   🔁 Follow-up Sent
                 </div>
-                <div style={{ fontSize: 11, color: "var(--text-500,#6b7280)", marginTop: 1 }}>
-                  Mark if follow-up was sent manually or via other channel
-                </div>
               </div>
-            </label>
+            </div>
           </div>
 
-          {/* Notes */}
+          {/* ── Call Log ── */}
+          <div className="form-group" style={{ marginBottom:10 }}>
+            <label className="form-label" style={{ fontSize:11 }}>📞 Call Log <span className="lbadge lbadge-opt">Optional</span></label>
+            <textarea className="form-textarea" rows={2} style={{ fontSize:12 }}
+              placeholder="e.g. Called 7 Jun 10am — Priya said resume looks good, Tech round next week..."
+              value={form.callLog} onChange={e => handle("callLog", e.target.value)} />
+          </div>
+
+          {/* ── Notes ── */}
           <div className="form-group">
-            <label className="form-label">📝 Notes <span className="lbadge lbadge-opt">Optional</span></label>
-            <textarea
-              className="form-textarea"
-              rows={3}
-              placeholder="Interview scheduled, salary discussed, referral given…"
-              value={form.notes}
-              onChange={e => handle("notes", e.target.value)}
-            />
+            <label className="form-label" style={{ fontSize:11 }}>📝 Notes <span className="lbadge lbadge-opt">Optional</span></label>
+            <textarea className="form-textarea" rows={2} style={{ fontSize:12 }}
+              placeholder="Salary discussed, referral given, requires 60 days notice..."
+              value={form.notes} onChange={e => handle("notes", e.target.value)} />
           </div>
         </div>
 
