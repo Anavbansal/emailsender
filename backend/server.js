@@ -1808,12 +1808,12 @@ app.get("/api/sync-sent-emails", requireAuth, async (req, res) => {
     const myEmail    = (cfg8.gmailUser || process.env.GMAIL_USER || "").toLowerCase();
 
     const query = `in:sent after:${afterDate}`;
-    console.log(`📧 Syncing Gmail sent emails: ${query}`);
+    console.log(`📧 Syncing Gmail sent emails: ${query} (max: ${maxResults})`);
 
     let allMessages = [];
     let pageToken = null;
     do {
-      const listParams = { userId: "me", q: query, maxResults: 100 };
+      const listParams = { userId: "me", q: query, maxResults: Math.min(100, maxResults) };
       if (pageToken) listParams.pageToken = pageToken;
       const list = await gmail.users.messages.list(listParams);
       allMessages = allMessages.concat(list.data.messages || []);
@@ -1821,13 +1821,20 @@ app.get("/api/sync-sent-emails", requireAuth, async (req, res) => {
       if (allMessages.length >= maxResults) break;
     } while (pageToken);
 
+    // Trim to exact max
+    allMessages = allMessages.slice(0, maxResults);
+
     console.log(`📬 Found ${allMessages.length} sent messages`);
 
     let inserted = 0, skipped = 0, updated = 0, repliesFound = 0;
     const results = [];
 
+    let batchCount = 0;
     for (const msg of allMessages) {
       try {
+        // Small delay every 10 messages to avoid Gmail rate limits
+        if (++batchCount % 10 === 0) await new Promise(r => setTimeout(r, 200));
+
         // ── Step 1: Get sent message details ────────────────────────────────
         const detail = await gmail.users.messages.get({
           userId: "me", id: msg.id, format: "metadata",
