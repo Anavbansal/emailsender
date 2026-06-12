@@ -1152,7 +1152,7 @@ function FollowUpModal({ contact, onClose, onSent }) {
   const [form, setForm] = useState({
     hrEmail:           contact.hrEmail || "",
     hrName:            cleanName(contact.hrName, contact.hrEmail),
-    company:           contact.company || "",
+    company:           contact.company || "",  // empty = "your organization" in email
     role:              contact.role    || "",
     originalDate:      contact.lastSentAt ? new Date(contact.lastSentAt).toLocaleDateString("en-IN") : "",
     customNote:        "",
@@ -1179,7 +1179,7 @@ function FollowUpModal({ contact, onClose, onSent }) {
       } else {
         const res = await axios.post(`${API}/api/send-followup`, form);
         setStatus({ type: "success", text: res.data.message });
-        onSent && onSent();
+        onSent && onSent(form.hrEmail);
       }
     } catch (err) {
       setStatus({ type: "error", text: err.response?.data?.message || "Failed." });
@@ -1238,7 +1238,18 @@ function FollowUpModal({ contact, onClose, onSent }) {
             </div>
             <div className="form-group">
               <label className="form-label"><span className="lbadge lbadge-opt">Optional</span> Original Application Date</label>
-              <input name="originalDate" type="text" value={form.originalDate} onChange={handle} className="form-input" disabled={loading} />
+              <div style={{ position:"relative" }}>
+                <input name="originalDate" type="text" value={form.originalDate} onChange={handle}
+                  className="form-input" disabled={loading}
+                  style={{ paddingRight: form.originalDate ? 28 : 12 }} />
+                {form.originalDate && !loading && (
+                  <button type="button" onClick={() => setForm(p=>({...p,originalDate:""}))}
+                    style={{ position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",
+                      background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:16,lineHeight:1 }}>
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
             <div className="form-group">
               <label className="form-label"><span className="lbadge lbadge-opt">Optional</span> Custom Note</label>
@@ -4479,7 +4490,15 @@ function App() {
           addToast={addToast}
         />
       )}
-      {modal?.type === "followUp"  && <FollowUpModal  contact={modal.contact} onClose={() => setModal(null)} onSent={() => { setModal(null); fetchContacts(); addToast("Follow-up sent!"); }} />}
+      {modal?.type === "followUp"  && <FollowUpModal  contact={modal.contact} onClose={() => setModal(null)} onSent={(hrEmail) => {
+              setModal(null);
+              // Instantly remove from "Follow-up Due" list by marking followupSent
+              setContacts(prev => prev.map(c =>
+                c.hrEmail === hrEmail ? { ...c, followupSent: true, needsFollowUp: false } : c
+              ));
+              addToast("✅ Follow-up sent!");
+              fetchContacts(); // background refresh
+            }} />}
 
       <ToastContainer toasts={toasts} />
     </div>
