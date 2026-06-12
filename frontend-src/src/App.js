@@ -454,6 +454,100 @@ function StatCard({ icon, label, value, sub, color = "blue", onClick }) {
 }
 
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
+
+// ─── Interview Tracker (localStorage based) ──────────────────────────────────
+function useInterviews() {
+  const [interviews, setInterviews] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("em_interviews") || "[]"); }
+    catch { return []; }
+  });
+  const save = (arr) => { setInterviews(arr); localStorage.setItem("em_interviews", JSON.stringify(arr)); };
+  const add  = (item) => save([...interviews, { ...item, id: Date.now() }]);
+  const del  = (id)   => save(interviews.filter(i => i.id !== id));
+  const upd  = (id, patch) => save(interviews.map(i => i.id === id ? { ...i, ...patch } : i));
+  return { interviews, add, del, upd };
+}
+
+function InterviewTrackerWidget({ onNavigate }) {
+  const { interviews, add, del, upd } = useInterviews();
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ company:"", role:"", date:"", round:"HR", notes:"" });
+  const handle = (k,v) => setForm(p => ({...p, [k]:v}));
+
+  const upcoming = interviews
+    .filter(i => i.date && new Date(i.date) >= new Date(Date.now() - 24*60*60*1000))
+    .sort((a,b) => new Date(a.date) - new Date(b.date))
+    .slice(0, 3);
+
+  const ROUNDS = ["HR", "Technical", "System Design", "Managerial", "Final", "Offer"];
+  const roundColor = { HR:"#0d9488", Technical:"#2563eb", "System Design":"#7c3aed", Managerial:"#d97706", Final:"#059669", Offer:"#dc2626" };
+
+  return (
+    <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:"16px 20px", marginBottom:16 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+        <span style={{ fontWeight:700, fontSize:14 }}>📅 Interview Tracker</span>
+        <button className="btn-ghost btn-sm" style={{ fontSize:11 }} onClick={() => setShowAdd(!showAdd)}>
+          {showAdd ? "✕ Cancel" : "+ Add Interview"}
+        </button>
+      </div>
+
+      {showAdd && (
+        <div style={{ background:"var(--surface-2,#f8fafc)", borderRadius:10, padding:"12px 14px", marginBottom:12 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+            <input className="form-input" style={{ fontSize:12 }} placeholder="Company" value={form.company} onChange={e=>handle("company",e.target.value)} />
+            <input className="form-input" style={{ fontSize:12 }} placeholder="Role" value={form.role} onChange={e=>handle("role",e.target.value)} />
+            <input className="form-input" type="datetime-local" style={{ fontSize:12 }} value={form.date} onChange={e=>handle("date",e.target.value)} />
+            <select className="form-select" style={{ fontSize:12 }} value={form.round} onChange={e=>handle("round",e.target.value)}>
+              {ROUNDS.map(r => <option key={r}>{r}</option>)}
+            </select>
+          </div>
+          <input className="form-input" style={{ fontSize:12 }} placeholder="Notes (optional)" value={form.notes} onChange={e=>handle("notes",e.target.value)} />
+          <button className="btn-primary btn-sm" style={{ marginTop:8, fontSize:11 }}
+            onClick={() => { if(form.company && form.date){ add(form); setForm({company:"",role:"",date:"",round:"HR",notes:""}); setShowAdd(false); }}}>
+            Save Interview
+          </button>
+        </div>
+      )}
+
+      {upcoming.length === 0 ? (
+        <div style={{ fontSize:13, color:"var(--text-muted,#64748b)", textAlign:"center", padding:"8px 0" }}>
+          No upcoming interviews. Keep applying! 💪
+        </div>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+          {upcoming.map(iv => {
+            const d = new Date(iv.date);
+            const isToday = d.toDateString() === new Date().toDateString();
+            const isTomorrow = d.toDateString() === new Date(Date.now()+86400000).toDateString();
+            const label = isToday ? "TODAY" : isTomorrow ? "TOMORROW" : d.toLocaleDateString("en-IN",{day:"numeric",month:"short"});
+            return (
+              <div key={iv.id} style={{
+                display:"flex", alignItems:"center", gap:10,
+                padding:"8px 12px", borderRadius:8,
+                background: isToday ? "#fef3c7" : "var(--surface-2,#f8fafc)",
+                border: `1px solid ${isToday ? "#fde068" : "var(--border,#e2e8f0)"}`,
+              }}>
+                <div style={{ textAlign:"center", minWidth:44 }}>
+                  <div style={{ fontSize:10, fontWeight:800, color: isToday ? "#d97706" : "var(--text-muted)" }}>{label}</div>
+                  <div style={{ fontSize:11, color:"var(--text-muted)" }}>{d.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}</div>
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:600, fontSize:13 }}>{iv.company} <span style={{ fontSize:11, color:"var(--text-muted)" }}>· {iv.role}</span></div>
+                  <span style={{ fontSize:10, fontWeight:700, padding:"1px 7px", borderRadius:99, background:(roundColor[iv.round]||"#6b7280")+"20", color:roundColor[iv.round]||"#6b7280" }}>
+                    {iv.round} Round
+                  </span>
+                  {iv.notes && <span style={{ fontSize:11, color:"var(--text-muted)", marginLeft:6 }}>{iv.notes}</span>}
+                </div>
+                <button onClick={() => del(iv.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#9ca3af", fontSize:16, padding:"0 4px" }}>✕</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
   const currentUser = getUser();
   const followDue = contacts.filter(c => c.needsFollowUp).length;
@@ -553,6 +647,34 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
         );
       })()}
 
+      {/* Smart tip */}
+      {(() => {
+        const tip = followDue > 5
+          ? { icon:"⚡", msg:`${followDue} follow-ups pending — bulk send them now!`, action:"contacts", btn:"Go to Contacts" }
+          : replyCount === 0 && totalSent > 10
+          ? { icon:"💡", msg:"No replies yet? Try personalizing your email subject line.", action:"ai", btn:"AI Intelligence" }
+          : replyCount > 0
+          ? { icon:"🎯", msg:`${replyCount} companies replied — follow up now while you're fresh!`, action:"inbox", btn:"Check Inbox" }
+          : { icon:"🚀", msg:"Start strong — send 5 applications today to build momentum.", action:"send", btn:"Send Application" };
+        return (
+          <div style={{
+            background:"linear-gradient(135deg,#fef3c7,#fffbeb)", border:"1px solid #fde68a",
+            borderRadius:12, padding:"12px 16px", marginBottom:16,
+            display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap"
+          }}>
+            <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+              <span style={{ fontSize:20 }}>{tip.icon}</span>
+              <span style={{ fontSize:13, color:"#92400e", fontWeight:500 }}>{tip.msg}</span>
+            </div>
+            <button className="btn-ghost btn-sm"
+              style={{ fontSize:12, color:"#d97706", borderColor:"#d97706", whiteSpace:"nowrap" }}
+              onClick={() => onNavigate(tip.action)}>
+              {tip.btn} →
+            </button>
+          </div>
+        );
+      })()}
+
       {/* Quick actions */}
       <div className="dash-section-title">Quick Actions</div>
       <div className="quick-actions-grid">
@@ -565,6 +687,8 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
       </div>
 
       {/* Recent activity */}
+      <InterviewTrackerWidget onNavigate={onNavigate} />
+
       <div className="dash-section-title">Recent Applications</div>
       {recent.length === 0 ? (
         <div className="dash-empty">
@@ -586,8 +710,9 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
               </div>
               <div className="activity-right">
                 <DaysBadge ts={c.lastSentAt} />
-                {c.opened        && <span className="badge badge-opened"   style={{ fontSize: 10 }}>👁 Opened</span>}
-                {c.needsFollowUp && <span className="badge badge-reminder" style={{ fontSize: 10 }}>⏰ Follow-up</span>}
+                {c.replied       && <span className="badge" style={{ fontSize:10, background:"#d1fae5", color:"#065f46" }}>↩ Replied</span>}
+                {c.opened && !c.replied && <span className="badge badge-opened" style={{ fontSize: 10 }}>👁 Opened</span>}
+                {c.needsFollowUp && !c.replied && <span className="badge badge-reminder" style={{ fontSize: 10 }}>⏰ Due</span>}
               </div>
             </div>
           ))}
@@ -1346,6 +1471,29 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
           >
             {syncing ? <><span className="spinner" /> Syncing…</> : "📥 Sync Gmail Sent"}
           </button>
+          <button className="btn-ghost btn-sm" style={{ fontSize:12 }}
+            title="Export contacts as CSV"
+            onClick={() => {
+              const rows = [
+                ["Company","HR Email","HR Name","Role","Last Sent","Total Sent","Replied","Follow-up Due","Notes"],
+                ...contacts.map(c => [
+                  c.company, c.hrEmail, c.hrName, c.role,
+                  c.lastSentAt > 0 ? new Date(c.lastSentAt).toLocaleDateString("en-IN") : "",
+                  c.totalSent, c.replied ? "Yes" : "No",
+                  c.needsFollowUp ? "Yes" : "No", c.notes || ""
+                ])
+              ];
+              const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("
+");
+              const blob = new Blob([csv], { type:"text/csv" });
+              const url  = URL.createObjectURL(blob);
+              const a    = document.createElement("a");
+              a.href = url; a.download = `hr-contacts-${new Date().toISOString().slice(0,10)}.csv`;
+              a.click(); URL.revokeObjectURL(url);
+              addToast && addToast("CSV exported!");
+            }}>
+            📊 Export CSV
+          </button>
           <button
             className="btn-primary btn-sm"
             onClick={() => setBulkModal(true)}
@@ -1453,6 +1601,11 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
                   {c.lastSentAt > 0 && (
                     <span style={{ fontSize:11, color:"var(--text-muted,#6b7280)" }}>
                       📤 {new Date(c.lastSentAt).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric" })}
+                    </span>
+                  )}
+                  {c.needsFollowUp && !c.replied && (
+                    <span style={{ fontSize:11, color:"#d97706", fontWeight:700 }}>
+                      · {Math.floor((Date.now()-c.lastSentAt)/(1000*60*60*24))}d no reply
                     </span>
                   )}
                   {c.totalSent > 1 && <span>✉ {c.totalSent} emails</span>}
@@ -3298,6 +3451,96 @@ Bahut helpful hoga agar refer kar sako! 😊`;
           </div>
         </>
       )}
+      {/* ── TAB: Salary Negotiation ── */}
+      {activeTab === "salary" && (
+        <div>
+          <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:"20px 24px", marginBottom:16 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:12 }}>
+              <div className="form-group" style={{ marginBottom:0 }}>
+                <label className="form-label" style={{ fontSize:11 }}>Offered CTC (LPA)</label>
+                <input className="form-input" placeholder="e.g. 12" value={offered} onChange={e=>setOffered(e.target.value)} />
+              </div>
+              <div className="form-group" style={{ marginBottom:0 }}>
+                <label className="form-label" style={{ fontSize:11 }}>Expected CTC (LPA)</label>
+                <input className="form-input" placeholder="e.g. 15" value={expected} onChange={e=>setExpected(e.target.value)} />
+              </div>
+              <div className="form-group" style={{ marginBottom:0 }}>
+                <label className="form-label" style={{ fontSize:11 }}>Role</label>
+                <input className="form-input" placeholder="e.g. Senior Developer" value={salRole} onChange={e=>setSalRole(e.target.value)} />
+              </div>
+            </div>
+            <button className={`btn-primary ${salLoading?"loading":""}`}
+              onClick={analyzeSalary} disabled={salLoading}
+              style={{ background:"linear-gradient(135deg,#059669,#10b981)" }}>
+              {salLoading ? <><span className="spinner"/>Generating…</> : "💰 Generate Negotiation Script"}
+            </button>
+          </div>
+
+          {salResult && (
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              {/* Strategy banner */}
+              <div style={{
+                background: salResult.strategy==="negotiate" ? "#fef3c7" : "#d1fae5",
+                border: `1.5px solid ${salResult.strategy==="negotiate" ? "#fde068" : "#6ee7b7"}`,
+                borderRadius:12, padding:"14px 20px",
+                display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10
+              }}>
+                <div>
+                  <div style={{ fontWeight:800, fontSize:16 }}>
+                    {salResult.strategy === "negotiate" ? "💪 Negotiate!" : salResult.strategy === "accept" ? "✅ Good Offer" : "🎯 Counter Offer"}
+                  </div>
+                  <div style={{ fontSize:13, marginTop:2 }}>{salResult.marketInsight}</div>
+                </div>
+                <div style={{ textAlign:"center" }}>
+                  <div style={{ fontSize:22, fontWeight:900, color:"#059669" }}>{salResult.counterOffer} LPA</div>
+                  <div style={{ fontSize:11, color:"var(--text-muted)" }}>Counter Offer</div>
+                </div>
+              </div>
+
+              {/* Key points */}
+              <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"14px 16px" }}>
+                <div style={{ fontWeight:700, marginBottom:8, fontSize:13 }}>Strong Arguments</div>
+                {(salResult.keyPoints||[]).map((p,i) => (
+                  <div key={i} style={{ display:"flex", gap:8, marginBottom:6, fontSize:13 }}>
+                    <span style={{ color:"#059669", fontWeight:700 }}>{i+1}.</span> {p}
+                  </div>
+                ))}
+              </div>
+
+              {/* Email script */}
+              <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"14px 16px" }}>
+                <div style={{ fontWeight:700, marginBottom:8, fontSize:13 }}>Email Script</div>
+                <pre style={{ margin:0, fontSize:12, lineHeight:1.7, whiteSpace:"pre-wrap", fontFamily:"inherit", color:"var(--text-700,#374151)" }}>
+                  {salResult.emailScript}
+                </pre>
+                <button className="btn-ghost btn-sm" style={{ marginTop:10, fontSize:11 }}
+                  onClick={() => { navigator.clipboard?.writeText(salResult.emailScript); addToast && addToast("Email script copied!"); }}>
+                  📋 Copy
+                </button>
+              </div>
+
+              {/* Phone script */}
+              <div style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:12, padding:"14px 16px" }}>
+                <div style={{ fontWeight:700, marginBottom:8, fontSize:13, color:"#065f46" }}>Phone Script</div>
+                <p style={{ margin:0, fontSize:13, lineHeight:1.7, color:"#065f46" }}>{salResult.phoneScript}</p>
+              </div>
+
+              {/* Tips */}
+              <div style={{ background:"#fef9c3", border:"1px solid #fde047", borderRadius:12, padding:"14px 16px" }}>
+                <div style={{ fontWeight:700, marginBottom:8, fontSize:13, color:"#713f12" }}>Negotiation Tips</div>
+                {(salResult.tips||[]).map((t,i) => (
+                  <div key={i} style={{ display:"flex", gap:8, marginBottom:6, fontSize:13 }}>
+                    <span style={{ color:"#d97706" }}>💡</span> {t}
+                  </div>
+                ))}
+                <div style={{ marginTop:8, fontSize:12, color:"#92400e" }}>
+                  Walk-away point: <strong>{salResult.walkawayPoint} LPA</strong>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -4306,10 +4549,50 @@ JOB DESCRIPTION: ${matchJD.slice(0, 2000)}
   };
 
   const TABS = [
-    { id:"jd",       label:"JD → Email",       icon:"✉" },
-    { id:"research", label:"Company Research",  icon:"🏢" },
-    { id:"match",    label:"Resume Match",      icon:"📊" },
+    { id:"jd",       label:"JD → Email",      icon:"✉" },
+    { id:"research", label:"Company Research", icon:"🏢" },
+    { id:"match",    label:"Resume Match",     icon:"📊" },
+    { id:"salary",   label:"Salary Negotiation", icon:"💰" },
   ];
+
+  // ── Tab: Salary Negotiation ────────────────────────────────────────────────
+  const [offered,    setOffered]    = useState("");
+  const [expected,   setExpected]   = useState("");
+  const [salRole,    setSalRole]    = useState("");
+  const [salResult,  setSalResult]  = useState(null);
+  const [salLoading, setSalLoading] = useState(false);
+
+  const analyzeSalary = async () => {
+    if (!offered || !expected) return addToast && addToast("Fill offered and expected CTC", "error");
+    setSalLoading(true); setSalResult(null);
+    try {
+      const u = getUser();
+      const exp = u?.username === "anav" ? "4.7 years in Full Stack Development and CTI Integrations" : "2+ years in Digital Lending and Credit Risk";
+      const prompt = `You are a salary negotiation coach for a job candidate in India.
+
+Candidate profile: ${u?.displayName || "Professional"} with ${exp}
+Role: ${salRole || "Software Developer"}
+Offered CTC: ${offered} LPA
+Expected CTC: ${expected} LPA
+
+Generate a salary negotiation response in JSON only (no markdown):
+{
+  "strategy": "negotiate/accept/counter",
+  "counterOffer": "${expected}",
+  "emailScript": "Professional email to negotiate salary",
+  "phoneScript": "Verbal script for phone call negotiation",
+  "keyPoints": ["strong argument 1", "strong argument 2", "strong argument 3"],
+  "walkawayPoint": "minimum acceptable CTC",
+  "marketInsight": "salary market context for this role in India",
+  "tips": ["negotiation tip 1", "tip 2"]
+}`;
+
+      const raw = await callClaude(prompt);
+      setSalResult(JSON.parse(raw.replace(/```json|```/g,"").trim()));
+    } catch(e) {
+      addToast && addToast("Failed: " + e.message, "error");
+    } finally { setSalLoading(false); }
+  };
 
   const scoreColor = (s) => s >= 80 ? "#059669" : s >= 60 ? "#d97706" : "#dc2626";
 
@@ -4687,10 +4970,34 @@ function SettingsPage({ addToast }) {
 
       <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:"20px 24px" }}>
         <h3 style={{ margin:"0 0 12px", fontSize:15, fontWeight:700 }}>Account</h3>
-        <div style={{ fontSize:13, color:"var(--text-muted)", lineHeight:2 }}>
+        <div style={{ fontSize:13, color:"var(--text-muted)", lineHeight:2, marginBottom:12 }}>
           <div><strong>Username:</strong> {currentUser?.username}</div>
           <div><strong>Display Name:</strong> {currentUser?.displayName}</div>
         </div>
+        {/* Change Password */}
+        {(() => {
+          const [np, setNp] = React.useState("");
+          const [changing, setChanging] = React.useState(false);
+          const changePass = async () => {
+            if (!np || np.length < 4) return;
+            setChanging(true);
+            try {
+              await axios.post(`${API}/api/auth/change-password`, { newPassword: np });
+              addToast && addToast("Password changed!");
+              setNp("");
+            } catch(e) { addToast && addToast("Failed", "error"); }
+            finally { setChanging(false); }
+          };
+          return (
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              <input type="password" className="form-input" style={{ fontSize:13, maxWidth:200 }}
+                placeholder="New password" value={np} onChange={e=>setNp(e.target.value)} />
+              <button className="btn-ghost btn-sm" onClick={changePass} disabled={changing || np.length < 4}>
+                {changing ? "..." : "Change Password"}
+              </button>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
