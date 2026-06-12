@@ -1324,7 +1324,8 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
 
   const [syncModal,  setSyncModal]  = useState(false);
   const [syncParams, setSyncParams] = useState({
-    after: new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10).replace(/-/g,"/"),
+    after: new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10),
+    before: new Date().toISOString().slice(0,10),
     max: 100,
   });
 
@@ -1332,7 +1333,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
     setSyncing(true); setSyncResult(null); setSyncModal(false);
     try {
       const r = await axios.get(`${API}/api/sync-sent-emails`, {
-        params: { after: params.after, max: params.max },
+        params: { after: params.after.replace(/-/g,"/"), before: params.before?.replace(/-/g,"/"), max: params.max },
         timeout: 120000,  // 2 min timeout
       });
       const { inserted, skipped, totalFetched } = r.data;
@@ -1739,31 +1740,61 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
           <div className="modal-scroll">
             <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
-              {/* Date from */}
+              {/* Date Range */}
               <div className="form-group" style={{ marginBottom:0 }}>
-                <label className="form-label">📅 Sync emails sent after</label>
-                <input type="date" className="form-input"
-                  value={syncParams.after.replace(/\//g,"-")}
-                  onChange={e => setSyncParams(p => ({ ...p, after: e.target.value.replace(/-/g,"/") }))}
-                  max={new Date().toISOString().slice(0,10)} />
-                <div style={{ display:"flex", gap:6, marginTop:6, flexWrap:"wrap" }}>
+                <label className="form-label">📅 Date Range</label>
+
+                {/* Quick presets */}
+                <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap" }}>
                   {[
-                    { label:"Last 7 days",  days:7  },
-                    { label:"Last 30 days", days:30 },
-                    { label:"Last 3 months",days:90 },
-                    { label:"Last 6 months",days:180},
-                  ].map(({ label, days }) => (
-                    <button key={days} type="button"
-                      className="chip"
-                      style={{ fontSize:11, padding:"3px 10px" }}
-                      onClick={() => setSyncParams(p => ({
-                        ...p,
-                        after: new Date(Date.now()-days*24*60*60*1000).toISOString().slice(0,10).replace(/-/g,"/")
-                      }))}>
-                      {label}
-                    </button>
-                  ))}
+                    { label:"Last 7d",   days:7   },
+                    { label:"Last 30d",  days:30  },
+                    { label:"Last 3mo",  days:90  },
+                    { label:"Last 6mo",  days:180 },
+                    { label:"This year", days:365 },
+                  ].map(({ label, days }) => {
+                    const from = new Date(Date.now()-days*24*60*60*1000).toISOString().slice(0,10);
+                    const to   = new Date().toISOString().slice(0,10);
+                    const active = syncParams.after === from && syncParams.before === to;
+                    return (
+                      <button key={days} type="button" className="chip"
+                        style={{ fontSize:11, padding:"3px 10px",
+                          background: active ? "var(--blue)" : undefined,
+                          color: active ? "#fff" : undefined,
+                          borderColor: active ? "var(--blue)" : undefined }}
+                        onClick={() => setSyncParams(p => ({ ...p, after: from, before: to }))}>
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
+
+                {/* From — To pickers */}
+                <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", alignItems:"center", gap:8 }}>
+                  <div>
+                    <div style={{ fontSize:11, color:"var(--text-muted)", marginBottom:4, fontWeight:600 }}>FROM</div>
+                    <input type="date" className="form-input" style={{ fontSize:13 }}
+                      value={syncParams.after}
+                      max={syncParams.before}
+                      onChange={e => setSyncParams(p => ({ ...p, after: e.target.value }))} />
+                  </div>
+                  <div style={{ color:"var(--text-muted)", fontSize:18, paddingTop:20 }}>→</div>
+                  <div>
+                    <div style={{ fontSize:11, color:"var(--text-muted)", marginBottom:4, fontWeight:600 }}>TO</div>
+                    <input type="date" className="form-input" style={{ fontSize:13 }}
+                      value={syncParams.before}
+                      min={syncParams.after}
+                      max={new Date().toISOString().slice(0,10)}
+                      onChange={e => setSyncParams(p => ({ ...p, before: e.target.value }))} />
+                  </div>
+                </div>
+
+                {/* Days count */}
+                {syncParams.after && syncParams.before && (
+                  <div style={{ marginTop:6, fontSize:11, color:"var(--text-muted)", textAlign:"center" }}>
+                    {Math.round((new Date(syncParams.before)-new Date(syncParams.after))/(1000*60*60*24))} days selected
+                  </div>
+                )}
               </div>
 
               {/* Max emails */}
@@ -1804,7 +1835,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
               )}
 
               <div style={{ fontSize:12, color:"var(--text-muted)", background:"var(--surface-2)", borderRadius:8, padding:"8px 12px" }}>
-                📅 Syncing from: <strong>{syncParams.after}</strong> · Max: <strong>{syncParams.max} emails</strong>
+                📅 <strong>{syncParams.after}</strong> → <strong>{syncParams.before}</strong> · Max: <strong>{syncParams.max} emails</strong>
               </div>
             </div>
           </div>
