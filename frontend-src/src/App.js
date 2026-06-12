@@ -4490,13 +4490,6 @@ export default App;
 
 
 // ─── LinkedIn Connections Page ────────────────────────────────────────────────
-const LI_FILTERS = [
-  { key: "all",     label: "All"           },
-  { key: "hr",      label: "HR / Recruiter" },
-  { key: "notsent", label: "Not Sent"       },
-  { key: "sent",    label: "Applied ✓"      },
-  { key: "replied", label: "Replied ✓"      },
-];
 
 
 // ─── Referral Message Modal ────────────────────────────────────────────────────
