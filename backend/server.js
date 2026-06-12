@@ -77,6 +77,13 @@ const SentEmailLogSchema = new mongoose.Schema({
   replySnippet: { type: String,  default: "" },
   conversation: { type: Array,   default: [] },
   userId:       { type: String,  default: "default" }, // multi-user support
+  // Contact tracker fields
+  phone:           { type: String,  default: "" },
+  stage:           { type: String,  default: "Applied" },
+  priority:        { type: String,  default: "Normal" },
+  interviewRound:  { type: String,  default: "" },
+  interviewDate:   { type: Date,    default: null },
+  callLog:         { type: String,  default: "" },
 }, { timestamps: true });
 
 const SentEmailLog = mongoose.models.SentEmailLog ||
@@ -1244,6 +1251,12 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
       repliedAt:     toMs(c.repliedAt)    || null,
       followupSent:  c.followupSent       || false,
       notes:         typeof c.notes === "string" ? c.notes : "",
+      phone:         c.phone          || "",
+      stage:         c.stage          || "Applied",
+      priority:      c.priority       || "Normal",
+      interviewRound:c.interviewRound || "",
+      interviewDate: c.interviewDate  ? new Date(c.interviewDate).getTime() : null,
+      callLog:       c.callLog        || "",
       needsFollowUp,
     });
   }
@@ -2145,15 +2158,22 @@ app.patch("/api/contact/update", requireAuth, async (req, res) => {
     if (mongoose.connection.readyState !== 1)
       return res.status(503).json({ success: false, message: "MongoDB not connected" });
 
-    const { hrEmail, replied, repliedAt, notes, followupSent, status } = req.body;
+    const { hrEmail, replied, repliedAt, notes, followupSent, status,
+            phone, stage, priority, interviewRound, interviewDate, callLog } = req.body;
     if (!hrEmail) return res.status(400).json({ success: false, message: "hrEmail required" });
 
     const updates = {};
-    if (replied     !== undefined) updates.replied      = replied;
-    if (repliedAt   !== undefined) updates.repliedAt    = repliedAt ? new Date(repliedAt) : new Date();
-    if (notes       !== undefined) updates.notes        = notes;
-    if (followupSent!== undefined) updates.followupSent = followupSent;
-    if (status      !== undefined) updates.status       = status;
+    if (replied        !== undefined) updates.replied        = replied;
+    if (repliedAt      !== undefined) updates.repliedAt      = repliedAt ? new Date(repliedAt) : new Date();
+    if (notes          !== undefined) updates.notes          = notes;
+    if (followupSent   !== undefined) updates.followupSent   = followupSent;
+    if (status         !== undefined) updates.status         = status;
+    if (phone          !== undefined) updates.phone          = phone;
+    if (stage          !== undefined) updates.stage          = stage;
+    if (priority       !== undefined) updates.priority       = priority;
+    if (interviewRound !== undefined) updates.interviewRound = interviewRound;
+    if (interviewDate  !== undefined) updates.interviewDate  = interviewDate ? new Date(interviewDate) : null;
+    if (callLog        !== undefined) updates.callLog        = callLog;
 
     // Update ALL records for this email (multiple sends)
     const escaped = hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
