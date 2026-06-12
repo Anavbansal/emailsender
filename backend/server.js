@@ -1401,6 +1401,8 @@ app.post("/api/send-application", requireAuth, async (req, res) => {
   try {
     const { info, trackRecord } = await sendApplicationEmail({
       hrEmail, company, customIntro, customHighlights, headerTheme, ...rest,
+      userCfg: getUserConfig(req.user),
+      user:    req.user,
     });
     return res.status(200).json({
       success: true, message: `Application sent to ${hrEmail}!`,
