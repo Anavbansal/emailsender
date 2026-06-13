@@ -575,7 +575,7 @@ async function sendApplicationEmail({
   }
   if (resolvedResume) attachments.push(resolvedResume);
 
-  const mailOpts = { to: hrEmail, subject, html, attachments, userConfig: userCfg, user };
+  const mailOpts = { to: hrEmail, subject, html, attachments, userConfig: userCfg, user, templateType };
   if (readReceipt) {
     mailOpts.headers = {
       "Disposition-Notification-To": process.env.GMAIL_USER,
