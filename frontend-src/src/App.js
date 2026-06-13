@@ -51,7 +51,22 @@ const HR_PROFILE_PRIYAL = {
 // Dynamic profile based on logged in user
 const getHRProfile = () => {
   const user = getUser();
-  return user?.username === "anav" ? HR_PROFILE_ANAV : HR_PROFILE_PRIYAL;
+  if (user?.username === "anav")   return HR_PROFILE_ANAV;
+  if (user?.username === "priyal") return HR_PROFILE_PRIYAL;
+  // Dynamic profile for other users from their settings
+  return {
+    keySkills:        user?.keySkills        || "",
+    totalExp:         user?.totalExp         || "",
+    relevantExp:      user?.relevantExp      || "",
+    currentCompany:   user?.currentCompany   || "",
+    reasonForChange:  "Personal and professional growth",
+    noticePeriod:     user?.noticePeriod     || "30 Days",
+    currentCTC:       user?.currentCTC       || "",
+    offerInHand:      "No",
+    expectedCTC:      user?.expectedCTC      || "",
+    currentLocation:  user?.currentLocation  || "",
+    preferredLocation:user?.preferredLocation|| "PAN India",
+  };
 };
 // getHRProfile() is computed dynamically via getHRProfile()
 
@@ -127,9 +142,20 @@ const EMAIL_TEMPLATES_PRIYAL = [
     customNote: "I have hands-on exposure to GenAI-based credit automation, SLOS integration and AI-driven workflow optimization — contributing to a 2.9% reduction in TAT at Tata Capital." },
 ];
 
+const EMAIL_TEMPLATES_MOHIT = [
+  { id: "fullstack", name: "Full Stack",   icon: "⚡", accent: "#2563eb",
+    customNote: "I am excited to apply for this opportunity. My expertise in full-stack development makes me an ideal candidate." },
+  { id: "formal",   name: "Formal",       icon: "🎯", accent: "#1d4ed8",
+    customNote: "I am respectfully submitting my application. I am confident my background aligns with your requirements." },
+  { id: "startup",  name: "Startup",      icon: "🚀", accent: "#059669",
+    customNote: "I build fast and love environments where impact matters." },
+];
+
 const getEmailTemplates = () => {
   const user = getUser();
-  return user?.username === "anav" ? EMAIL_TEMPLATES_ANAV : EMAIL_TEMPLATES_PRIYAL;
+  if (user?.username === "anav")   return EMAIL_TEMPLATES_ANAV;
+  if (user?.username === "priyal") return EMAIL_TEMPLATES_PRIYAL;
+  return EMAIL_TEMPLATES_MOHIT; // default for all other users
 };
 // getEmailTemplates() is computed dynamically via getEmailTemplates()
 const BACKEND_TEMPLATE_MAP = { fullstack: "fullstack", cti: "cti", formal: "formal", startup: "fullstack", crm: "crm", finance: "fullstack", credit: "formal", genai: "fullstack" };
@@ -329,7 +355,9 @@ Anav Bansal
 
 const getMsgTemplates = () => {
   const user = getUser();
-  return user?.username === "anav" ? MSG_TEMPLATES_ANAV : MSG_TEMPLATES_PRIYAL;
+  if (user?.username === "anav")   return MSG_TEMPLATES_ANAV;
+  if (user?.username === "priyal") return MSG_TEMPLATES_PRIYAL;
+  return MSG_TEMPLATES_ANAV; // default for other users
 };
 // getMsgTemplates() is computed dynamically via getMsgTemplates()
 
@@ -582,7 +610,7 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
       <div className="dash-welcome">
         <div>
           <h2 className="dash-welcome-title">Welcome back, {currentUser?.displayName?.split(" ")[0] || currentUser?.username} 👋</h2>
-          <p className="dash-welcome-sub">{currentUser?.username === "anav" ? "Here's your job search at a glance" : "Here's your career search at a glance"}</p>
+          <p className="dash-welcome-sub">Here's your job search at a glance</p>
         </div>
         <div className="health-pill" style={{ borderColor: healthColor, color: healthColor }}>
           <span className="health-dot" style={{ background: healthColor }} />
@@ -4534,7 +4562,11 @@ function App() {
           <div className="sidebar-avatar">{(authUser?.displayName||"U").slice(0,2).toUpperCase()}</div>
           <div className="sidebar-brand">
             <span className="sidebar-name">{authUser?.displayName || authUser?.username}</span>
-            <span className="sidebar-role">{authUser?.username === "anav" ? "Senior Dev" : "Finance Pro"}</span>
+            <span className="sidebar-role">
+              {authUser?.username === "anav" ? "Senior Dev"
+               : authUser?.username === "priyal" ? "Finance Pro"
+               : (authUser?.displayName?.split(" ")[0] || "User")}
+            </span>
           </div>
         </div>
         <nav className="sidebar-nav">
@@ -4592,7 +4624,9 @@ function App() {
               <span className="header-title">
                 {authUser?.username === "anav"
                   ? "Senior Software Developer · CTI/Telephony Specialist · Node.js · AWS"
-                  : "Finance Professional · Credit Manager · Digital Lending · GenAI"}
+                  : authUser?.username === "priyal"
+                  ? "Finance Professional · Credit Manager · Digital Lending · GenAI"
+                  : (authUser?.profileTitle || "Software Developer")}
               </span>
             </div>
           </div>
@@ -4602,10 +4636,15 @@ function App() {
               <a href="tel:+917827855635" className="plink">📞 +91 7827855635</a>
               <a href="https://linkedin.com/in/anavbansal-51b191162" target="_blank" rel="noreferrer" className="plink">🔗 LinkedIn</a>
               <a href={DRIVE_LINK} target="_blank" rel="noreferrer" className="plink plink-resume">📄 Resume</a>
-            </>) : (<>
+            </>) : authUser?.username === "priyal" ? (<>
               <a href="mailto:priyalgoyal1702@gmail.com" className="plink">✉ priyalgoyal1702@gmail.com</a>
               <a href="tel:+917665941798" className="plink">📞 +91 7665941798</a>
               <a href="https://linkedin.com/in/priyal--goyal/" target="_blank" rel="noreferrer" className="plink">🔗 LinkedIn</a>
+              <span className="plink plink-resume">📄 Resume</span>
+            </>) : (<>
+              {authUser?.profileEmail && <a href={`mailto:${authUser.profileEmail}`} className="plink">✉ {authUser.profileEmail}</a>}
+              {authUser?.profilePhone && <a href={`tel:${authUser.profilePhone}`} className="plink">📞 {authUser.profilePhone}</a>}
+              {authUser?.profileLinkedIn && <a href={`https://${authUser.profileLinkedIn}`} target="_blank" rel="noreferrer" className="plink">🔗 LinkedIn</a>}
               <span className="plink plink-resume">📄 Resume</span>
             </>)}
           </div>
