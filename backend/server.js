@@ -2744,11 +2744,11 @@ app.post("/api/admin/users", requireAdmin, async (req, res) => {
     const existing = await User.findOne({ username: username.toLowerCase() });
     if (existing) return res.status(400).json({ success: false, message: "Username already exists" });
 
-    const bcrypt = require("bcryptjs");
-    const hash   = await bcrypt.hash(password, 10);
+    const bcrypt      = require("bcryptjs");
+    const passwordHash = await bcrypt.hash(password, 10);
     const user   = new User({
       username: username.toLowerCase(),
-      password: hash, displayName, profileEmail, profilePhone,
+      passwordHash, displayName, profileEmail, profilePhone,
       profileTitle, currentCompany, keySkills, totalExp,
       isAdmin,
     });
@@ -2851,13 +2851,13 @@ app.post("/api/admin/init", async (req, res) => {
     const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "Admin@9911";
     const existing = await User.findOne({ username: ADMIN_USERNAME });
     if (!existing) {
-      const hash = await bcrypt.hash(ADMIN_PASSWORD, 10);
+      const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, 10);
       await User.create({
-        username:    ADMIN_USERNAME,
-        password:    hash,
-        displayName: "Super Admin",
-        profileName: "Super Admin",
-        isAdmin:     true,
+        username:     ADMIN_USERNAME,
+        passwordHash,
+        displayName:  "Super Admin",
+        profileName:  "Super Admin",
+        isAdmin:      true,
       });
     } else {
       await User.updateOne({ username: ADMIN_USERNAME }, { $set: { isAdmin: true } });
