@@ -123,6 +123,22 @@ function signToken(userId) {
 }
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
+async function requireAdmin(req, res, next) {
+  try {
+    const header = req.headers.authorization || "";
+    const token  = header.startsWith("Bearer ") ? header.slice(7) : null;
+    if (!token) return res.status(401).json({ success: false, message: "No token" });
+    const { userId } = jwt.verify(token, JWT_SECRET);
+    const user = await User.findById(userId).lean();
+    if (!user) return res.status(401).json({ success: false, message: "User not found" });
+    if (!user.isAdmin && user.username !== (process.env.OWNER_USERNAME || "anav"))
+      return res.status(403).json({ success: false, message: "Admin access required" });
+    req.user   = user;
+    req.userId = userId;
+    next();
+  } catch(e) { res.status(401).json({ success: false, message: "Invalid token" }); }
+}
+
 async function requireAuth(req, res, next) {
   const header = req.headers.authorization || "";
   const token  = header.startsWith("Bearer ") ? header.slice(7) : null;
