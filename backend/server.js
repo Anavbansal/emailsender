@@ -175,8 +175,8 @@ function getUserConfig(user) {
     sheetId:          user.googleSheetId    || (isOwner ? process.env.GOOGLE_SHEET_ID : "") || "",
     sheetTab:         user.sheetTab         || process.env.SHEET_TAB || "Candidate_Status_Log",
     linkedinSheetId:  user.linkedinSheetId  || (isOwner ? (process.env.LINKEDIN_SHEET_ID || "") : ""),
-    resumePath:       user.resumePath       || (isOwner ? path.join(__dirname, "ANAV_BANSAL_FullStackDeveloper.pdf") : ""),
-    resumeFileName:   user.resumeFileName   || (isOwner ? "Anav_Bansal_Resume.pdf" : ""),
+    resumePath:       user.resumePath       || "",  // only set for Priyal, Anav uses templateType
+    resumeFileName:   user.resumeFileName   || "",
     profileName:      user.profileName      || (isOwner ? "Anav Bansal" : user.displayName || ""),
     profilePhone:     user.profilePhone     || (isOwner ? "+91 7827855635" : ""),
     profileLinkedIn:  user.profileLinkedIn  || (isOwner ? "linkedin.com/in/anavbansal-51b191162" : ""),
@@ -253,10 +253,9 @@ async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references
     resumeFile = CTI_RESUME_PATH;
     resumeName = "Anav_Bansal_TelephonyExpert.pdf";
   } else {
-    resumeFile = userConfig?.resumePath && fs.existsSync(userConfig.resumePath)
-      ? userConfig.resumePath
-      : path.join(__dirname, "ANAV_BANSAL_FullStackDeveloper.pdf");
-    resumeName = userConfig?.resumeFileName || "Anav_Bansal_Resume.pdf";
+    // Default: Full Stack resume
+    resumeFile = path.join(__dirname, "ANAV_BANSAL_FullStackDeveloper.pdf");
+    resumeName = "Anav_Bansal_Resume.pdf";
   }
   const senderName  = userConfig?.profileName || "Anav Bansal";
   const senderEmail = userConfig?.gmailUser   || process.env.GMAIL_USER || "";
@@ -561,8 +560,9 @@ async function sendApplicationEmail({
   // 1. User's own resume (Priyal etc.)
   // 2. CRM resume for CRM template (Anav)
   // 3. Default resume
-  const isPriyalUser    = userCfg?.profileName?.toLowerCase().includes("priyal");
-  const userResumePath  = userCfg?.resumePath;
+  const isPriyalUser   = userCfg?.profileName?.toLowerCase().includes("priyal") ||
+                         user?.profileName?.toLowerCase().includes("priyal");
+  const priyalResume   = user?.resumePath || "";
   const userResumeName  = userCfg?.resumeFileName || "Resume.pdf";
 
   let resolvedResume;
@@ -575,14 +575,11 @@ async function sendApplicationEmail({
   } else if (!isPriyalUser && templateType === "cti" && fs.existsSync(CTI_RESUME_PATH)) {
     // Anav CTI template — use Telephony Expert resume
     resolvedResume = { filename: "Anav_Bansal_TelephonyExpert.pdf", path: CTI_RESUME_PATH, contentType: "application/pdf" };
-  } else if (!isPriyalUser && userResumePath && fs.existsSync(userResumePath)) {
-    // Anav non-CRM — use his set resume
-    resolvedResume = { filename: userResumeName, path: userResumePath, contentType: "application/pdf" };
-  } else if (fs.existsSync(RESUME_PATH)) {
-    // Default fallback
-    resolvedResume = { filename: "Anav_Bansal_Resume.pdf", path: RESUME_PATH, contentType: "application/pdf" };
   } else {
-    resolvedResume = null;
+    // Default: Full Stack resume
+    resolvedResume = fs.existsSync(RESUME_PATH)
+      ? { filename: "Anav_Bansal_Resume.pdf", path: RESUME_PATH, contentType: "application/pdf" }
+      : null;
   }
   if (resolvedResume) attachments.push(resolvedResume);
 
