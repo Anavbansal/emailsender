@@ -550,7 +550,16 @@ async function sendApplicationEmail({
   const isPriyal = !!(userCfg?.profileName?.toLowerCase().includes("priyal") || user?.profileName?.toLowerCase().includes("priyal"));
   const isMohit  = !!(userCfg?.profileName?.toLowerCase().includes("mohit")  || user?.profileName?.toLowerCase().includes("mohit"));
 
-  if (isMohit) {
+  // Check if user has a custom DB template
+  let dbTemplate = null;
+  if (mongoose.connection.readyState === 1 && user?._id) {
+    dbTemplate = await EmailTemplate.findOne({ userId: String(user._id), templateId: templateType }).lean();
+  }
+
+  if (dbTemplate) {
+    // Use dynamic DB template
+    html = buildDynamicHTML({ ...tplOpts, dbTemplate, userName: userCfg?.profileName || "Anav Bansal" });
+  } else if (isMohit) {
     html = buildMohitHTML({ ...tplOpts, templateType });
   } else if (isPriyal) {
     html = buildPriyalHTML({ ...tplOpts, templateType });
@@ -569,8 +578,17 @@ async function sendApplicationEmail({
   const isMohitUser   = !!(userCfg?.profileName?.toLowerCase().includes("mohit") ||
                            user?.profileName?.toLowerCase().includes("mohit"));
 
+  // Check DB template resume URL
+  const dbTplForResume = (mongoose.connection.readyState === 1 && user?._id)
+    ? await EmailTemplate.findOne({ userId: String(user._id), templateId: templateType }).lean()
+    : null;
+
   let resolvedResume;
-  if (isMohitUser && fs.existsSync(MOHIT_RESUME_PATH)) {
+  if (dbTplForResume?.resumeFileName && dbTplForResume?.resumeUrl) {
+    // DB template has custom resume — use local file path if saved, else skip attachment
+    // (URL-based resumes are linked in email body, not attached)
+    resolvedResume = null; // handled in HTML
+  } else if (isMohitUser && fs.existsSync(MOHIT_RESUME_PATH)) {
     resolvedResume = { filename: "Mohit_Singh_CV.pdf", path: MOHIT_RESUME_PATH, contentType: "application/pdf" };
   } else if (isPriyalUser && user?.resumePath && fs.existsSync(user.resumePath)) {
     resolvedResume = { filename: user.resumeFileName || "Priyal_Goyal_Resume.pdf", path: user.resumePath, contentType: "application/pdf" };
@@ -671,6 +689,44 @@ function buildCRMHTML({ hrName, company, role, customNote, trackUrl = "", custom
 }
 
 
+
+
+// ─── HTML: Dynamic DB Template ───────────────────────────────────────────────
+function buildDynamicHTML({ hrName, company, role, customNote, trackUrl = "", dbTemplate, userName = "Anav Bansal" }) {
+  const greeting   = hrName ? `Dear ${hrName},` : "Dear Hiring Manager,";
+  const co         = company || "your organization";
+  const roleText   = role ? ` for the <strong>${role}</strong> position` : "";
+  const noteBlock  = (customNote || dbTemplate.customNote)
+    ? `<p style="color:#374151;line-height:1.8;margin:16px 0;">${customNote || dbTemplate.customNote}</p>` : "";
+  const pixel      = trackUrl ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
+  const accent     = dbTemplate.accent || "#2563eb";
+  const intro      = dbTemplate.intro  || `I am writing to express my strong interest in joining <strong>${co}</strong>${roleText}.`;
+  const highlights = (dbTemplate.highlights || []).map(h => `<li>${h}</li>`).join("");
+  const resumeName = dbTemplate.resumeFileName || "Resume.pdf";
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',sans-serif;">
+<div style="max-width:620px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+  <div style="background:${accent};padding:36px 40px;">
+    <p style="margin:0 0 6px;color:rgba(255,255,255,0.8);font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">${dbTemplate.name || "Job Application"}</p>
+    <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">${userName}</h1>
+  </div>
+  <div style="padding:36px 40px;">
+    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
+    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${intro}</p>
+    ${noteBlock}
+    ${highlights ? `<div style="background:#f8fafc;border-left:4px solid ${accent};border-radius:0 8px 8px 0;padding:20px 24px;margin-bottom:24px;">
+      <p style="margin:0 0 12px;font-weight:600;font-size:14px;">🏆 Key Highlights</p>
+      <ul style="margin:0;padding-left:20px;color:#374151;font-size:14px;line-height:2;">${highlights}</ul>
+    </div>` : ""}
+    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:14px 18px;margin:18px 0;">
+      <p style="margin:0 0 4px;font-weight:700;font-size:13px;">📎 Resume Attached</p>
+      <p style="margin:0;font-size:12px;color:#0369a1;">${resumeName}</p>
+    </div>
+    <p style="color:#374151;line-height:1.8;margin:0;">Thank you for your time and consideration. I would love to discuss this opportunity further.</p>
+  </div>
+</div></body></html>`;
+}
 
 // ─── HTML: Mohit Singh — Backend/CRM Template ────────────────────────────────
 function buildMohitHTML({ hrName, company, role, customNote, trackUrl = "", templateType = "backend" }) {
@@ -2557,6 +2613,88 @@ app.post("/api/debug/resume", requireAuth, async (req, res) => {
     selectedResume: resumeName,
     userProfileName: userCfg?.profileName,
   });
+});
+
+
+// ─── GET /api/templates — get user's templates ───────────────────────────────
+app.get("/api/templates", requireAuth, async (req, res) => {
+  try {
+    const templates = await EmailTemplate.find({ userId: req.userId }).sort({ createdAt: 1 });
+    res.json({ success: true, templates });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── POST /api/templates — create/update template ────────────────────────────
+app.post("/api/templates", requireAuth, async (req, res) => {
+  try {
+    const { templateId, name, icon, accent, headerTheme, resumeUrl, resumeFileName,
+            subject, customNote, intro, highlights, isDefault } = req.body;
+    if (!templateId) return res.status(400).json({ success: false, message: "templateId required" });
+
+    const tpl = await EmailTemplate.findOneAndUpdate(
+      { userId: req.userId, templateId },
+      { $set: { name, icon, accent, headerTheme, resumeUrl, resumeFileName,
+                subject, customNote, intro, highlights: highlights || [], isDefault } },
+      { upsert: true, new: true }
+    );
+    res.json({ success: true, template: tpl });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── DELETE /api/templates/:templateId — delete template ─────────────────────
+app.delete("/api/templates/:templateId", requireAuth, async (req, res) => {
+  try {
+    await EmailTemplate.deleteOne({ userId: req.userId, templateId: req.params.templateId });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── GET /api/templates/:templateId — get single template ────────────────────
+app.get("/api/templates/:templateId", requireAuth, async (req, res) => {
+  try {
+    const tpl = await EmailTemplate.findOne({ userId: req.userId, templateId: req.params.templateId });
+    res.json({ success: true, template: tpl || null });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+
+// ─── GET /api/templates — get user's templates ───────────────────────────────
+app.get("/api/templates", requireAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).lean();
+    res.json({ success: true, templates: user.userTemplates || [] });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── POST /api/templates — save all templates ─────────────────────────────────
+app.post("/api/templates", requireAuth, async (req, res) => {
+  try {
+    const { templates } = req.body;
+    if (!Array.isArray(templates) || templates.length > 4)
+      return res.status(400).json({ success: false, message: "Max 4 templates allowed" });
+    await User.updateOne({ _id: req.userId }, { $set: { userTemplates: templates } });
+    res.json({ success: true, message: "Templates saved" });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── POST /api/templates/upload-resume — upload resume for a template ─────────
+app.post("/api/templates/upload-resume", requireAuth, async (req, res) => {
+  try {
+    const multer = require("multer");
+    const storage = multer.diskStorage({
+      destination: __dirname,
+      filename: (req, file, cb) => cb(null, `resume_${req.userId}_${Date.now()}.pdf`)
+    });
+    const upload = multer({ storage, limits: { fileSize: 5*1024*1024 },
+      fileFilter: (req, file, cb) => cb(null, file.mimetype === "application/pdf")
+    }).single("resume");
+
+    upload(req, res, async (err) => {
+      if (err) return res.status(400).json({ success: false, message: err.message });
+      if (!req.file) return res.status(400).json({ success: false, message: "No PDF uploaded" });
+      res.json({ success: true, path: req.file.path, filename: req.file.originalname });
+    });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
 app.listen(PORT, () => console.log(`\n🚀 Job Mailer API → http://localhost:${PORT}\n`));
