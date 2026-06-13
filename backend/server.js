@@ -2754,140 +2754,58 @@ app.post("/api/templates/upload-resume", requireAuth, async (req, res) => {
 
 // ─── Send Welcome Email to new user ──────────────────────────────────────────
 async function sendWelcomeEmail({ displayName, username, password, profileEmail, appUrl, backendUrl }) {
-  try {
-    const auth   = getGmailAPITransport();
-    const gmail  = google.gmail({ version: "v1", auth });
-    const from   = process.env.GMAIL_USER || "anavbansal06@gmail.com";
-    const to     = profileEmail;
-    if (!to) { console.log("No email for welcome"); return; }
-    const gmailConnectUrl = (backendUrl || BASE_URL) + "/api/gmail/auth?username=" + username;
+  if (!profileEmail) { console.log("No email — skip welcome"); return; }
+  const gmailConnectUrl = (backendUrl || BASE_URL) + "/api/gmail/auth?username=" + username;
 
-    const subject = `Welcome to Job Mailer — Your Account is Ready! 🚀`;
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',sans-serif;">
 <div style="max-width:600px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-
-  <!-- Header -->
   <div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:36px 40px;text-align:center;">
     <div style="font-size:40px;margin-bottom:12px;">🚀</div>
     <h1 style="margin:0;color:#fff;font-size:24px;font-weight:800;">Welcome to Job Mailer!</h1>
     <p style="margin:8px 0 0;color:#93c5fd;font-size:14px;">Your Job Hunt Automation App</p>
   </div>
-
-  <!-- Body -->
   <div style="padding:36px 40px;">
     <p style="color:#374151;font-size:15px;line-height:1.8;">Hi <strong>${displayName}</strong>,</p>
-    <p style="color:#374151;font-size:14px;line-height:1.8;">
-      Your account has been created successfully. Here are your login credentials:
-    </p>
-
-    <!-- Credentials Box -->
+    <p style="color:#374151;font-size:14px;line-height:1.8;">Your account has been created. Here are your login credentials:</p>
     <div style="background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:10px;padding:20px 24px;margin:20px 0;">
       <p style="margin:0 0 8px;font-weight:700;color:#0c4a6e;font-size:13px;">🔐 Your Login Details</p>
-      <table style="width:100%;font-size:14px;color:#374151;">
-        <tr><td style="padding:4px 0;color:#6b7280;width:120px;">App URL:</td><td><a href="${appUrl}" style="color:#2563eb;font-weight:600;">${appUrl}</a></td></tr>
-        <tr><td style="padding:4px 0;color:#6b7280;">Username:</td><td><strong>${username}</strong></td></tr>
-        <tr><td style="padding:4px 0;color:#6b7280;">Password:</td><td><strong>${password}</strong></td></tr>
+      <table style="width:100%;font-size:14px;color:#374151;border-collapse:collapse;">
+        <tr><td style="padding:6px 0;color:#6b7280;width:120px;">App URL:</td><td><a href="${appUrl}" style="color:#2563eb;font-weight:600;">${appUrl}</a></td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280;">Username:</td><td><strong>${username}</strong></td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280;">Password:</td><td><strong>${password}</strong></td></tr>
       </table>
     </div>
-
-    <p style="color:#374151;font-size:14px;line-height:1.8;font-weight:700;margin-top:24px;">
-      📋 Getting Started — 3 Simple Steps:
-    </p>
-
-    <!-- Step 1 -->
-    <div style="display:flex;gap:14px;margin-bottom:16px;align-items:flex-start;">
-      <div style="background:#2563eb;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0;text-align:center;line-height:28px;">1</div>
-      <div>
-        <div style="font-weight:700;color:#1e3a5f;font-size:14px;margin-bottom:4px;">Login to the App</div>
-        <div style="color:#6b7280;font-size:13px;line-height:1.7;">
-          Open <a href="${appUrl}" style="color:#2563eb;">${appUrl}</a> and login with your credentials above.
-          After login, go to <strong>Settings → Profile</strong> to update your details.
-        </div>
-      </div>
+    <p style="color:#374151;font-size:14px;font-weight:700;margin-top:24px;">📋 3 Simple Steps to Get Started:</p>
+    <p style="color:#374151;font-size:14px;line-height:1.8;"><strong>1. Login</strong> — Open the app URL above and login with your credentials.</p>
+    <p style="color:#374151;font-size:14px;line-height:1.8;"><strong>2. Connect Gmail</strong> — Click below to connect your Gmail account. All job emails will be sent from YOUR Gmail.</p>
+    <div style="text-align:center;margin:16px 0;">
+      <a href="${gmailConnectUrl}" style="display:inline-block;padding:12px 24px;background:#059669;color:#fff;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;">🔗 Connect Your Gmail</a>
     </div>
-
-    <!-- Step 2 -->
-    <div style="display:flex;gap:14px;margin-bottom:16px;align-items:flex-start;">
-      <div style="background:#059669;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0;text-align:center;line-height:28px;">2</div>
-      <div>
-        <div style="font-weight:700;color:#1e3a5f;font-size:14px;margin-bottom:4px;">Connect Your Gmail 📧</div>
-        <div style="color:#6b7280;font-size:13px;line-height:1.7;">
-          This is the most important step — all your job application emails will be sent from YOUR Gmail.<br/><br/>
-          Click this link to connect:<br/>
-          <a href="${gmailConnectUrl}"
-             style="display:inline-block;margin-top:8px;padding:8px 16px;background:#059669;color:#fff;border-radius:8px;text-decoration:none;font-weight:700;font-size:13px;">
-            🔗 Connect Gmail
-          </a><br/><br/>
-          <div style="margin-top:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;font-size:12px;color:#065f46;">
-            <strong>Or copy this link:</strong><br/>
-            <span style="word-break:break-all;color:#059669;">${gmailConnectUrl}</span>
-          </div><br/>
-          <span style="color:#9ca3af;font-size:12px;">
-            ⚠️ Login with YOUR Gmail account. After clicking Allow, you'll see "Gmail Connected!" ✅
-          </span>
-        </div>
-      </div>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;font-size:12px;color:#065f46;margin-bottom:16px;word-break:break-all;">
+      Or copy: <strong>${gmailConnectUrl}</strong>
     </div>
-
-    <!-- Step 3 -->
-    <div style="display:flex;gap:14px;margin-bottom:24px;align-items:flex-start;">
-      <div style="background:#7c3aed;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0;text-align:center;line-height:28px;">3</div>
-      <div>
-        <div style="font-weight:700;color:#1e3a5f;font-size:14px;margin-bottom:4px;">Update Your Profile & Send Applications 🎯</div>
-        <div style="color:#6b7280;font-size:13px;line-height:1.7;">
-          Go to <strong>Settings → Profile</strong> to fill in your details (name, skills, experience, CTC).<br/>
-          Then go to <strong>Send Application</strong>, select a template, fill HR's email and send!<br/><br/>
-          <strong>Features you can use:</strong>
-          <ul style="margin:8px 0;padding-left:16px;color:#6b7280;font-size:13px;line-height:2;">
-            <li>📤 <strong>Send Application</strong> — Email directly to HR</li>
-            <li>📅 <strong>Schedule</strong> — Send later at a specific time</li>
-            <li>🔁 <strong>Follow-up</strong> — Auto follow-up on unanswered emails</li>
-            <li>📥 <strong>Inbox</strong> — See replies from HR</li>
-            <li>🔗 <strong>Connections</strong> — LinkedIn outreach messages</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-
-    <div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:12px 16px;font-size:12px;color:#713f12;">
-      💡 <strong>Tip:</strong> Change your password after first login from Settings → Account tab.
+    <p style="color:#374151;font-size:14px;line-height:1.8;"><strong>3. Update Profile & Apply</strong> — Go to Settings → fill your details, then Send Application to HRs!</p>
+    <div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:12px 16px;font-size:12px;color:#713f12;margin-top:16px;">
+      💡 Change your password after first login from Settings → Account tab.
     </div>
   </div>
-
-  <!-- Footer -->
   <div style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;text-align:center;">
-    <p style="margin:0;font-size:12px;color:#9ca3af;">
-      Job Mailer — Built by Anav Bansal<br/>
-      <a href="mailto:anavbansal06@gmail.com" style="color:#2563eb;">anavbansal06@gmail.com</a>
-    </p>
+    <p style="margin:0;font-size:12px;color:#9ca3af;">Job Mailer · Built by Anav Bansal · <a href="mailto:anavbansal06@gmail.com" style="color:#2563eb;">anavbansal06@gmail.com</a></p>
   </div>
-</div>
-</body></html>`;
+</div></body></html>`;
 
-    const boundary = "wb_" + Date.now();
-    const raw = [
-      `From: "Job Mailer" <${from}>`,
-      `To: ${to}`,
-      `Subject: =?UTF-8?B?${Buffer.from(subject).toString("base64")}?=`,
-      `MIME-Version: 1.0`,
-      `Content-Type: multipart/alternative; boundary="${boundary}"`,
-      ``,
-      `--${boundary}`,
-      `Content-Type: text/html; charset="UTF-8"`,
-      ``,
-      html,
-      `--${boundary}--`,
-    ].join("\r\n");
-
-    const encoded = Buffer.from(raw).toString("base64url");
-    await gmail.users.messages.send({ userId: "me", requestBody: { raw: encoded } });
-    console.log(`✅ Welcome email sent to ${to}`);
-  } catch(e) {
-    console.error("Welcome email failed:", e.message);
-  }
+  // Use sendViaGmailAPI directly — already tested and working
+  await sendViaGmailAPI({
+    to:         profileEmail,
+    subject:    "Welcome to Job Mailer — Your Account is Ready! 🚀",
+    html,
+    userConfig: null,
+    user:       null,
+    templateType: "welcome",
+  });
+  console.log("✅ Welcome email sent to", profileEmail);
 }
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // ADMIN ROUTES
 // ═══════════════════════════════════════════════════════════════════════════════
