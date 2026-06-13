@@ -2443,14 +2443,28 @@ app.post("/api/auth/login", async (req, res) => {
       }
     }
 
+    const isOwner = user.username === (process.env.OWNER_USERNAME || "anav");
     res.json({
       success: true, token,
       user: {
-        id: user._id, username: user.username, displayName: user.displayName,
-        gmailUser: user.gmailUser, profileName: user.profileName,
-        profilePhone: user.profilePhone, profileLinkedIn: user.profileLinkedIn,
-        hasGmail: !!(user.gmailRefreshToken || process.env.GMAIL_REFRESH_TOKEN),
-        hasSheet: !!(user.googleSheetId || process.env.GOOGLE_SHEET_ID),
+        id:             user._id,
+        username:       user.username,
+        displayName:    user.displayName    || user.username,
+        gmailUser:      user.gmailUser      || "",
+        profileName:    user.profileName    || user.displayName || user.username,
+        profilePhone:   user.profilePhone   || "",
+        profileEmail:   user.profileEmail   || "",
+        profileLinkedIn:user.profileLinkedIn|| "",
+        profileTitle:   user.profileTitle   || "",
+        currentCompany: user.currentCompany || "",
+        keySkills:      user.keySkills      || "",
+        totalExp:       user.totalExp       || "",
+        hasGmail:       !!(user.gmailRefreshToken || (isOwner && process.env.GMAIL_REFRESH_TOKEN)),
+        hasSheet:       !!(user.googleSheetId || process.env.GOOGLE_SHEET_ID),
+        isAdmin:        !!(user.isAdmin || isOwner),
+        userTemplates:  user.userTemplates  || [],
+        resumePath:     user.resumePath     || "",
+        resumeFileName: user.resumeFileName || "",
       }
     });
   } catch (e) {
@@ -2464,11 +2478,24 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
   res.json({
     success: true,
     user: {
-      id: u._id, username: u.username, displayName: u.displayName,
-      gmailUser: u.gmailUser, profileName: u.profileName,
-      profilePhone: u.profilePhone, profileLinkedIn: u.profileLinkedIn,
-      hasGmail: !!(u.gmailRefreshToken || process.env.GMAIL_REFRESH_TOKEN),
-      hasSheet: !!(u.googleSheetId || process.env.GOOGLE_SHEET_ID),
+      id:             u._id,
+      username:       u.username,
+      displayName:    u.displayName    || u.username,
+      gmailUser:      u.gmailUser      || "",
+      profileName:    u.profileName    || u.displayName || u.username,
+      profilePhone:   u.profilePhone   || "",
+      profileEmail:   u.profileEmail   || "",
+      profileLinkedIn:u.profileLinkedIn|| "",
+      profileTitle:   u.profileTitle   || "",
+      currentCompany: u.currentCompany || "",
+      keySkills:      u.keySkills      || "",
+      totalExp:       u.totalExp       || "",
+      hasGmail:       !!(u.gmailRefreshToken || (u.username===(process.env.OWNER_USERNAME||"anav") && process.env.GMAIL_REFRESH_TOKEN)),
+      hasSheet:       !!(u.googleSheetId || process.env.GOOGLE_SHEET_ID),
+      isAdmin:        !!(u.isAdmin || u.username===(process.env.OWNER_USERNAME||"anav")),
+      userTemplates:  u.userTemplates  || [],
+      resumePath:     u.resumePath     || "",
+      resumeFileName: u.resumeFileName || "",
     }
   });
 });
