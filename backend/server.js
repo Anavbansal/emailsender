@@ -2408,7 +2408,9 @@ app.patch("/api/auth/settings", requireAuth, async (req, res) => {
                      "sheetTab","linkedinSheetId","profileName","profilePhone","profileLinkedIn",
                      "profileEmail","profileLocation","profileTitle","profileSummary","keySkills",
                      "currentCompany","currentCTC","expectedCTC","noticePeriod","currentLocation",
-                     "preferredLocation","totalExp","relevantExp","resumePath","resumeFileName"];
+                     "preferredLocation","totalExp","relevantExp","resumePath","resumeFileName",
+                     "reasonForChange","offerInHand","profileSummary","profileTitle",
+                     "profilePhone","profileEmail","profileLinkedIn","profileLocation"];
     const updates = {};
     for (const k of allowed) { if (req.body[k] !== undefined) updates[k] = req.body[k]; }
     await User.updateOne({ _id: req.userId }, { $set: updates });
