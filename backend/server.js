@@ -25,6 +25,7 @@ app.use(gmailAuthRoutes);
 
 const RESUME_PATH      = path.join(__dirname, "ANAV_BANSAL_FullStackDeveloper.pdf");
 const CRM_RESUME_PATH  = path.join(__dirname, "ANAV_BANSAL_CRMExpert.pdf");
+const CTI_RESUME_PATH  = path.join(__dirname, "Anav_Bansal_TelephonyExpert.pdf");
 const RESUME_DRIVE_LINK = "https://drive.google.com/file/d/1LKc-w9Ggd5I1eZ3t7Wvm9psU-4ITxHxr/view?usp=sharing";
 const THREE_DAYS_MS    = 3 * 24 * 60 * 60 * 1000;
 
@@ -248,6 +249,9 @@ async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references
   } else if (!isPriyalGmailUser && templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)) {
     resumeFile = CRM_RESUME_PATH;
     resumeName = "Anav_Bansal_CRMExpert.pdf";
+  } else if (!isPriyalGmailUser && templateType === "cti" && fs.existsSync(CTI_RESUME_PATH)) {
+    resumeFile = CTI_RESUME_PATH;
+    resumeName = "Anav_Bansal_TelephonyExpert.pdf";
   } else {
     resumeFile = userConfig?.resumePath && fs.existsSync(userConfig.resumePath)
       ? userConfig.resumePath
@@ -566,8 +570,11 @@ async function sendApplicationEmail({
     // Priyal — always use her resume
     resolvedResume = { filename: userResumeName, path: userResumePath, contentType: "application/pdf" };
   } else if (!isPriyalUser && templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)) {
-    // Anav CRM template — use CRM Expert resume (priority over default)
+    // Anav CRM template — use CRM Expert resume
     resolvedResume = { filename: "Anav_Bansal_CRMExpert.pdf", path: CRM_RESUME_PATH, contentType: "application/pdf" };
+  } else if (!isPriyalUser && templateType === "cti" && fs.existsSync(CTI_RESUME_PATH)) {
+    // Anav CTI template — use Telephony Expert resume
+    resolvedResume = { filename: "Anav_Bansal_TelephonyExpert.pdf", path: CTI_RESUME_PATH, contentType: "application/pdf" };
   } else if (!isPriyalUser && userResumePath && fs.existsSync(userResumePath)) {
     // Anav non-CRM — use his set resume
     resolvedResume = { filename: userResumeName, path: userResumePath, contentType: "application/pdf" };
