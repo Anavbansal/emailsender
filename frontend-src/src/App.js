@@ -4349,7 +4349,10 @@ function App() {
         setAuthUser(null);
       });
   }, []); // runs once on mount
-  const [page,          setPage]          = useState("dashboard");
+  const [page,          setPage]          = useState(() => {
+    const u = getUser();
+    return (u?.isAdmin || u?.username === "superadmin") ? "admin" : "dashboard";
+  });
   const [contacts,      setContacts]      = useState([]);
   const [replies,       setReplies]       = useState([]);
   const [scheduledJobs, setScheduledJobs] = useState([]);
@@ -4448,20 +4451,26 @@ function App() {
   const replyCount     = replies.length;
   const scheduledCount = scheduledJobs.filter(j => j.status === "pending").length;
 
-  const NAV = [
-    { id: "dashboard",   icon: "🏠", label: "Dashboard" },
-    { id: "contacts",    icon: "👥", label: "HR Contacts",      badge: reminderCount  || null },
-    { id: "send",        icon: "✉",  label: "Send Application" },
-    { id: "linkedin",    icon: "🔗", label: "Connections" },
-    { id: "referral",    icon: "🤝", label: "Referral" },
-    { id: "prospect",    icon: "🎯", label: "Find HR Emails" },
-    { id: "inbox",       icon: "📥", label: "Inbox",            badge: replyCount     || null },
-    { id: "messages",    icon: "💬", label: "Messages" },
-    { id: "jobs",        icon: "🔍", label: "Find Jobs" },
-    { id: "scheduled",   icon: "🗓", label: "Scheduled",        badge: scheduledCount || null },
-    { id: "settings",    icon: "S",  label: "Settings",          badge: null },
-    ...((authUser?.isAdmin || getUser()?.isAdmin) ? [{ id: "admin", icon: "A", label: "Admin Panel", badge: null }] : []),
-  ];
+  const isAdminView = !!(authUser?.isAdmin || getUser()?.isAdmin);
+
+  const NAV = isAdminView
+    ? [
+        { id: "admin",    icon: "A", label: "Admin Panel", badge: null },
+        { id: "settings", icon: "S", label: "Settings",    badge: null },
+      ]
+    : [
+        { id: "dashboard",   icon: "🏠", label: "Dashboard" },
+        { id: "contacts",    icon: "👥", label: "HR Contacts",     badge: reminderCount  || null },
+        { id: "send",        icon: "✉",  label: "Send Application" },
+        { id: "linkedin",    icon: "🔗", label: "Connections" },
+        { id: "referral",    icon: "🤝", label: "Referral" },
+        { id: "prospect",    icon: "🎯", label: "Find HR Emails" },
+        { id: "inbox",       icon: "📥", label: "Inbox",           badge: replyCount     || null },
+        { id: "messages",    icon: "💬", label: "Messages" },
+        { id: "jobs",        icon: "🔍", label: "Find Jobs" },
+        { id: "scheduled",   icon: "🗓", label: "Scheduled",       badge: scheduledCount || null },
+        { id: "settings",    icon: "S",  label: "Settings",         badge: null },
+      ];
 
   const [prefillSend, setPrefillSend] = React.useState(null);
 
@@ -4616,7 +4625,7 @@ function App() {
           {page === "jobs"      && <FindJobsPage onFillApply={goToSendPrefilled} />}
           {page === "scheduled" && <ScheduledPage onRefresh={fetchScheduled} />}
           {page === "settings"   && <SettingsPage addToast={addToast} />}
-          {page === "admin"      && (authUser?.isAdmin || getUser()?.isAdmin) && <AdminPage addToast={addToast} />}
+          {page === "admin"      && isAdminView && <AdminPage addToast={addToast} />}
         </main>
       </div>
 
