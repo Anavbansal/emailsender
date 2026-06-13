@@ -557,29 +557,21 @@ async function sendApplicationEmail({
 
   const attachments = [];
   // Resume selection priority:
-  // 1. User's own resume (Priyal etc.)
-  // 2. CRM resume for CRM template (Anav)
-  // 3. Default resume
-  const isPriyalUser   = userCfg?.profileName?.toLowerCase().includes("priyal") ||
-                         user?.profileName?.toLowerCase().includes("priyal");
-  const priyalResume   = user?.resumePath || "";
-  const userResumeName  = userCfg?.resumeFileName || "Resume.pdf";
+  // Resume: templateType decides for Anav, Priyal uses her own
+  const isPriyalUser  = !!(userCfg?.profileName?.toLowerCase().includes("priyal") ||
+                           user?.profileName?.toLowerCase().includes("priyal"));
+  const priyalResPath = user?.resumePath || userCfg?.resumePath || "";
+  const priyalResName = user?.resumeFileName || userCfg?.resumeFileName || "Priyal_Goyal_Resume.pdf";
 
   let resolvedResume;
-  if (isPriyalUser && userResumePath && fs.existsSync(userResumePath)) {
-    // Priyal — always use her resume
-    resolvedResume = { filename: userResumeName, path: userResumePath, contentType: "application/pdf" };
-  } else if (!isPriyalUser && templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)) {
-    // Anav CRM template — use CRM Expert resume
-    resolvedResume = { filename: "Anav_Bansal_CRMExpert.pdf", path: CRM_RESUME_PATH, contentType: "application/pdf" };
+  if (isPriyalUser && priyalResPath && fs.existsSync(priyalResPath)) {
+    resolvedResume = { filename: priyalResName, path: priyalResPath, contentType: "application/pdf" };
   } else if (!isPriyalUser && templateType === "cti" && fs.existsSync(CTI_RESUME_PATH)) {
-    // Anav CTI template — use Telephony Expert resume
     resolvedResume = { filename: "Anav_Bansal_TelephonyExpert.pdf", path: CTI_RESUME_PATH, contentType: "application/pdf" };
+  } else if (!isPriyalUser && templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)) {
+    resolvedResume = { filename: "Anav_Bansal_CRMExpert.pdf", path: CRM_RESUME_PATH, contentType: "application/pdf" };
   } else {
-    // Default: Full Stack resume
-    resolvedResume = fs.existsSync(RESUME_PATH)
-      ? { filename: "Anav_Bansal_Resume.pdf", path: RESUME_PATH, contentType: "application/pdf" }
-      : null;
+    resolvedResume = { filename: "Anav_Bansal_Resume.pdf", path: RESUME_PATH, contentType: "application/pdf" };
   }
   if (resolvedResume) attachments.push(resolvedResume);
 
