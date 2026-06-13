@@ -2697,4 +2697,136 @@ app.post("/api/templates/upload-resume", requireAuth, async (req, res) => {
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADMIN ROUTES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── GET /api/admin/users — list all users ────────────────────────────────────
+app.get("/api/admin/users", requireAdmin, async (req, res) => {
+  try {
+    const users = await User.find({}, {
+      username:1, displayName:1, profileEmail:1, profilePhone:1,
+      isAdmin:1, gmailUser:1, gmailRefreshToken:1, resumePath:1,
+      createdAt:1, userTemplates:1, profileTitle:1, currentCompany:1,
+    }).lean();
+    res.json({ success: true, users: users.map(u => ({
+      ...u,
+      hasGmail: !!(u.gmailRefreshToken),
+      hasResume: !!(u.resumePath),
+    }))});
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── POST /api/admin/users — create new user ─────────────────────────────────
+app.post("/api/admin/users", requireAdmin, async (req, res) => {
+  try {
+    const { username, password, displayName, profileEmail, profilePhone,
+            profileTitle, currentCompany, keySkills, totalExp, isAdmin = false } = req.body;
+
+    if (!username || !password) return res.status(400).json({ success: false, message: "username and password required" });
+    const existing = await User.findOne({ username: username.toLowerCase() });
+    if (existing) return res.status(400).json({ success: false, message: "Username already exists" });
+
+    const bcrypt = require("bcryptjs");
+    const hash   = await bcrypt.hash(password, 10);
+    const user   = new User({
+      username: username.toLowerCase(),
+      password: hash, displayName, profileEmail, profilePhone,
+      profileTitle, currentCompany, keySkills, totalExp,
+      isAdmin,
+    });
+    await user.save();
+    res.json({ success: true, message: "User created", userId: user._id });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── PATCH /api/admin/users/:id — update user ────────────────────────────────
+app.patch("/api/admin/users/:id", requireAdmin, async (req, res) => {
+  try {
+    const allowed = ["displayName","profileEmail","profilePhone","profileTitle",
+                     "currentCompany","keySkills","totalExp","noticePeriod",
+                     "currentCTC","expectedCTC","currentLocation","preferredLocation",
+                     "isAdmin","resumePath","resumeFileName","profileLinkedIn",
+                     "profileSummary","keySkills"];
+    const updates = {};
+    allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+    await User.updateOne({ _id: req.params.id }, { $set: updates });
+    res.json({ success: true, message: "User updated" });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── DELETE /api/admin/users/:id — delete user ───────────────────────────────
+app.delete("/api/admin/users/:id", requireAdmin, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+    if (user.username === (process.env.OWNER_USERNAME || "anav"))
+      return res.status(400).json({ success: false, message: "Cannot delete owner" });
+    await User.deleteOne({ _id: req.params.id });
+    // Also delete their email logs
+    await SentEmailLog.deleteMany({ userId: req.params.id });
+    res.json({ success: true, message: "User deleted" });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── POST /api/admin/users/:id/resume — upload resume for user ───────────────
+app.post("/api/admin/users/:id/resume", requireAdmin, async (req, res) => {
+  try {
+    const multer  = require("multer");
+    const storage = multer.diskStorage({
+      destination: __dirname,
+      filename: (req2, file, cb) => {
+        const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+        cb(null, safe);
+      }
+    });
+    const upload = multer({ storage, limits: { fileSize: 10*1024*1024 },
+      fileFilter: (r, f, cb) => cb(null, f.mimetype === "application/pdf")
+    }).single("resume");
+
+    upload(req, res, async (err) => {
+      if (err) return res.status(400).json({ success: false, message: err.message });
+      if (!req.file) return res.status(400).json({ success: false, message: "No PDF" });
+      await User.updateOne({ _id: req.params.id }, { $set: {
+        resumePath:     req.file.path,
+        resumeFileName: req.file.originalname,
+      }});
+      res.json({ success: true, path: req.file.path, filename: req.file.originalname });
+    });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── GET /api/admin/stats — dashboard stats ───────────────────────────────────
+app.get("/api/admin/stats", requireAdmin, async (req, res) => {
+  try {
+    const totalUsers    = await User.countDocuments();
+    const totalEmails   = await SentEmailLog.countDocuments();
+    const todayEmails   = await SentEmailLog.countDocuments({
+      sentAt: { $gte: new Date(Date.now() - 24*60*60*1000) }
+    });
+    const repliedEmails = await SentEmailLog.countDocuments({ replied: true });
+    const users = await User.find({}, { username:1, displayName:1, gmailRefreshToken:1 }).lean();
+    res.json({ success: true, stats: {
+      totalUsers, totalEmails, todayEmails, repliedEmails,
+      replyRate: totalEmails > 0 ? Math.round(repliedEmails/totalEmails*100) : 0,
+      users: users.map(u => ({ username: u.username, displayName: u.displayName, hasGmail: !!u.gmailRefreshToken }))
+    }});
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── POST /api/admin/init — create admin account (one-time) ──────────────────
+app.post("/api/admin/init", async (req, res) => {
+  try {
+    const { secret } = req.body;
+    if (secret !== (process.env.JWT_SECRET || "emailsender_secret_2026"))
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    await User.updateOne(
+      { username: process.env.OWNER_USERNAME || "anav" },
+      { $set: { isAdmin: true } }
+    );
+    res.json({ success: true, message: "Admin initialized" });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 app.listen(PORT, () => console.log(`\n🚀 Job Mailer API → http://localhost:${PORT}\n`));
