@@ -2406,4 +2406,39 @@ app.post("/api/auth/save-gmail-token", requireAuth, async (req, res) => {
 });
 
 
+
+// ─── DEBUG: Resume selection test ────────────────────────────────────────────
+app.post("/api/debug/resume", requireAuth, async (req, res) => {
+  const { templateType = "fullstack" } = req.body;
+  const userCfg = getUserConfig(req.user);
+  const user    = req.user;
+
+  const isPriyalUser  = !!(userCfg?.profileName?.toLowerCase().includes("priyal") ||
+                           user?.profileName?.toLowerCase().includes("priyal"));
+  const priyalResPath = user?.resumePath || userCfg?.resumePath || "";
+
+  let resumeName = "UNKNOWN";
+  if (isPriyalUser && priyalResPath && fs.existsSync(priyalResPath)) {
+    resumeName = "Priyal_Goyal_Resume.pdf";
+  } else if (!isPriyalUser && templateType === "cti" && fs.existsSync(CTI_RESUME_PATH)) {
+    resumeName = "Anav_Bansal_TelephonyExpert.pdf";
+  } else if (!isPriyalUser && templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)) {
+    resumeName = "Anav_Bansal_CRMExpert.pdf";
+  } else {
+    resumeName = "Anav_Bansal_Resume.pdf (default)";
+  }
+
+  res.json({
+    templateType,
+    isPriyalUser,
+    priyalResPath,
+    ctiExists: fs.existsSync(CTI_RESUME_PATH),
+    crmExists: fs.existsSync(CRM_RESUME_PATH),
+    CTI_RESUME_PATH,
+    CRM_RESUME_PATH,
+    selectedResume: resumeName,
+    userProfileName: userCfg?.profileName,
+  });
+});
+
 app.listen(PORT, () => console.log(`\n🚀 Job Mailer API → http://localhost:${PORT}\n`));
