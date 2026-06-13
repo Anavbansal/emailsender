@@ -133,11 +133,10 @@ async function requireAdmin(req, res, next) {
     const user    = await User.findById(userId).lean();
     if (!user) return res.status(401).json({ success: false, message: "User not found" });
 
-    const isOwner      = user.username === (process.env.OWNER_USERNAME || "anav");
     const isAdminUser  = user.username === (process.env.ADMIN_USERNAME  || "superadmin");
     const hasAdminFlag = !!user.isAdmin;
 
-    if (!isOwner && !isAdminUser && !hasAdminFlag)
+    if (!isAdminUser && !hasAdminFlag)
       return res.status(403).json({ success: false, message: "Admin access required" });
 
     req.user   = user;
@@ -2472,7 +2471,7 @@ app.post("/api/auth/login", async (req, res) => {
         totalExp:       user.totalExp       || "",
         hasGmail:       !!(user.gmailRefreshToken || (isOwner && process.env.GMAIL_REFRESH_TOKEN)),
         hasSheet:       !!(user.googleSheetId || process.env.GOOGLE_SHEET_ID),
-        isAdmin:        !!(user.isAdmin || isOwner || isAdminUser),
+        isAdmin:        !!(user.isAdmin || isAdminUser),
         userTemplates:  user.userTemplates  || [],
         resumePath:     user.resumePath     || "",
         resumeFileName: user.resumeFileName || "",
@@ -2503,7 +2502,7 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
       totalExp:       u.totalExp       || "",
       hasGmail:       !!(u.gmailRefreshToken || (u.username===(process.env.OWNER_USERNAME||"anav") && process.env.GMAIL_REFRESH_TOKEN)),
       hasSheet:       !!(u.googleSheetId || process.env.GOOGLE_SHEET_ID),
-      isAdmin:        !!(u.isAdmin || u.username===(process.env.OWNER_USERNAME||"anav") || u.username===(process.env.ADMIN_USERNAME||"superadmin")),
+      isAdmin:        !!(u.isAdmin || u.username===(process.env.ADMIN_USERNAME||"superadmin")),
       userTemplates:  u.userTemplates  || [],
       resumePath:     u.resumePath     || "",
       resumeFileName: u.resumeFileName || "",
