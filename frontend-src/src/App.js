@@ -168,12 +168,24 @@ const EMAIL_TEMPLATES_MOHIT = [
 
 const getEmailTemplates = () => {
   const user = getUser();
+  // Use saved templates if available (from Settings → Templates tab)
+  if (user?.userTemplates?.length > 0) {
+    return user.userTemplates.map(t => ({
+      id: t.id, name: t.name, icon: t.icon || "⚡", accent: t.accent || "#2563eb",
+      customNote: t.customNote || "",
+    }));
+  }
   if (user?.username === "anav")   return EMAIL_TEMPLATES_ANAV;
   if (user?.username === "priyal") return EMAIL_TEMPLATES_PRIYAL;
-  return EMAIL_TEMPLATES_MOHIT; // default for all other users
+  if (user?.username === "mohit")  return EMAIL_TEMPLATES_MOHIT;
+  return EMAIL_TEMPLATES_ANAV;
 };
 // getEmailTemplates() is computed dynamically via getEmailTemplates()
-const BACKEND_TEMPLATE_MAP = { fullstack: "fullstack", cti: "cti", formal: "formal", startup: "fullstack", crm: "crm", finance: "fullstack", credit: "formal", genai: "fullstack" };
+const BACKEND_TEMPLATE_MAP = {
+  fullstack:"fullstack", cti:"cti", formal:"formal", startup:"fullstack",
+  crm:"crm", finance:"finance", credit:"credit", genai:"genai",
+  backend:"backend", java:"java",
+};
 
 const HEADER_THEMES = [
   { id: "blue",   label: "Blue",   color: "#2563eb" },
@@ -4741,11 +4753,98 @@ function SettingsPage({ addToast }) {
   };
 
   const TABS = [
-    { id:"profile",  label:"👤 Profile"      },
-    { id:"job",      label:"💼 Job Details"  },
-    { id:"skills",   label:"🛠 Skills"       },
-    { id:"account",  label:"🔐 Account"      },
+    { id:"profile",    label:"👤 Profile"    },
+    { id:"job",        label:"💼 Job Details" },
+    { id:"skills",     label:"🛠 Skills"     },
+    { id:"templates",  label:"✉ Templates"  },
+    { id:"account",    label:"🔐 Account"    },
   ];
+
+  // ── Template Editor State ────────────────────────────────────────────────
+  const DEFAULT_TEMPLATES_ANAV = [
+    { id:"fullstack", name:"Full Stack",  icon:"⚡", accent:"#2563eb",
+      subject:"Job Application — Anav Bansal",
+      customNote:"I am excited to apply for this opportunity. My full-stack expertise in Node.js, ReactJS, and AWS Lambda makes me an ideal candidate for building scalable, production-ready applications.",
+      highlights:["4.7+ years · Node.js, AngularJS, ReactJS, Express.js","AWS Lambda · DynamoDB · S3 · Amazon Connect","10+ enterprise CTI integrations (Avaya, Genesys, Webex, Zoom)","CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics"],
+      resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
+    { id:"cti", name:"CTI Expert", icon:"📞", accent:"#7c3aed",
+      subject:"Job Application — Anav Bansal (CTI/Telephony Specialist)",
+      customNote:"With 4.7+ years specializing in CTI/telephony integrations, I have architected enterprise-grade solutions across Avaya AACC, Genesys, Webex, and Amazon Connect.",
+      highlights:["4.7+ years CTI/Telephony Integration Specialist","Avaya AACC/AES, Genesys Cloud, Webex, Amazon Connect","10+ enterprise contact center integrations","Node.js, AWS Lambda, REST APIs, WebSockets"],
+      resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
+    { id:"crm", name:"CRM Expert", icon:"🏆", accent:"#0d9488",
+      subject:"Job Application — Anav Bansal (Senior CRM & ServiceNow Expert)",
+      customNote:"With 4.7+ years as a CRM Integration Expert, I specialize in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent) and Freshdesk CTI.",
+      highlights:["4.7+ years CRM Integration Expert","ServiceNow: Flow Designer, IntegrationHub, Virtual Agent, Scripted REST","6+ enterprise CRM integrations (ServiceNow, Salesforce, Freshdesk, Zendesk)","3 marketplace apps published"],
+      resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
+    { id:"formal", name:"Formal", icon:"🎯", accent:"#1d4ed8",
+      subject:"Job Application — Anav Bansal",
+      customNote:"I am respectfully submitting my application for this position. I am confident that my technical background aligns closely with your requirements.",
+      highlights:["4.7+ years Full Stack Development","Node.js, Angular, AWS — production-grade applications","10+ enterprise integrations delivered","ServiceNow, Salesforce, Freshdesk expertise"],
+      resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
+  ];
+
+  const getDefaultTemplates = () => {
+    const u = getUser();
+    if (u?.username === "priyal") return [
+      { id:"finance",  name:"Finance Pro",    icon:"💼", accent:"#0d9488", subject:"Job Application — Priyal Goyal", customNote:"With 2+ years in digital lending and credit risk at Tata Capital, I bring expertise in credit underwriting, GenAI automation, and SLOS integration.", highlights:["2+ Years · Digital Lending & Credit Risk · Tata Capital","Credit Underwriting · FOIR/LTV Analysis · Portfolio Monitoring","GenAI Automation · SLOS Integration · AI-driven Workflow Optimization","COO Achiever's Club Award — Tata Capital (Q1 FY26)"], resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
+      { id:"credit",   name:"Credit Manager", icon:"📊", accent:"#2563eb", subject:"Job Application — Priyal Goyal (Credit Manager)", customNote:"As a Credit Manager at Tata Capital, I evaluate secured retail auto loan proposals, manage 250+ cases/month, and lead cross-functional collaboration.", highlights:["Credit Underwriting Specialist · Tata Capital","FOIR/LTV Analysis · Delinquency Monitoring · Portfolio Quality","FinnOne · SLOS · SFDC · FICO · Jocata","COO Achiever's Club Award Q1 FY26"], resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
+      { id:"formal",   name:"Formal",         icon:"🎯", accent:"#1d4ed8", subject:"Job Application — Priyal Goyal", customNote:"I am respectfully submitting my application. With 2+ years in digital lending and credit risk, I am confident my background aligns with your requirements.", highlights:["2+ Years Digital Lending & Credit Risk","Tata Capital Limited — Credit Manager","GenAI Automation · SLOS Integration","PGDM Finance — Universal Ai University"], resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
+      { id:"genai",    name:"GenAI Focus",    icon:"🤖", accent:"#7c3aed", subject:"Job Application — Priyal Goyal (GenAI & Digital Lending)", customNote:"I have hands-on experience contributing to GenAI-powered credit automation platforms, SLOS integration, and AI-driven workflow optimization — contributing to a 2.9% reduction in TAT at Tata Capital.", highlights:["GenAI-powered Credit Automation Platform","SLOS Integration · Pan-India Rollout","AI Bot Integration — Jocata to FinnOne workflow automation","2.9% TAT reduction achieved"], resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
+    ];
+    if (u?.username === "mohit") return [
+      { id:"backend", name:"Backend Dev",    icon:"☕", accent:"#1e3a5f", subject:"Job Application — Mohit Singh", customNote:"With 4.7+ years in Java, Spring Boot, Microservices and REST APIs, I specialize in building scalable backend applications and enterprise CRM/CTI integrations.", highlights:["4.7+ Years · Java, Spring Boot, Microservices, REST APIs","CRM/CTI: MS Dynamics 365, ServiceNow, Salesforce, HubSpot, Cisco Finesse","8 Pat on the Back Awards + Performance of the Year — NovelVox","P1/P2 Incident Management · Root Cause Analysis"], resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
+      { id:"crm",     name:"CRM Specialist", icon:"🔗", accent:"#2563eb", subject:"Job Application — Mohit Singh (CRM Integration Specialist)", customNote:"With 4.7+ years in enterprise CRM/CTI integrations — MS Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse — I deliver high-performance solutions.", highlights:["Enterprise CRM: MS Dynamics 365, ServiceNow, Salesforce, HubSpot","CTI: Cisco Finesse, Avaya, Amazon Connect","Banking clients: Bank Albilad, J&K Bank, Misr Digital Innovation","8 Pat on Back Awards + Performance of the Year"], resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
+      { id:"java",    name:"Java Expert",    icon:"🚀", accent:"#0369a1", subject:"Job Application — Mohit Singh (Senior Java Developer)", customNote:"As a Senior Java Developer with Spring Boot and Microservices expertise, I have delivered enterprise-grade solutions for banking clients.", highlights:["Java · Spring Boot · Microservices · REST APIs · SQL","Hibernate · JPA · MySQL · CI/CD · Git","Banking: Bank Albilad, J&K Bank, Salesforce/Cisco Finesse","4.7+ Years NovelVox — End-to-end project ownership"], resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
+      { id:"formal",  name:"Formal",         icon:"🎯", accent:"#1d4ed8", subject:"Job Application — Mohit Singh", customNote:"I am respectfully submitting my application. With 4.7+ years of enterprise software development experience, I am confident my background aligns with your requirements.", highlights:["4.7+ Years · Java, Spring Boot, Microservices","CRM/CTI Integration Specialist · NovelVox","Banking & Enterprise Clients · Fortune 500","Performance of the Year Award"], resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
+    ];
+    return DEFAULT_TEMPLATES_ANAV;
+  };
+
+  const [templates, setTemplates]   = useState(getDefaultTemplates());
+  const [tplSaving, setTplSaving]   = useState(false);
+  const [editIdx,   setEditIdx]     = useState(null); // which template is being edited
+  const [uploading, setUploading]   = useState(false);
+
+  // Load user's saved templates on mount
+  useEffect(() => {
+    axios.get(`${API}/api/templates`)
+      .then(r => {
+        if (r.data.templates?.length > 0) setTemplates(r.data.templates);
+      }).catch(() => {});
+  }, []);
+
+  const saveTemplates = async () => {
+    setTplSaving(true);
+    try {
+      await axios.post(`${API}/api/templates`, { templates });
+      addToast && addToast("✅ Templates saved!");
+    } catch(e) { addToast && addToast("❌ Failed", "error"); }
+    finally { setTplSaving(false); }
+  };
+
+  const updateTpl = (idx, key, val) => setTemplates(prev =>
+    prev.map((t,i) => i===idx ? {...t, [key]: val} : t)
+  );
+
+  const uploadResume = async (idx, file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("resume", file);
+      const r = await axios.post(`${API}/api/templates/upload-resume`, fd,
+        { headers: {"Content-Type":"multipart/form-data"} });
+      updateTpl(idx, "resumeUploadPath", r.data.path);
+      updateTpl(idx, "resumeFileName",   r.data.filename);
+      updateTpl(idx, "resumeType",       "upload");
+      addToast && addToast("✅ Resume uploaded!");
+    } catch(e) { addToast && addToast("❌ Upload failed", "error"); }
+    finally { setUploading(false); }
+  };
+
+  const ICONS = ["⚡","📞","🏆","🎯","🚀","💼","📊","🤖","☕","🔗","💡","🌟"];
+  const COLORS = ["#2563eb","#7c3aed","#0d9488","#1d4ed8","#059669","#dc2626","#d97706","#0369a1","#1e3a5f","#065f46"];
 
   const Section = ({ title, children }) => (
     <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"18px 20px", marginBottom:14 }}>
@@ -4895,6 +4994,156 @@ ${profile.displayName || currentUser?.displayName || "Your Name"}`}
         </div>
       )}
 
+      {/* ── Tab: Templates ── */}
+      {activeTab === "templates" && (
+        <div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+            <div>
+              <div style={{ fontWeight:700, fontSize:14 }}>Email Templates ({templates.length}/4)</div>
+              <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>
+                Edit text, highlights, and resume per template
+              </div>
+            </div>
+            <button className={`btn-primary ${tplSaving?"loading":""}`}
+              onClick={saveTemplates} disabled={tplSaving} style={{ fontSize:12 }}>
+              {tplSaving ? "Saving..." : "💾 Save All"}
+            </button>
+          </div>
+
+          {templates.map((tpl, idx) => (
+            <div key={tpl.id} style={{
+              background:"var(--surface)", border:`2px solid ${editIdx===idx ? tpl.accent : "var(--border)"}`,
+              borderRadius:12, marginBottom:10, overflow:"hidden"
+            }}>
+              {/* Header */}
+              <div style={{
+                background: editIdx===idx ? tpl.accent+"18" : "var(--surface-2,#f8fafc)",
+                padding:"12px 16px", display:"flex", alignItems:"center", gap:10, cursor:"pointer"
+              }} onClick={() => setEditIdx(editIdx===idx ? null : idx)}>
+                <span style={{ fontSize:20 }}>{tpl.icon}</span>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:700, fontSize:13 }}>{tpl.name}</div>
+                  <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:1 }}>
+                    Resume: {tpl.resumeType==="drive" ? "🔗 Drive Link" : tpl.resumeType==="upload" ? "📎 Uploaded" : "📁 Default"}
+                    {" · "}{tpl.highlights?.length || 0} highlights
+                  </div>
+                </div>
+                <span style={{ color:"var(--text-muted)", fontSize:12 }}>{editIdx===idx ? "▲ Close" : "▼ Edit"}</span>
+              </div>
+
+              {/* Editor */}
+              {editIdx === idx && (
+                <div style={{ padding:"16px 20px", display:"flex", flexDirection:"column", gap:12 }}>
+                  {/* Name + Icon + Color */}
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr auto auto", gap:8, alignItems:"end" }}>
+                    <div className="form-group" style={{ marginBottom:0 }}>
+                      <label className="form-label" style={{ fontSize:11 }}>Template Name</label>
+                      <input className="form-input" style={{ fontSize:13 }} value={tpl.name}
+                        onChange={e => updateTpl(idx,"name",e.target.value)} />
+                    </div>
+                    <div className="form-group" style={{ marginBottom:0 }}>
+                      <label className="form-label" style={{ fontSize:11 }}>Icon</label>
+                      <select className="form-select" style={{ fontSize:16, width:70 }}
+                        value={tpl.icon} onChange={e => updateTpl(idx,"icon",e.target.value)}>
+                        {ICONS.map(ic => <option key={ic}>{ic}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ marginBottom:0 }}>
+                      <label className="form-label" style={{ fontSize:11 }}>Color</label>
+                      <input type="color" value={tpl.accent} onChange={e => updateTpl(idx,"accent",e.target.value)}
+                        style={{ width:46, height:36, padding:2, borderRadius:8, border:"1px solid var(--border)", cursor:"pointer" }} />
+                    </div>
+                  </div>
+
+                  {/* Subject */}
+                  <div className="form-group" style={{ marginBottom:0 }}>
+                    <label className="form-label" style={{ fontSize:11 }}>Email Subject</label>
+                    <input className="form-input" style={{ fontSize:13 }} value={tpl.subject || ""}
+                      onChange={e => updateTpl(idx,"subject",e.target.value)}
+                      placeholder="Job Application — Your Name" />
+                  </div>
+
+                  {/* Custom Note */}
+                  <div className="form-group" style={{ marginBottom:0 }}>
+                    <label className="form-label" style={{ fontSize:11 }}>Custom Note (1-2 lines)</label>
+                    <textarea className="form-textarea" rows={2} style={{ fontSize:13 }} value={tpl.customNote || ""}
+                      onChange={e => updateTpl(idx,"customNote",e.target.value)}
+                      placeholder="Why you're a great fit for this role..." />
+                  </div>
+
+                  {/* Highlights */}
+                  <div className="form-group" style={{ marginBottom:0 }}>
+                    <label className="form-label" style={{ fontSize:11 }}>Key Highlights (4 bullets)</label>
+                    {(tpl.highlights || ["","","",""]).map((h, hi) => (
+                      <input key={hi} className="form-input" style={{ fontSize:12, marginBottom:6 }}
+                        placeholder={`Highlight ${hi+1}`} value={h}
+                        onChange={e => {
+                          const hs = [...(tpl.highlights||["","","",""])];
+                          hs[hi] = e.target.value;
+                          updateTpl(idx,"highlights",hs);
+                        }} />
+                    ))}
+                  </div>
+
+                  {/* Resume Section */}
+                  <div style={{ background:"var(--surface-2,#f8fafc)", borderRadius:10, padding:"12px 14px" }}>
+                    <div style={{ fontWeight:700, fontSize:12, marginBottom:10 }}>📎 Resume for this template</div>
+                    <div style={{ display:"flex", gap:8, marginBottom:10, flexWrap:"wrap" }}>
+                      {["default","drive","upload"].map(rt => (
+                        <button key={rt} type="button"
+                          style={{ padding:"5px 12px", borderRadius:99, fontSize:11, fontWeight:600,
+                            border:`1.5px solid ${tpl.resumeType===rt ? tpl.accent : "var(--border)"}`,
+                            background: tpl.resumeType===rt ? tpl.accent+"18" : "var(--surface)",
+                            color: tpl.resumeType===rt ? tpl.accent : "var(--text-muted)", cursor:"pointer"
+                          }}
+                          onClick={() => updateTpl(idx,"resumeType",rt)}>
+                          {rt==="default"?"📁 Default Resume":rt==="drive"?"🔗 Drive Link":"📤 Upload PDF"}
+                        </button>
+                      ))}
+                    </div>
+
+                    {tpl.resumeType === "drive" && (
+                      <div>
+                        <label className="form-label" style={{ fontSize:11 }}>Google Drive Public Link</label>
+                        <input className="form-input" style={{ fontSize:12 }}
+                          placeholder="https://drive.google.com/file/d/xxxxx/view?usp=sharing"
+                          value={tpl.resumeDriveUrl || ""}
+                          onChange={e => updateTpl(idx,"resumeDriveUrl",e.target.value)} />
+                        <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:4 }}>
+                          Make sure file is set to "Anyone with link can view"
+                        </div>
+                      </div>
+                    )}
+
+                    {tpl.resumeType === "upload" && (
+                      <div>
+                        <label className="form-label" style={{ fontSize:11 }}>Upload PDF Resume</label>
+                        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                          <input type="file" accept=".pdf" style={{ fontSize:12, flex:1 }}
+                            onChange={e => uploadResume(idx, e.target.files[0])} />
+                          {uploading && <span style={{ fontSize:12 }}>Uploading...</span>}
+                        </div>
+                        {tpl.resumeFileName && (
+                          <div style={{ fontSize:11, color:"#059669", marginTop:4 }}>
+                            ✅ {tpl.resumeFileName}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {tpl.resumeType === "default" && (
+                      <div style={{ fontSize:11, color:"var(--text-muted)" }}>
+                        Uses the default resume based on template type (CTI→TelephonyExpert, CRM→CRMExpert, others→FullStack)
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* ── Tab: Account ── */}
       {activeTab === "account" && (
         <div>
@@ -4934,6 +5183,313 @@ ${profile.displayName || currentUser?.displayName || "Your Name"}`}
         </div>
       )}
 
+    </div>
+  );
+}
+
+// ─── Template Manager Page ────────────────────────────────────────────────────
+function TemplateManagerPage({ addToast }) {
+  const [templates, setTemplates]   = useState([]);
+  const [editing,   setEditing]     = useState(null); // template being edited
+  const [saving,    setSaving]      = useState(false);
+  const [loading,   setLoading]     = useState(true);
+
+  const COLORS = ["#2563eb","#7c3aed","#0d9488","#dc2626","#d97706","#059669","#0369a1","#1e3a5f"];
+  const ICONS  = ["⚡","🎯","🏆","📞","🚀","💼","🔗","☕","🤖","📊","💰","🌟"];
+
+  const defaultTpl = () => ({
+    templateId:    `custom_${Date.now()}`,
+    name:          "New Template",
+    icon:          "⚡",
+    accent:        "#2563eb",
+    headerTheme:   "blue",
+    resumeUrl:     "",
+    resumeFileName:"",
+    subject:       "",
+    customNote:    "",
+    intro:         "",
+    highlights:    ["", "", "", ""],
+  });
+
+  useEffect(() => {
+    axios.get(`${API}/api/templates`)
+      .then(r => setTemplates(r.data.templates || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const save = async () => {
+    if (!editing) return;
+    setSaving(true);
+    try {
+      const r = await axios.post(`${API}/api/templates`, {
+        ...editing,
+        highlights: editing.highlights.filter(h => h.trim()),
+      });
+      setTemplates(prev => {
+        const idx = prev.findIndex(t => t.templateId === editing.templateId);
+        if (idx >= 0) { const n=[...prev]; n[idx]=r.data.template; return n; }
+        return [...prev, r.data.template];
+      });
+      addToast && addToast("✅ Template saved!");
+      setEditing(null);
+    } catch(e) { addToast && addToast("❌ " + e.message, "error"); }
+    finally { setSaving(false); }
+  };
+
+  const del = async (templateId) => {
+    if (!window.confirm("Delete this template?")) return;
+    await axios.delete(`${API}/api/templates/${templateId}`);
+    setTemplates(prev => prev.filter(t => t.templateId !== templateId));
+    addToast && addToast("🗑 Deleted");
+  };
+
+  const h = (k, v) => setEditing(p => ({ ...p, [k]: v }));
+  const hHighlight = (i, v) => setEditing(p => {
+    const hl = [...(p.highlights||[])]; hl[i]=v; return { ...p, highlights: hl };
+  });
+
+  if (loading) return <div className="page"><div className="page-header"><h2 className="page-title">📋 Templates</h2></div><div style={{textAlign:"center",padding:40,color:"var(--text-muted)"}}>Loading...</div></div>;
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <h2 className="page-title">📋 Template Manager</h2>
+        <button className="btn-primary btn-sm"
+          onClick={() => setEditing(defaultTpl())}
+          style={{ background:"linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
+          + New Template
+        </button>
+      </div>
+
+      {/* Template list */}
+      {!editing && (
+        <div>
+          {templates.length === 0 && (
+            <div style={{ textAlign:"center", padding:48, color:"var(--text-muted)", background:"var(--surface)", borderRadius:14, border:"1px solid var(--border)" }}>
+              <div style={{ fontSize:40, marginBottom:12 }}>📋</div>
+              <div style={{ fontWeight:600, marginBottom:6 }}>No custom templates yet</div>
+              <div style={{ fontSize:13, marginBottom:16 }}>Create your first template to override the defaults</div>
+              <button className="btn-primary" onClick={() => setEditing(defaultTpl())}>+ Create Template</button>
+            </div>
+          )}
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            {templates.map(t => (
+              <div key={t.templateId} style={{
+                background:"var(--surface)", border:"1px solid var(--border)",
+                borderRadius:12, padding:"14px 18px",
+                display:"flex", alignItems:"center", gap:14
+              }}>
+                {/* Color swatch */}
+                <div style={{ width:42, height:42, borderRadius:10, background:t.accent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>
+                  {t.icon}
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:700, fontSize:14 }}>{t.name}</div>
+                  <div style={{ fontSize:12, color:"var(--text-muted)", marginTop:2 }}>
+                    ID: <code style={{ background:"var(--surface-2,#f8fafc)", padding:"1px 6px", borderRadius:4 }}>{t.templateId}</code>
+                    {t.resumeFileName && <span style={{ marginLeft:8 }}>📎 {t.resumeFileName}</span>}
+                    {t.highlights?.filter(Boolean).length > 0 && <span style={{ marginLeft:8 }}>✓ {t.highlights.filter(Boolean).length} highlights</span>}
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:8 }}>
+                  <button className="btn-ghost btn-sm" style={{ fontSize:12 }}
+                    onClick={() => setEditing({ ...t, highlights: [...(t.highlights||[]),"","","",""].slice(0,6) })}>
+                    ✏️ Edit
+                  </button>
+                  <button className="btn-ghost btn-sm" style={{ fontSize:12, color:"#dc2626", borderColor:"#dc2626" }}
+                    onClick={() => del(t.templateId)}>
+                    🗑
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Editor */}
+      {editing && (
+        <div>
+          <div style={{ display:"flex", gap:10, marginBottom:16, alignItems:"center" }}>
+            <button className="btn-ghost btn-sm" onClick={() => setEditing(null)}>← Back</button>
+            <span style={{ fontWeight:700, fontSize:15 }}>
+              {editing.name || "New Template"}
+            </span>
+          </div>
+
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+            {/* Basic info */}
+            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"16px 20px" }}>
+              <div style={{ fontWeight:700, fontSize:13, marginBottom:12, color:"var(--blue)" }}>Basic Info</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                <div className="form-group" style={{ marginBottom:0 }}>
+                  <label className="form-label" style={{ fontSize:11 }}>Template Name</label>
+                  <input className="form-input" style={{ fontSize:13 }} placeholder="e.g. Full Stack Pro"
+                    value={editing.name} onChange={e=>h("name",e.target.value)} />
+                </div>
+                <div className="form-group" style={{ marginBottom:0 }}>
+                  <label className="form-label" style={{ fontSize:11 }}>Template ID (used in app)</label>
+                  <input className="form-input" style={{ fontSize:13, fontFamily:"monospace" }}
+                    placeholder="e.g. fullstack / crm / custom1"
+                    value={editing.templateId} onChange={e=>h("templateId",e.target.value.toLowerCase().replace(/\s+/g,"_"))} />
+                </div>
+              </div>
+
+              {/* Icon + Color */}
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginTop:10 }}>
+                <div className="form-group" style={{ marginBottom:0 }}>
+                  <label className="form-label" style={{ fontSize:11 }}>Icon</label>
+                  <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:4 }}>
+                    {ICONS.map(ic => (
+                      <button key={ic} type="button"
+                        onClick={() => h("icon", ic)}
+                        style={{ width:34, height:34, borderRadius:8, border:`2px solid ${editing.icon===ic?"var(--blue)":"var(--border)"}`,
+                          background: editing.icon===ic?"#eff6ff":"var(--surface)", fontSize:18, cursor:"pointer" }}>
+                        {ic}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="form-group" style={{ marginBottom:0 }}>
+                  <label className="form-label" style={{ fontSize:11 }}>Header Color</label>
+                  <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:4 }}>
+                    {COLORS.map(col => (
+                      <button key={col} type="button"
+                        onClick={() => h("accent", col)}
+                        style={{ width:30, height:30, borderRadius:8, background:col, cursor:"pointer",
+                          border:`3px solid ${editing.accent===col?"#fff":"transparent"}`,
+                          boxShadow: editing.accent===col?`0 0 0 2px ${col}`:"none" }} />
+                    ))}
+                    <input type="color" value={editing.accent}
+                      onChange={e=>h("accent",e.target.value)}
+                      style={{ width:30, height:30, padding:2, border:"1px solid var(--border)", borderRadius:8, cursor:"pointer" }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Resume */}
+            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"16px 20px" }}>
+              <div style={{ fontWeight:700, fontSize:13, marginBottom:12, color:"var(--blue)" }}>📎 Resume</div>
+              <p style={{ fontSize:12, color:"var(--text-muted)", marginBottom:10 }}>
+                Google Drive public link → Share → Anyone with link → Copy link
+              </p>
+              <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr", gap:10 }}>
+                <div className="form-group" style={{ marginBottom:0 }}>
+                  <label className="form-label" style={{ fontSize:11 }}>Resume URL (Google Drive public link)</label>
+                  <input className="form-input" style={{ fontSize:12 }}
+                    placeholder="https://drive.google.com/file/d/xxxx/view?usp=sharing"
+                    value={editing.resumeUrl} onChange={e=>h("resumeUrl",e.target.value)} />
+                </div>
+                <div className="form-group" style={{ marginBottom:0 }}>
+                  <label className="form-label" style={{ fontSize:11 }}>File Name (shown in email)</label>
+                  <input className="form-input" style={{ fontSize:12 }}
+                    placeholder="Anav_Bansal_Resume.pdf"
+                    value={editing.resumeFileName} onChange={e=>h("resumeFileName",e.target.value)} />
+                </div>
+              </div>
+              {editing.resumeUrl && (
+                <a href={editing.resumeUrl} target="_blank" rel="noreferrer"
+                  className="btn-ghost btn-sm" style={{ marginTop:8, fontSize:11 }}>
+                  👁 Preview Resume →
+                </a>
+              )}
+            </div>
+
+            {/* Email Content */}
+            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"16px 20px" }}>
+              <div style={{ fontWeight:700, fontSize:13, marginBottom:12, color:"var(--blue)" }}>✉ Email Content</div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize:11 }}>
+                  Opening Intro Paragraph
+                  <span style={{ fontWeight:400, color:"var(--text-muted)", marginLeft:6 }}>
+                    (Appears after "Dear HR," — mention company/role naturally)
+                  </span>
+                </label>
+                <textarea className="form-textarea" rows={3} style={{ fontSize:13 }}
+                  placeholder={`I am writing to express my strong interest in joining [company]. With 4.7+ years of experience in...`}
+                  value={editing.intro} onChange={e=>h("intro",e.target.value)} />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize:11 }}>
+                  Custom Note
+                  <span style={{ fontWeight:400, color:"var(--text-muted)", marginLeft:6 }}>
+                    (Short pitch — why you're the best fit)
+                  </span>
+                </label>
+                <textarea className="form-textarea" rows={2} style={{ fontSize:13 }}
+                  placeholder="With expertise in ServiceNow and Freshdesk CTI, I have delivered..."
+                  value={editing.customNote} onChange={e=>h("customNote",e.target.value)} />
+              </div>
+
+              <div className="form-group" style={{ marginBottom:0 }}>
+                <label className="form-label" style={{ fontSize:11 }}>
+                  Key Highlights (shown as bullet points)
+                </label>
+                {(editing.highlights||[]).map((hl,i) => (
+                  <div key={i} style={{ display:"flex", gap:6, marginBottom:6 }}>
+                    <span style={{ color:"var(--text-muted)", paddingTop:8, fontSize:12, minWidth:16 }}>{i+1}.</span>
+                    <input className="form-input" style={{ fontSize:13 }}
+                      placeholder={`Highlight ${i+1} — e.g. 4.7+ years · Node.js, AWS Lambda`}
+                      value={hl} onChange={e=>hHighlight(i,e.target.value)} />
+                    <button type="button" onClick={() => {
+                      const hl2=[...(editing.highlights||[])]; hl2.splice(i,1); h("highlights",hl2);
+                    }} style={{ background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:18,padding:"0 4px" }}>✕</button>
+                  </div>
+                ))}
+                <button type="button" className="btn-ghost btn-sm" style={{ fontSize:11, marginTop:4 }}
+                  onClick={() => h("highlights",[...(editing.highlights||[]),""])}>
+                  + Add Highlight
+                </button>
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div style={{ background:"var(--surface)", border:`2px solid ${editing.accent}`, borderRadius:12, overflow:"hidden" }}>
+              <div style={{ background:editing.accent, padding:"16px 20px" }}>
+                <div style={{ color:"rgba(255,255,255,0.8)", fontSize:11, fontWeight:600, letterSpacing:1, textTransform:"uppercase" }}>
+                  {editing.name}
+                </div>
+                <div style={{ color:"#fff", fontSize:18, fontWeight:700, marginTop:4 }}>
+                  {getUser()?.displayName || "Your Name"}
+                </div>
+              </div>
+              <div style={{ padding:"16px 20px" }}>
+                <p style={{ fontSize:12, color:"#374151", marginBottom:8 }}>Dear Hiring Manager,</p>
+                <p style={{ fontSize:12, color:"#374151", marginBottom:8, lineHeight:1.7 }}>
+                  {editing.intro || "Your intro paragraph will appear here..."}
+                </p>
+                {editing.highlights?.filter(Boolean).length > 0 && (
+                  <div style={{ background:"#f8fafc", borderLeft:`3px solid ${editing.accent}`, padding:"8px 12px", marginBottom:8 }}>
+                    {editing.highlights.filter(Boolean).map((h,i) => (
+                      <div key={i} style={{ fontSize:11, color:"#374151", marginBottom:3 }}>• {h}</div>
+                    ))}
+                  </div>
+                )}
+                {editing.resumeFileName && (
+                  <div style={{ background:"#f0f9ff", border:"1px solid #bae6fd", borderRadius:6, padding:"6px 10px", fontSize:11 }}>
+                    📎 {editing.resumeFileName}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Save / Cancel */}
+            <div style={{ display:"flex", gap:10 }}>
+              <button className={`btn-primary ${saving?"loading":""}`}
+                onClick={save} disabled={saving}
+                style={{ background:`linear-gradient(135deg,${editing.accent},${editing.accent}dd)` }}>
+                {saving ? "Saving..." : "💾 Save Template"}
+              </button>
+              <button className="btn-ghost" onClick={() => setEditing(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
