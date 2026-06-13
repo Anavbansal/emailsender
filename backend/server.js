@@ -2340,6 +2340,43 @@ app.patch("/api/auth/settings", requireAuth, async (req, res) => {
 });
 
 
+
+// ─── POST /api/auth/init-mohit — one-time setup for Mohit's profile ──────────
+app.post("/api/auth/init-mohit", async (req, res) => {
+  const { secret } = req.body;
+  if (secret !== (process.env.JWT_SECRET || "emailsender_secret_2026"))
+    return res.status(403).json({ success: false, message: "Forbidden" });
+  try {
+    const result = await User.updateOne(
+      { username: "mohit" },
+      { $set: {
+        displayName:      "Mohit Singh",
+        profileName:      "Mohit Singh",
+        profilePhone:     "+91 9999999999",
+        profileEmail:     "mohit310ggn@gmail.com",
+        profileLinkedIn:  "linkedin.com/in/mohit-singh",
+        profileLocation:  "Gurgaon, Haryana",
+        profileTitle:     "Software Developer",
+        profileSummary:   "Software Developer with experience in full-stack development.",
+        keySkills:        "JavaScript, Node.js, React, MongoDB, REST APIs",
+        currentCompany:   "",
+        totalExp:         "",
+        relevantExp:      "",
+        noticePeriod:     "30 Days",
+        currentLocation:  "Gurgaon, Haryana",
+        preferredLocation:"PAN India",
+        currentCTC:       "",
+        expectedCTC:      "",
+        resumePath:       "",
+        resumeFileName:   "",
+      }}
+    );
+    res.json({ success: true, message: "Mohit profile initialized", modified: result.modifiedCount });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // ─── POST /api/auth/init-priyal — one-time setup for Priyal's profile ─────────
 app.post("/api/auth/init-priyal", async (req, res) => {
   const { secret } = req.body;
