@@ -4232,8 +4232,7 @@ function ScheduledPage() {
 
 // ─── Login / Register Page ────────────────────────────────────────────────────
 function AuthPage({ onAuth }) {
-  const [tab,      setTab]     = useState("login");
-  const [form,     setForm]    = useState({ username:"", password:"", displayName:"", inviteCode:"" });
+  const [form,     setForm]    = useState({ username:"", password:"" });
   const [loading,  setLoading] = useState(false);
   const [error,    setError]   = useState("");
   const handle = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
@@ -4277,37 +4276,7 @@ function AuthPage({ onAuth }) {
         </div>
 
         {/* Tab switcher */}
-        <div style={{
-          display:"flex", background:"rgba(0,0,0,0.3)", borderRadius:10,
-          padding:4, marginBottom:24
-        }}>
-          {["login","register"].map(t => (
-            <button key={t} type="button"
-              onClick={() => { setTab(t); setError(""); }}
-              style={{
-                flex:1, padding:"8px 0", borderRadius:8, border:"none",
-                fontWeight:600, fontSize:13, cursor:"pointer", transition:"all 0.2s",
-                background: tab===t ? "rgba(255,255,255,0.1)" : "transparent",
-                color: tab===t ? "#fff" : "#64748b",
-              }}>
-              {t === "login" ? "🔑 Login" : "✨ Register"}
-            </button>
-          ))}
-        </div>
-
         <form onSubmit={submit}>
-          {tab === "register" && (
-            <div style={{ marginBottom:14 }}>
-              <label style={{ color:"#94a3b8", fontSize:12, fontWeight:600, display:"block", marginBottom:6 }}>DISPLAY NAME</label>
-              <input name="displayName" value={form.displayName} onChange={handle}
-                placeholder="Anav Bansal" required
-                style={{
-                  width:"100%", padding:"10px 14px", borderRadius:10, border:"1px solid rgba(255,255,255,0.1)",
-                  background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:14, boxSizing:"border-box",
-                  outline:"none"
-                }} />
-            </div>
-          )}
 
           <div style={{ marginBottom:14 }}>
             <label style={{ color:"#94a3b8", fontSize:12, fontWeight:600, display:"block", marginBottom:6 }}>USERNAME</label>
@@ -4320,7 +4289,7 @@ function AuthPage({ onAuth }) {
               }} />
           </div>
 
-          <div style={{ marginBottom: tab==="register" ? 14 : 24 }}>
+          <div style={{ marginBottom: 24 }}>
             <label style={{ color:"#94a3b8", fontSize:12, fontWeight:600, display:"block", marginBottom:6 }}>PASSWORD</label>
             <input name="password" type="password" value={form.password} onChange={handle}
               placeholder="••••••••" required
@@ -4331,18 +4300,7 @@ function AuthPage({ onAuth }) {
               }} />
           </div>
 
-          {tab === "register" && (
-            <div style={{ marginBottom:24 }}>
-              <label style={{ color:"#94a3b8", fontSize:12, fontWeight:600, display:"block", marginBottom:6 }}>INVITE CODE</label>
-              <input name="inviteCode" value={form.inviteCode} onChange={handle}
-                placeholder="Ask Anav for the code" required
-                style={{
-                  width:"100%", padding:"10px 14px", borderRadius:10, border:"1px solid rgba(255,255,255,0.1)",
-                  background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:14, boxSizing:"border-box",
-                  outline:"none"
-                }} />
-            </div>
-          )}
+
 
           {error && (
             <div style={{
@@ -4360,7 +4318,7 @@ function AuthPage({ onAuth }) {
               boxShadow:"0 4px 16px rgba(37,99,235,0.4)",
               opacity: loading ? 0.7 : 1
             }}>
-            {loading ? "⏳ Please wait…" : tab==="login" ? "🔑 Login" : "✨ Create Account"}
+            {loading ? "⏳ Please wait…" : "🔑 Login"}
           </button>
         </form>
       </div>
