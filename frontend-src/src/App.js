@@ -4338,8 +4338,9 @@ function App() {
     axios.get(`${API}/api/auth/me`)
       .then(r => {
         if (r.data.success) {
-          setUser(r.data.user);
-          setAuthUser(r.data.user);
+          const u = { ...getUser(), ...r.data.user }; // merge — preserve existing fields
+          setUser(u);
+          setAuthUser(u);
         }
       })
       .catch(() => {
@@ -4459,7 +4460,7 @@ function App() {
     { id: "jobs",        icon: "🔍", label: "Find Jobs" },
     { id: "scheduled",   icon: "🗓", label: "Scheduled",        badge: scheduledCount || null },
     { id: "settings",    icon: "S",  label: "Settings",          badge: null },
-    ...(authUser?.isAdmin ? [{ id: "admin", icon: "A", label: "Admin Panel", badge: null }] : []),
+    ...((authUser?.isAdmin || getUser()?.isAdmin) ? [{ id: "admin", icon: "A", label: "Admin Panel", badge: null }] : []),
   ];
 
   const [prefillSend, setPrefillSend] = React.useState(null);
@@ -4473,7 +4474,8 @@ function App() {
   // Show login page if not authenticated
   if (!authUser) {
     return <AuthPage onAuth={user => {
-      setAuthUser(user);
+      setUser(user);        // save to localStorage including isAdmin
+      setAuthUser(user);    // update React state
       // Clear any stale data from previous session
       setContacts([]);
       setReplies([]);
@@ -4614,7 +4616,7 @@ function App() {
           {page === "jobs"      && <FindJobsPage onFillApply={goToSendPrefilled} />}
           {page === "scheduled" && <ScheduledPage onRefresh={fetchScheduled} />}
           {page === "settings"   && <SettingsPage addToast={addToast} />}
-          {page === "admin"      && authUser?.isAdmin && <AdminPage addToast={addToast} />}
+          {page === "admin"      && (authUser?.isAdmin || getUser()?.isAdmin) && <AdminPage addToast={addToast} />}
         </main>
       </div>
 
