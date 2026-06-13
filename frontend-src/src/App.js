@@ -4241,13 +4241,15 @@ function AuthPage({ onAuth }) {
     e.preventDefault();
     setLoading(true); setError("");
     try {
-      const endpoint = tab === "login" ? "/api/auth/login" : "/api/auth/register";
-      const res = await axios.post(`${API}${endpoint}`, form);
+      const res = await axios.post(`${API}/api/auth/login`, {
+        username: form.username,
+        password: form.password,
+      });
       setToken(res.data.token);
       setUser(res.data.user);
       onAuth(res.data.user);
     } catch (err) {
-      setError(err.response?.data?.message || "Something went wrong");
+      setError(err.response?.data?.message || "Invalid username or password");
     } finally { setLoading(false); }
   };
 
