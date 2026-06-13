@@ -2815,17 +2815,44 @@ app.get("/api/admin/stats", requireAdmin, async (req, res) => {
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// ─── POST /api/admin/init — create admin account (one-time) ──────────────────
+// ─── POST /api/admin/init — create separate admin account (one-time) ───────────
 app.post("/api/admin/init", async (req, res) => {
   try {
     const { secret } = req.body;
     if (secret !== (process.env.JWT_SECRET || "emailsender_secret_2026"))
       return res.status(403).json({ success: false, message: "Forbidden" });
+
+    const bcrypt = require("bcryptjs");
+
+    // 1. Make owner (anav) also admin
     await User.updateOne(
       { username: process.env.OWNER_USERNAME || "anav" },
       { $set: { isAdmin: true } }
     );
-    res.json({ success: true, message: "Admin initialized" });
+
+    // 2. Create dedicated admin account if not exists
+    const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "superadmin";
+    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "Admin@9911";
+    const existing = await User.findOne({ username: ADMIN_USERNAME });
+    if (!existing) {
+      const hash = await bcrypt.hash(ADMIN_PASSWORD, 10);
+      await User.create({
+        username:    ADMIN_USERNAME,
+        password:    hash,
+        displayName: "Super Admin",
+        profileName: "Super Admin",
+        isAdmin:     true,
+      });
+    } else {
+      await User.updateOne({ username: ADMIN_USERNAME }, { $set: { isAdmin: true } });
+    }
+
+    res.json({
+      success: true,
+      message:  "Admin initialized",
+      adminUsername: ADMIN_USERNAME,
+      adminPassword: existing ? "(unchanged — already exists)" : ADMIN_PASSWORD,
+    });
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
