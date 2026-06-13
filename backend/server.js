@@ -237,13 +237,25 @@ async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references
 
   const encodedSubject = `=?UTF-8?B?${Buffer.from(subject).toString("base64")}?=`;
 
-  const boundary   = "boundary_" + Date.now();
-  const resumeFile = userConfig?.resumePath && fs.existsSync(userConfig.resumePath)
-    ? userConfig.resumePath
-    : path.join(__dirname, "ANAV_BANSAL_FullStackDeveloper.pdf");
-  const resumeName = userConfig?.resumeFileName || "Anav_Bansal_Resume.pdf";
-  const senderName = userConfig?.profileName    || "Anav Bansal";
-  const senderEmail= userConfig?.gmailUser      || process.env.GMAIL_USER || "";
+  const boundary    = "boundary_" + Date.now();
+  const isPriyalGmailUser = userConfig?.profileName?.toLowerCase().includes("priyal") ||
+                             user?.profileName?.toLowerCase().includes("priyal");
+  // Resume: Priyal → her resume | Anav CRM → CRM Expert | Anav other → Full Stack
+  let resumeFile, resumeName;
+  if (isPriyalGmailUser && userConfig?.resumePath && fs.existsSync(userConfig.resumePath)) {
+    resumeFile = userConfig.resumePath;
+    resumeName = userConfig.resumeFileName || "Priyal_Goyal_Resume.pdf";
+  } else if (!isPriyalGmailUser && templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)) {
+    resumeFile = CRM_RESUME_PATH;
+    resumeName = "Anav_Bansal_CRMExpert.pdf";
+  } else {
+    resumeFile = userConfig?.resumePath && fs.existsSync(userConfig.resumePath)
+      ? userConfig.resumePath
+      : path.join(__dirname, "ANAV_BANSAL_FullStackDeveloper.pdf");
+    resumeName = userConfig?.resumeFileName || "Anav_Bansal_Resume.pdf";
+  }
+  const senderName  = userConfig?.profileName || "Anav Bansal";
+  const senderEmail = userConfig?.gmailUser   || process.env.GMAIL_USER || "";
   const resumeData = fs.readFileSync(resumeFile).toString("base64");
 
   // Build threading headers when replying
@@ -545,19 +557,22 @@ async function sendApplicationEmail({
   // 1. User's own resume (Priyal etc.)
   // 2. CRM resume for CRM template (Anav)
   // 3. Default resume
-  const userResumePath = userCfg?.resumePath;
-  const userResumeName = userCfg?.resumeFileName || "Resume.pdf";
-  const isOwnerForResume = !userCfg?.profileName?.toLowerCase().includes("priyal");
+  const isPriyalUser    = userCfg?.profileName?.toLowerCase().includes("priyal");
+  const userResumePath  = userCfg?.resumePath;
+  const userResumeName  = userCfg?.resumeFileName || "Resume.pdf";
 
   let resolvedResume;
-  if (userResumePath && fs.existsSync(userResumePath)) {
-    // User has their own resume (e.g. Priyal)
+  if (isPriyalUser && userResumePath && fs.existsSync(userResumePath)) {
+    // Priyal — always use her resume
     resolvedResume = { filename: userResumeName, path: userResumePath, contentType: "application/pdf" };
-  } else if (isOwnerForResume && templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)) {
-    // CRM template for Anav — use CRM Expert resume
+  } else if (!isPriyalUser && templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)) {
+    // Anav CRM template — use CRM Expert resume (priority over default)
     resolvedResume = { filename: "Anav_Bansal_CRMExpert.pdf", path: CRM_RESUME_PATH, contentType: "application/pdf" };
+  } else if (!isPriyalUser && userResumePath && fs.existsSync(userResumePath)) {
+    // Anav non-CRM — use his set resume
+    resolvedResume = { filename: userResumeName, path: userResumePath, contentType: "application/pdf" };
   } else if (fs.existsSync(RESUME_PATH)) {
-    // Default Anav resume
+    // Default fallback
     resolvedResume = { filename: "Anav_Bansal_Resume.pdf", path: RESUME_PATH, contentType: "application/pdf" };
   } else {
     resolvedResume = null;
