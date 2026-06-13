@@ -2753,13 +2753,14 @@ app.post("/api/templates/upload-resume", requireAuth, async (req, res) => {
 
 
 // ─── Send Welcome Email to new user ──────────────────────────────────────────
-async function sendWelcomeEmail({ displayName, username, password, profileEmail, appUrl }) {
+async function sendWelcomeEmail({ displayName, username, password, profileEmail, appUrl, backendUrl }) {
   try {
     const auth   = getGmailAPITransport();
     const gmail  = google.gmail({ version: "v1", auth });
     const from   = process.env.GMAIL_USER || "anavbansal06@gmail.com";
     const to     = profileEmail;
-    if (!to) return;
+    if (!to) { console.log("No email for welcome"); return; }
+    const gmailConnectUrl = (backendUrl || BASE_URL) + "/api/gmail/auth?username=" + username;
 
     const subject = `Welcome to Job Mailer — Your Account is Ready! 🚀`;
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
@@ -2814,13 +2815,13 @@ async function sendWelcomeEmail({ displayName, username, password, profileEmail,
         <div style="color:#6b7280;font-size:13px;line-height:1.7;">
           This is the most important step — all your job application emails will be sent from YOUR Gmail.<br/><br/>
           Click this link to connect:<br/>
-          <a href="${BASE_URL}/api/gmail/auth?username=${username}"
+          <a href="${gmailConnectUrl}"
              style="display:inline-block;margin-top:8px;padding:8px 16px;background:#059669;color:#fff;border-radius:8px;text-decoration:none;font-weight:700;font-size:13px;">
             🔗 Connect Gmail
           </a><br/><br/>
           <div style="margin-top:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;font-size:12px;color:#065f46;">
             <strong>Or copy this link:</strong><br/>
-            <span style="word-break:break-all;color:#059669;">${BASE_URL}/api/gmail/auth?username=${username}</span>
+            <span style="word-break:break-all;color:#059669;">${gmailConnectUrl}</span>
           </div><br/>
           <span style="color:#9ca3af;font-size:12px;">
             ⚠️ Login with YOUR Gmail account. After clicking Allow, you'll see "Gmail Connected!" ✅
