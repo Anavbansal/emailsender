@@ -1467,8 +1467,8 @@ app.get("/api/gmail/replies", requireAuth, async (req, res) => {
 // ─── POST /api/send-application ───────────────────────────────────────────────
 app.post("/api/send-application", requireAuth, async (req, res) => {
   const { hrEmail, company, force, customIntro, customHighlights, headerTheme, ...rest } = req.body;
-  if (!hrEmail || !company)
-    return res.status(400).json({ success: false, message: "hrEmail and company are required." });
+  if (!hrEmail)
+    return res.status(400).json({ success: false, message: "hrEmail is required." });
 
   if (!force) {
     const prev = getTrackingRecords()
@@ -1539,7 +1539,12 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
     });
     return res.status(200).json({ success: true, message: `Follow-up sent to ${hrEmail}!`, messageId: info.id });
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+    const msg = err.message?.includes("Gmail not connected")
+      ? "Gmail not connected. Please connect Gmail first: /api/gmail/auth?username=" + req.user.username
+      : err.message?.includes("invalid_grant") || err.message?.includes("Token")
+      ? "Gmail token expired. Please reconnect Gmail."
+      : err.message;
+    return res.status(500).json({ success: false, message: msg });
   }
 });
 
