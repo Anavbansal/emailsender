@@ -239,22 +239,24 @@ async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references
 
   const encodedSubject = `=?UTF-8?B?${Buffer.from(subject).toString("base64")}?=`;
 
-  const boundary    = "boundary_" + Date.now();
-  const isPriyalGmailUser = userConfig?.profileName?.toLowerCase().includes("priyal") ||
-                             user?.profileName?.toLowerCase().includes("priyal");
-  // Resume: Priyal → her resume | Anav CRM → CRM Expert | Anav other → Full Stack
+  const boundary       = "boundary_" + Date.now();
+  const isPriyalGmail  = !!(userConfig?.profileName?.toLowerCase().includes("priyal") || user?.profileName?.toLowerCase().includes("priyal"));
+  const isMohitGmail   = !!(userConfig?.profileName?.toLowerCase().includes("mohit")  || user?.profileName?.toLowerCase().includes("mohit"));
+
   let resumeFile, resumeName;
-  if (isPriyalGmailUser && userConfig?.resumePath && fs.existsSync(userConfig.resumePath)) {
-    resumeFile = userConfig.resumePath;
-    resumeName = userConfig.resumeFileName || "Priyal_Goyal_Resume.pdf";
-  } else if (!isPriyalGmailUser && templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)) {
+  if (isMohitGmail && fs.existsSync(MOHIT_RESUME_PATH)) {
+    resumeFile = MOHIT_RESUME_PATH;
+    resumeName = "Mohit_Singh_CV.pdf";
+  } else if (isPriyalGmail && user?.resumePath && fs.existsSync(user.resumePath)) {
+    resumeFile = user.resumePath;
+    resumeName = user.resumeFileName || "Priyal_Goyal_Resume.pdf";
+  } else if (!isPriyalGmail && !isMohitGmail && templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)) {
     resumeFile = CRM_RESUME_PATH;
     resumeName = "Anav_Bansal_CRMExpert.pdf";
-  } else if (!isPriyalGmailUser && templateType === "cti" && fs.existsSync(CTI_RESUME_PATH)) {
+  } else if (!isPriyalGmail && !isMohitGmail && templateType === "cti" && fs.existsSync(CTI_RESUME_PATH)) {
     resumeFile = CTI_RESUME_PATH;
     resumeName = "Anav_Bansal_TelephonyExpert.pdf";
   } else {
-    // Default: Full Stack resume
     resumeFile = path.join(__dirname, "ANAV_BANSAL_FullStackDeveloper.pdf");
     resumeName = "Anav_Bansal_Resume.pdf";
   }
@@ -545,14 +547,17 @@ async function sendApplicationEmail({
   const tplOpts     = { hrName, company, role, customNote, trackUrl, customIntro, customHighlights, headerTheme };
 
   let html;
-  // Check if sending user is Priyal
-  const isPriyal = userCfg && userCfg.profileName && userCfg.profileName.toLowerCase().includes("priyal");
-  if (isPriyal) {
+  const isPriyal = !!(userCfg?.profileName?.toLowerCase().includes("priyal") || user?.profileName?.toLowerCase().includes("priyal"));
+  const isMohit  = !!(userCfg?.profileName?.toLowerCase().includes("mohit")  || user?.profileName?.toLowerCase().includes("mohit"));
+
+  if (isMohit) {
+    html = buildMohitHTML({ ...tplOpts, templateType });
+  } else if (isPriyal) {
     html = buildPriyalHTML({ ...tplOpts, templateType });
-  } else if (templateType === "cti")         html = buildCTIHTML(tplOpts);
-  else if (templateType === "formal") html = buildFormalHTML(tplOpts);
-  else if (templateType === "crm")    html = buildCRMHTML(tplOpts);
-  else                                html = buildFullstackHTML(tplOpts);
+  } else if (templateType === "cti")    html = buildCTIHTML(tplOpts);
+  else if (templateType === "formal")   html = buildFormalHTML(tplOpts);
+  else if (templateType === "crm")      html = buildCRMHTML(tplOpts);
+  else                                  html = buildFullstackHTML(tplOpts);
 
   storeEmailHtml(trackRecord.trackingId, html);
 
@@ -563,15 +568,12 @@ async function sendApplicationEmail({
                            user?.profileName?.toLowerCase().includes("priyal"));
   const isMohitUser   = !!(userCfg?.profileName?.toLowerCase().includes("mohit") ||
                            user?.profileName?.toLowerCase().includes("mohit"));
-  const priyalResPath = user?.resumePath || userCfg?.resumePath || "";
-  const priyalResName = user?.resumeFileName || userCfg?.resumeFileName || "Priyal_Goyal_Resume.pdf";
-  const mohitResPath  = user?.resumePath || userCfg?.resumePath || "";
 
   let resolvedResume;
-  if (isPriyalUser && priyalResPath && fs.existsSync(priyalResPath)) {
-    resolvedResume = { filename: priyalResName, path: priyalResPath, contentType: "application/pdf" };
-  } else if (isMohitUser && mohitResPath && fs.existsSync(mohitResPath)) {
-    resolvedResume = { filename: "Mohit_Singh_CV.pdf", path: mohitResPath, contentType: "application/pdf" };
+  if (isMohitUser && fs.existsSync(MOHIT_RESUME_PATH)) {
+    resolvedResume = { filename: "Mohit_Singh_CV.pdf", path: MOHIT_RESUME_PATH, contentType: "application/pdf" };
+  } else if (isPriyalUser && user?.resumePath && fs.existsSync(user.resumePath)) {
+    resolvedResume = { filename: user.resumeFileName || "Priyal_Goyal_Resume.pdf", path: user.resumePath, contentType: "application/pdf" };
   } else if (!isPriyalUser && !isMohitUser && templateType === "cti" && fs.existsSync(CTI_RESUME_PATH)) {
     resolvedResume = { filename: "Anav_Bansal_TelephonyExpert.pdf", path: CTI_RESUME_PATH, contentType: "application/pdf" };
   } else if (!isPriyalUser && !isMohitUser && templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)) {
