@@ -26,6 +26,7 @@ app.use(gmailAuthRoutes);
 const RESUME_PATH      = path.join(__dirname, "ANAV_BANSAL_FullStackDeveloper.pdf");
 const CRM_RESUME_PATH  = path.join(__dirname, "ANAV_BANSAL_CRMExpert.pdf");
 const CTI_RESUME_PATH  = path.join(__dirname, "Anav_Bansal_TelephonyExpert.pdf");
+const MOHIT_RESUME_PATH = path.join(__dirname, "Mohit_Singh_CV.pdf");
 const RESUME_DRIVE_LINK = "https://drive.google.com/file/d/1LKc-w9Ggd5I1eZ3t7Wvm9psU-4ITxHxr/view?usp=sharing";
 const THREE_DAYS_MS    = 3 * 24 * 60 * 60 * 1000;
 
@@ -560,15 +561,20 @@ async function sendApplicationEmail({
   // Resume: templateType decides for Anav, Priyal uses her own
   const isPriyalUser  = !!(userCfg?.profileName?.toLowerCase().includes("priyal") ||
                            user?.profileName?.toLowerCase().includes("priyal"));
+  const isMohitUser   = !!(userCfg?.profileName?.toLowerCase().includes("mohit") ||
+                           user?.profileName?.toLowerCase().includes("mohit"));
   const priyalResPath = user?.resumePath || userCfg?.resumePath || "";
   const priyalResName = user?.resumeFileName || userCfg?.resumeFileName || "Priyal_Goyal_Resume.pdf";
+  const mohitResPath  = user?.resumePath || userCfg?.resumePath || "";
 
   let resolvedResume;
   if (isPriyalUser && priyalResPath && fs.existsSync(priyalResPath)) {
     resolvedResume = { filename: priyalResName, path: priyalResPath, contentType: "application/pdf" };
-  } else if (!isPriyalUser && templateType === "cti" && fs.existsSync(CTI_RESUME_PATH)) {
+  } else if (isMohitUser && mohitResPath && fs.existsSync(mohitResPath)) {
+    resolvedResume = { filename: "Mohit_Singh_CV.pdf", path: mohitResPath, contentType: "application/pdf" };
+  } else if (!isPriyalUser && !isMohitUser && templateType === "cti" && fs.existsSync(CTI_RESUME_PATH)) {
     resolvedResume = { filename: "Anav_Bansal_TelephonyExpert.pdf", path: CTI_RESUME_PATH, contentType: "application/pdf" };
-  } else if (!isPriyalUser && templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)) {
+  } else if (!isPriyalUser && !isMohitUser && templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)) {
     resolvedResume = { filename: "Anav_Bansal_CRMExpert.pdf", path: CRM_RESUME_PATH, contentType: "application/pdf" };
   } else {
     resolvedResume = { filename: "Anav_Bansal_Resume.pdf", path: RESUME_PATH, contentType: "application/pdf" };
@@ -662,6 +668,63 @@ function buildCRMHTML({ hrName, company, role, customNote, trackUrl = "", custom
 </div>${pixel}</body></html>`;
 }
 
+
+
+// ─── HTML: Mohit Singh — Backend/CRM Template ────────────────────────────────
+function buildMohitHTML({ hrName, company, role, customNote, trackUrl = "", templateType = "backend" }) {
+  const greeting  = hrName ? `Dear ${hrName},` : "Dear Hiring Manager,";
+  const roleText  = role   ? ` for the <strong>${role}</strong> position` : "";
+  const noteBlock = customNote ? `<p style="color:#374151;line-height:1.8;margin:16px 0;">${customNote}</p>` : "";
+  const pixel     = trackUrl  ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
+
+  const intros = {
+    backend:  `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}. With <strong>4.7+ years of experience</strong> as a Senior Software Backend Engineer, I specialize in Java, Spring Boot, Microservices, REST APIs, and enterprise CRM/CTI integrations across Microsoft Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse.`,
+    crm:      `I am reaching out regarding${roleText} at <strong>${company||"your organization"}</strong>. My 4.7+ years specializing in CRM/CTI integrations — including MS Dynamics 365, ServiceNow, Salesforce, and Cisco Finesse — have enabled me to deliver enterprise-grade solutions, resolve critical P1/P2 incidents, and mentor junior developers.`,
+    java:     `I am applying${roleText} at <strong>${company||"your organization"}</strong>. As a Senior Java Developer with 4.7+ years in Spring Boot, Microservices, REST APIs, and SQL, I have independently owned end-to-end projects from design to production — delivering high-performance, scalable solutions in Agile environments.`,
+    formal:   `I am respectfully submitting my application${roleText} at <strong>${company||"your organization"}</strong>. With 4.7+ years of enterprise software development experience, I am confident my background aligns with your requirements.`,
+  };
+
+  const intro = intros[templateType] || intros.backend;
+
+  const highlights = [
+    "4.7+ Years · Java, Spring Boot, Microservices, REST APIs",
+    "CRM/CTI: MS Dynamics 365, ServiceNow, Salesforce, HubSpot, Cisco Finesse",
+    "8 'Pat on the Back' Awards + Performance of the Year — NovelVox",
+    "P1/P2 Incident Management · Root Cause Analysis · Client Management",
+    "Enterprise integrations: Bank Albilad, J&K Bank, Misr Digital Innovation",
+  ].map(h => `<li>${h}</li>`).join("");
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',sans-serif;">
+<div style="max-width:620px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+  <div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:36px 40px;">
+    <p style="margin:0 0 6px;color:#93c5fd;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Senior Software Developer · CRM & CTI Specialist</p>
+    <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Mohit Singh</h1>
+    <p style="margin:6px 0 0;color:#93c5fd;font-size:14px;">Java · Spring Boot · Microservices · MS Dynamics 365 · ServiceNow · Salesforce</p>
+  </div>
+  <div style="padding:36px 40px;">
+    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
+    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${intro}</p>
+    ${noteBlock}
+    <div style="background:#eff6ff;border-left:4px solid #2563eb;border-radius:0 8px 8px 0;padding:20px 24px;margin-bottom:24px;">
+      <p style="margin:0 0 12px;font-weight:600;color:#1e3a5f;font-size:14px;">🏆 Key Highlights</p>
+      <ul style="margin:0;padding-left:20px;color:#374151;font-size:14px;line-height:2;">${highlights}</ul>
+    </div>
+    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:16px 20px;margin:20px 0;">
+      <p style="margin:0 0 4px;font-weight:700;color:#0c4a6e;font-size:14px;">📎 Resume Attached</p>
+      <p style="margin:0;font-size:12px;color:#0369a1;">Mohit_Singh_CV.pdf</p>
+    </div>
+    <p style="color:#374151;line-height:1.8;margin:0;">Thank you for your time and consideration. I would welcome the opportunity to discuss how my experience can contribute to your team.</p>
+  </div>
+  <div style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;text-align:center;">
+    <p style="margin:0;font-size:12px;color:#64748b;">
+      Mohit Singh · <a href="mailto:mohit310ggn@gmail.com" style="color:#2563eb;">mohit310ggn@gmail.com</a> ·
+      <a href="tel:+917982092042" style="color:#2563eb;">+91 7982092042</a> ·
+      Gurugram, Haryana
+    </p>
+  </div>
+</div></body></html>`;
+}
 
 // ─── HTML: Priyal Finance/Credit Template ─────────────────────────────────────
 function buildPriyalHTML({ hrName, company, role, customNote, trackUrl = "", templateType = "finance" }) {
@@ -2352,23 +2415,23 @@ app.post("/api/auth/init-mohit", async (req, res) => {
       { $set: {
         displayName:      "Mohit Singh",
         profileName:      "Mohit Singh",
-        profilePhone:     "+91 9999999999",
+        profilePhone:     "+91 7982092042",
         profileEmail:     "mohit310ggn@gmail.com",
         profileLinkedIn:  "linkedin.com/in/mohit-singh",
-        profileLocation:  "Gurgaon, Haryana",
-        profileTitle:     "Software Developer",
-        profileSummary:   "Software Developer with experience in full-stack development.",
-        keySkills:        "JavaScript, Node.js, React, MongoDB, REST APIs",
-        currentCompany:   "",
-        totalExp:         "",
-        relevantExp:      "",
+        profileLocation:  "Gurugram, Haryana",
+        profileTitle:     "Senior Software Developer | CRM & CTI Integration Specialist",
+        profileSummary:   "Senior Software Backend Engineer with 4.7 years of experience in Java, Spring Boot, REST APIs, Microservices, and CRM/CTI integrations including MS Dynamics 365, ServiceNow, HubSpot, Salesforce, and Cisco Finesse.",
+        keySkills:        "Java, Spring Boot, Microservices, REST APIs, SQL, MySQL, CRM Integration, CTI Integration, Cisco Finesse, Salesforce, Microsoft Dynamics 365, ServiceNow, HubSpot, Git, CI/CD, Postman",
+        currentCompany:   "NovelVox Pvt Ltd",
+        totalExp:         "4.7+ Years",
+        relevantExp:      "4.7+ Years",
         noticePeriod:     "30 Days",
-        currentLocation:  "Gurgaon, Haryana",
+        currentLocation:  "Gurugram, Haryana",
         preferredLocation:"PAN India",
         currentCTC:       "",
         expectedCTC:      "",
-        resumePath:       "",
-        resumeFileName:   "",
+        resumePath:       require("path").join(__dirname, "Mohit_Singh_CV.pdf"),
+        resumeFileName:   "Mohit_Singh_CV.pdf",
       }}
     );
     res.json({ success: true, message: "Mohit profile initialized", modified: result.modifiedCount });
