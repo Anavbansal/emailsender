@@ -2814,13 +2814,16 @@ async function sendWelcomeEmail({ displayName, username, password, profileEmail,
         <div style="color:#6b7280;font-size:13px;line-height:1.7;">
           This is the most important step — all your job application emails will be sent from YOUR Gmail.<br/><br/>
           Click this link to connect:<br/>
-          <a href="${appUrl.replace('emailsender-gl5q.vercel.app','emailsender-v8a4.onrender.com')}/api/gmail/auth?username=${username}"
+          <a href="${BASE_URL}/api/gmail/auth?username=${username}"
              style="display:inline-block;margin-top:8px;padding:8px 16px;background:#059669;color:#fff;border-radius:8px;text-decoration:none;font-weight:700;font-size:13px;">
             🔗 Connect Gmail
           </a><br/><br/>
+          <div style="margin-top:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;font-size:12px;color:#065f46;">
+            <strong>Or copy this link:</strong><br/>
+            <span style="word-break:break-all;color:#059669;">${BASE_URL}/api/gmail/auth?username=${username}</span>
+          </div><br/>
           <span style="color:#9ca3af;font-size:12px;">
-            ⚠️ Make sure to login with YOUR Gmail account (not someone else's).
-            After clicking Allow, you'll see "Gmail Connected!" ✅
+            ⚠️ Login with YOUR Gmail account. After clicking Allow, you'll see "Gmail Connected!" ✅
           </span>
         </div>
       </div>
@@ -2927,12 +2930,14 @@ app.post("/api/admin/users", requireAdmin, async (req, res) => {
     // Send welcome email
     const APP_URL = process.env.FRONTEND_URL || "https://emailsender-gl5q.vercel.app";
     if (profileEmail) {
+      const BACKEND_URL = process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || "https://emailsender-v8a4.onrender.com";
       sendWelcomeEmail({
-        displayName: displayName || username,
-        username:    username.toLowerCase(),
-        password:    password,
+        displayName:  displayName || username,
+        username:     username.toLowerCase(),
+        password:     password,
         profileEmail,
-        appUrl: APP_URL,
+        appUrl:       APP_URL,
+        backendUrl:   BACKEND_URL,
       }).catch(e => console.error("Welcome email error:", e.message));
     }
 
