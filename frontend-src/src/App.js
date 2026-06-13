@@ -4687,11 +4687,34 @@ export default App;
 // --- Settings Page ---
 function SettingsPage({ addToast }) {
   const currentUser = getUser();
-  const [saving, setSaving] = useState(false);
+  const [saving,    setSaving]    = useState(false);
+  const [activeTab, setActiveTab] = useState("profile");
+  const [np,        setNp]        = useState("");
+  const [changing,  setChanging]  = useState(false);
+
   const [profile, setProfile] = useState({
-    displayName: currentUser?.displayName || "",
-    totalExp: "", currentCTC: "", expectedCTC: "",
-    noticePeriod: "", currentLocation: "", preferredLocation: "",
+    // Basic
+    displayName:      currentUser?.displayName      || "",
+    profileTitle:     currentUser?.profileTitle     || "",
+    profilePhone:     currentUser?.profilePhone     || "",
+    profileEmail:     currentUser?.profileEmail     || "",
+    profileLinkedIn:  currentUser?.profileLinkedIn  || "",
+    profileLocation:  currentUser?.profileLocation  || "",
+    // Job details
+    currentCompany:   currentUser?.currentCompany   || "",
+    totalExp:         currentUser?.totalExp         || "",
+    relevantExp:      currentUser?.relevantExp      || "",
+    currentCTC:       currentUser?.currentCTC       || "",
+    expectedCTC:      currentUser?.expectedCTC      || "",
+    noticePeriod:     currentUser?.noticePeriod     || "",
+    currentLocation:  currentUser?.currentLocation  || "",
+    preferredLocation:currentUser?.preferredLocation|| "",
+    // Skills & summary
+    keySkills:        currentUser?.keySkills        || "",
+    profileSummary:   currentUser?.profileSummary   || "",
+    // Reason for change
+    reasonForChange:  currentUser?.reasonForChange  || "Personal and professional growth",
+    offerInHand:      currentUser?.offerInHand      || "No",
   });
   const handle = (k, v) => setProfile(p => ({ ...p, [k]: v }));
 
@@ -4700,98 +4723,217 @@ function SettingsPage({ addToast }) {
     try {
       await axios.patch(`${API}/api/auth/settings`, profile);
       setUser({ ...getUser(), ...profile });
-      addToast && addToast("Settings saved!");
+      addToast && addToast("✅ Profile saved!");
     } catch (e) {
-      addToast && addToast("Failed: " + (e.response?.data?.message || e.message), "error");
+      addToast && addToast("❌ Failed: " + (e.response?.data?.message || e.message), "error");
     } finally { setSaving(false); }
   };
 
-  const fields = [
-    { key: "displayName",       label: "Display Name",       ph: "Anav Bansal" },
-    { key: "totalExp",          label: "Total Experience",   ph: "4.7+ Years" },
-    { key: "currentCTC",        label: "Current CTC",        ph: "9 LPA" },
-    { key: "expectedCTC",       label: "Expected CTC",       ph: "15 LPA" },
-    { key: "noticePeriod",      label: "Notice Period",      ph: "30 Days" },
-    { key: "currentLocation",   label: "Current Location",   ph: "Faridabad, Haryana" },
-    { key: "preferredLocation", label: "Preferred Location", ph: "PAN India" },
+  const changePass = async () => {
+    if (!np || np.length < 4) return;
+    setChanging(true);
+    try {
+      await axios.post(`${API}/api/auth/change-password`, { newPassword: np });
+      addToast && addToast("✅ Password changed!");
+      setNp("");
+    } catch(e) { addToast && addToast("❌ Failed", "error"); }
+    finally { setChanging(false); }
+  };
+
+  const TABS = [
+    { id:"profile",  label:"👤 Profile"      },
+    { id:"job",      label:"💼 Job Details"  },
+    { id:"skills",   label:"🛠 Skills"       },
+    { id:"account",  label:"🔐 Account"      },
   ];
+
+  const Section = ({ title, children }) => (
+    <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"18px 20px", marginBottom:14 }}>
+      <div style={{ fontWeight:700, fontSize:13, color:"var(--blue)", marginBottom:14, paddingBottom:8, borderBottom:"1px solid var(--border)" }}>
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+
+  const Field = ({ label, k, ph, type="text", full=false, area=false }) => (
+    <div className="form-group" style={{ marginBottom:0, gridColumn: full?"1/-1":"auto" }}>
+      <label className="form-label" style={{ fontSize:11 }}>{label}</label>
+      {area
+        ? <textarea className="form-textarea" rows={3} style={{ fontSize:13 }}
+            placeholder={ph} value={profile[k]} onChange={e=>handle(k,e.target.value)} />
+        : <input type={type} className="form-input" style={{ fontSize:13 }}
+            placeholder={ph} value={profile[k]} onChange={e=>handle(k,e.target.value)} />
+      }
+    </div>
+  );
+
+  const SaveBtn = () => (
+    <button className={`btn-primary ${saving?"loading":""}`}
+      onClick={save} disabled={saving} style={{ marginTop:16 }}>
+      {saving ? "Saving..." : "💾 Save Changes"}
+    </button>
+  );
 
   return (
     <div className="page">
-      <div className="page-header"><h2 className="page-title">Settings</h2></div>
+      <div className="page-header"><h2 className="page-title">⚙️ Settings</h2></div>
 
-      <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:"20px 24px", marginBottom:16 }}>
-        <h3 style={{ margin:"0 0 16px", fontSize:15, fontWeight:700 }}>Profile & Screening Answers</h3>
-        <p style={{ fontSize:12, color:"var(--text-muted,#64748b)", marginBottom:16 }}>
-          These values auto-fill in HR screening reply and emails.
-        </p>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-          {fields.map(f => (
-            <div key={f.key} className="form-group" style={{ marginBottom:0 }}>
-              <label className="form-label" style={{ fontSize:11 }}>{f.label}</label>
-              <input className="form-input" style={{ fontSize:13 }}
-                placeholder={f.ph} value={profile[f.key]}
-                onChange={e => handle(f.key, e.target.value)} />
+      {/* Tab switcher */}
+      <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)}
+            style={{
+              padding:"7px 16px", borderRadius:99, border:"1.5px solid",
+              borderColor: activeTab===t.id ? "var(--blue)" : "var(--border)",
+              background: activeTab===t.id ? "var(--blue)" : "var(--surface)",
+              color: activeTab===t.id ? "#fff" : "var(--text-500,#6b7280)",
+              fontWeight:600, fontSize:12, cursor:"pointer"
+            }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Tab: Profile ── */}
+      {activeTab === "profile" && (
+        <div>
+          <Section title="👤 Personal Info">
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+              <Field k="displayName"     label="Full Name"        ph="Anav Bansal" full />
+              <Field k="profileTitle"    label="Professional Title" ph="Senior Full Stack Developer" full />
+              <Field k="profilePhone"    label="Phone"            ph="+91 7827855635" />
+              <Field k="profileEmail"    label="Email"            ph="anavbansal06@gmail.com" />
+              <Field k="profileLinkedIn" label="LinkedIn URL"     ph="linkedin.com/in/yourprofile" />
+              <Field k="profileLocation" label="City, State"      ph="Faridabad, Haryana" />
             </div>
-          ))}
-        </div>
-        <button className={`btn-primary ${saving ? "loading" : ""}`}
-          style={{ marginTop:16 }} onClick={save} disabled={saving}>
-          {saving ? "Saving..." : "Save Changes"}
-        </button>
-      </div>
+            <SaveBtn />
+          </Section>
 
-      <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:"20px 24px", marginBottom:16 }}>
-        <h3 style={{ margin:"0 0 12px", fontSize:15, fontWeight:700 }}>Gmail Connection</h3>
-        <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
-          <div style={{
-            background: currentUser?.hasGmail ? "#d1fae5" : "#fee2e2",
-            color: currentUser?.hasGmail ? "#065f46" : "#991b1b",
-            padding:"6px 14px", borderRadius:99, fontSize:13, fontWeight:600
-          }}>
-            {currentUser?.hasGmail ? "Connected" : "Not Connected"}
-          </div>
-          {currentUser?.gmailUser && (
-            <span style={{ fontSize:13, color:"var(--text-muted)" }}>{currentUser.gmailUser}</span>
-          )}
-          <a href={`${API}/api/gmail/auth?username=${currentUser?.username}`}
-            target="_blank" rel="noreferrer" className="btn-ghost btn-sm" style={{ fontSize:12 }}>
-            {currentUser?.hasGmail ? "Reconnect Gmail" : "Connect Gmail"}
-          </a>
+          <Section title="📝 Professional Summary">
+            <p style={{ fontSize:11, color:"var(--text-muted)", marginBottom:10 }}>
+              Used in screening replies and email body. Keep it 2-3 lines.
+            </p>
+            <Field k="profileSummary" label="Summary" area
+              ph="Senior Full Stack Developer with 4.7+ years of experience in Node.js, AWS, and CTI integrations..." />
+            <SaveBtn />
+          </Section>
         </div>
-      </div>
+      )}
 
-      <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:"20px 24px" }}>
-        <h3 style={{ margin:"0 0 12px", fontSize:15, fontWeight:700 }}>Account</h3>
-        <div style={{ fontSize:13, color:"var(--text-muted)", lineHeight:2, marginBottom:12 }}>
-          <div><strong>Username:</strong> {currentUser?.username}</div>
-          <div><strong>Display Name:</strong> {currentUser?.displayName}</div>
+      {/* ── Tab: Job Details ── */}
+      {activeTab === "job" && (
+        <div>
+          <Section title="💼 Current Job">
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+              <Field k="currentCompany"    label="Current Company"     ph="NovelVox Pvt Ltd" />
+              <Field k="totalExp"          label="Total Experience"    ph="4.7+ Years" />
+              <Field k="relevantExp"       label="Relevant Experience" ph="4.7+ Years" />
+              <Field k="currentCTC"        label="Current CTC"         ph="₹9 LPA" />
+              <Field k="expectedCTC"       label="Expected CTC"        ph="₹15 LPA" />
+              <Field k="noticePeriod"      label="Notice Period"       ph="30 Days" />
+              <Field k="currentLocation"   label="Current Location"    ph="Faridabad, Haryana" />
+              <Field k="preferredLocation" label="Preferred Location"  ph="PAN India" />
+            </div>
+            <SaveBtn />
+          </Section>
+
+          <Section title="🔄 HR Screening Answers">
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+              <Field k="reasonForChange" label="Reason for Change" ph="Personal and professional growth" />
+              <div className="form-group" style={{ marginBottom:0 }}>
+                <label className="form-label" style={{ fontSize:11 }}>Offer in Hand</label>
+                <select className="form-select" style={{ fontSize:13 }}
+                  value={profile.offerInHand} onChange={e=>handle("offerInHand",e.target.value)}>
+                  <option>No</option>
+                  <option>Yes</option>
+                </select>
+              </div>
+            </div>
+            <SaveBtn />
+          </Section>
         </div>
-        {/* Change Password */}
-        {(() => {
-          const [np, setNp] = React.useState("");
-          const [changing, setChanging] = React.useState(false);
-          const changePass = async () => {
-            if (!np || np.length < 4) return;
-            setChanging(true);
-            try {
-              await axios.post(`${API}/api/auth/change-password`, { newPassword: np });
-              addToast && addToast("Password changed!");
-              setNp("");
-            } catch(e) { addToast && addToast("Failed", "error"); }
-            finally { setChanging(false); }
-          };
-          return (
+      )}
+
+      {/* ── Tab: Skills ── */}
+      {activeTab === "skills" && (
+        <div>
+          <Section title="🛠 Key Skills">
+            <p style={{ fontSize:11, color:"var(--text-muted)", marginBottom:10 }}>
+              Used in email templates, screening replies, and custom notes. Comma separated.
+            </p>
+            <Field k="keySkills" label="Key Skills (comma separated)" area
+              ph="Node.js, Angular, AWS Lambda, CTI Integrations, ServiceNow, REST APIs..." />
+            <SaveBtn />
+          </Section>
+
+          {/* Live preview of how screening reply will look */}
+          <Section title="👁 Screening Reply Preview">
+            <div style={{ background:"var(--surface-2,#f8fafc)", borderRadius:8, padding:"14px 16px", fontFamily:"monospace", fontSize:12, lineHeight:1.9, whiteSpace:"pre-wrap", color:"var(--text-700,#374151)" }}>
+{`Dear HR,
+
+Thank you for reaching out! Please find my details below:
+
+📋 Candidate Profile — ${profile.displayName || currentUser?.displayName || "Your Name"}
+
+• Key Skills             : ${profile.keySkills || currentUser?.keySkills || "Your Skills"}
+• Total Experience       : ${profile.totalExp || currentUser?.totalExp || "X Years"}
+• Relevant Experience    : ${profile.relevantExp || currentUser?.relevantExp || "X Years"}
+• Current Company        : ${profile.currentCompany || currentUser?.currentCompany || "Company"}
+• Reason for Change      : ${profile.reasonForChange || "Personal and professional growth"}
+• Notice Period / LWD    : ${profile.noticePeriod || currentUser?.noticePeriod || "30 Days"}
+• Current CTC            : ${profile.currentCTC || currentUser?.currentCTC || "X LPA"}
+• Offer in Hand          : ${profile.offerInHand || "No"}
+• Expected CTC           : ${profile.expectedCTC || currentUser?.expectedCTC || "X LPA"}
+• Current Location       : ${profile.currentLocation || currentUser?.currentLocation || "City"}
+• Preferred Location     : ${profile.preferredLocation || currentUser?.preferredLocation || "PAN India"}
+
+Best regards,
+${profile.displayName || currentUser?.displayName || "Your Name"}`}
+            </div>
+          </Section>
+        </div>
+      )}
+
+      {/* ── Tab: Account ── */}
+      {activeTab === "account" && (
+        <div>
+          <Section title="🔐 Account Info">
+            <div style={{ fontSize:13, lineHeight:2.2, marginBottom:12 }}>
+              <div><strong>Username:</strong> <span style={{ color:"var(--text-muted)" }}>{currentUser?.username}</span></div>
+              <div><strong>Display Name:</strong> <span style={{ color:"var(--text-muted)" }}>{currentUser?.displayName}</span></div>
+              <div><strong>Email:</strong> <span style={{ color:"var(--text-muted)" }}>{currentUser?.profileEmail || currentUser?.gmailUser || "—"}</span></div>
+            </div>
             <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-              <input type="password" className="form-input" style={{ fontSize:13, maxWidth:200 }}
-                placeholder="New password" value={np} onChange={e=>setNp(e.target.value)} />
+              <input type="password" className="form-input" style={{ fontSize:13, maxWidth:220 }}
+                placeholder="New password (min 4 chars)" value={np} onChange={e=>setNp(e.target.value)} />
               <button className="btn-ghost btn-sm" onClick={changePass} disabled={changing || np.length < 4}>
-                {changing ? "..." : "Change Password"}
+                {changing ? "..." : "🔑 Change Password"}
               </button>
             </div>
-          );
-        })()}
-      </div>
+          </Section>
+
+          <Section title="📧 Gmail Connection">
+            <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+              <div style={{
+                background: currentUser?.hasGmail ? "#d1fae5" : "#fee2e2",
+                color: currentUser?.hasGmail ? "#065f46" : "#991b1b",
+                padding:"6px 14px", borderRadius:99, fontSize:13, fontWeight:600
+              }}>
+                {currentUser?.hasGmail ? "✅ Connected" : "❌ Not Connected"}
+              </div>
+              {currentUser?.gmailUser && (
+                <span style={{ fontSize:13, color:"var(--text-muted)" }}>{currentUser.gmailUser}</span>
+              )}
+              <a href={`${API}/api/gmail/auth?username=${currentUser?.username}`}
+                target="_blank" rel="noreferrer" className="btn-ghost btn-sm" style={{ fontSize:12 }}>
+                🔄 {currentUser?.hasGmail ? "Reconnect Gmail" : "Connect Gmail"}
+              </a>
+            </div>
+          </Section>
+        </div>
+      )}
+
     </div>
   );
 }
