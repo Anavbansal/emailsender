@@ -4349,10 +4349,7 @@ function App() {
         setAuthUser(null);
       });
   }, []); // runs once on mount
-  const [page,          setPage]          = useState(() => {
-    const u = getUser();
-    return (u?.isAdmin || u?.username === "superadmin") ? "admin" : "dashboard";
-  });
+  const [page,          setPage]          = useState("dashboard");
   const [contacts,      setContacts]      = useState([]);
   const [replies,       setReplies]       = useState([]);
   const [scheduledJobs, setScheduledJobs] = useState([]);
@@ -4451,7 +4448,7 @@ function App() {
   const replyCount     = replies.length;
   const scheduledCount = scheduledJobs.filter(j => j.status === "pending").length;
 
-  const isAdminView = !!(authUser?.isAdmin || getUser()?.isAdmin);
+  const isAdminView = !!(authUser?.isAdmin);
 
   const NAV = isAdminView
     ? [
@@ -4526,10 +4523,12 @@ function App() {
           <button
             onClick={() => {
               clearToken();
+              localStorage.removeItem("em_user");
               setAuthUser(null);
               setContacts([]);
               setReplies([]);
               setScheduledJobs([]);
+              setPage("dashboard");
             }}
             style={{
               background:"transparent", border:"none", cursor:"pointer",
@@ -4625,7 +4624,7 @@ function App() {
           {page === "jobs"      && <FindJobsPage onFillApply={goToSendPrefilled} />}
           {page === "scheduled" && <ScheduledPage onRefresh={fetchScheduled} />}
           {page === "settings"   && <SettingsPage addToast={addToast} />}
-          {page === "admin"      && isAdminView && <AdminPage addToast={addToast} />}
+          {page === "admin"      && authUser?.isAdmin && <AdminPage addToast={addToast} />}
         </main>
       </div>
 
