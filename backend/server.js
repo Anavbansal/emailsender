@@ -1354,9 +1354,16 @@ app.get("/api/emails/:trackingId", (req, res) => {
   const record = getTrackingRecords().find(r => r.trackingId === trackingId);
   if (!record) return res.status(404).json({ success: false, message: "Tracking record not found." });
 
+  // Reconstruct using user's template
+  const _uCfg = getUserConfig(req.user);
+  const _isMohit  = !!(_uCfg?.profileName?.toLowerCase().includes("mohit")  || req.user?.profileName?.toLowerCase().includes("mohit"));
+  const _isPriyal = !!(_uCfg?.profileName?.toLowerCase().includes("priyal") || req.user?.profileName?.toLowerCase().includes("priyal"));
+  const _opts = { hrName: record.hrName, company: record.company, role: record.role, customNote: "" };
   const html = record.type === "followup"
-    ? buildFollowUpHTML({ hrName: record.hrName, company: record.company, role: record.role, originalDate: new Date(record.sentAt).toLocaleDateString("en-IN"), customNote: "" })
-    : buildFullstackHTML({ hrName: record.hrName, company: record.company, role: record.role, customNote: "" });
+    ? buildFollowUpHTML({ ..._opts, originalDate: new Date(record.sentAt).toLocaleDateString("en-IN"), userCfg: _uCfg })
+    : _isMohit  ? buildMohitHTML(_opts)
+    : _isPriyal ? buildPriyalHTML(_opts)
+    : buildFullstackHTML(_opts);
 
   storeEmailHtml(trackingId, html);
   res.json({ success: true, html: stripTrackingPixel(html), reconstructed: true });
@@ -1657,11 +1664,13 @@ app.get("/api/prospect", async (req, res) => {
 // ─── POST /api/preview-email ──────────────────────────────────────────────────
 app.post("/api/preview-email", requireAuth, async (req, res) => {
   const { hrName, company, role, customNote, templateType = "fullstack", customIntro, customHighlights, headerTheme } = req.body;
-  const opts = { hrName, company, role, customNote, customIntro, customHighlights, headerTheme };
+  const opts     = { hrName, company, role, customNote, customIntro, customHighlights, headerTheme };
   const userCfg  = getUserConfig(req.user);
-  const isPriyal = userCfg?.profileName?.toLowerCase().includes("priyal");
+  const isPriyal = !!(userCfg?.profileName?.toLowerCase().includes("priyal") || req.user?.profileName?.toLowerCase().includes("priyal"));
+  const isMohit  = !!(userCfg?.profileName?.toLowerCase().includes("mohit")  || req.user?.profileName?.toLowerCase().includes("mohit"));
   let html;
-  if (isPriyal)                       html = buildPriyalHTML({ ...opts, templateType });
+  if (isMohit)                        html = buildMohitHTML({ ...opts, templateType });
+  else if (isPriyal)                  html = buildPriyalHTML({ ...opts, templateType });
   else if (templateType === "cti")    html = buildCTIHTML(opts);
   else if (templateType === "formal") html = buildFormalHTML(opts);
   else if (templateType === "crm")    html = buildCRMHTML(opts);
