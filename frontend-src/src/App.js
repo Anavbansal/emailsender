@@ -4499,6 +4499,7 @@ function App() {
     { id: "jobs",        icon: "🔍", label: "Find Jobs" },
     { id: "scheduled",   icon: "🗓", label: "Scheduled",        badge: scheduledCount || null },
     { id: "settings",    icon: "S",  label: "Settings",          badge: null },
+    ...(authUser?.isAdmin ? [{ id: "admin", icon: "A", label: "Admin Panel", badge: null }] : []),
   ];
 
   const [prefillSend, setPrefillSend] = React.useState(null);
@@ -4653,6 +4654,7 @@ function App() {
           {page === "jobs"      && <FindJobsPage onFillApply={goToSendPrefilled} />}
           {page === "scheduled" && <ScheduledPage onRefresh={fetchScheduled} />}
           {page === "settings"   && <SettingsPage addToast={addToast} />}
+          {page === "admin"      && authUser?.isAdmin && <AdminPage addToast={addToast} />}
         </main>
       </div>
 
@@ -4696,6 +4698,261 @@ export default App;
 
 // ─── Login / Register Page ────────────────────────────────────────────────────
 // ─── AI Intelligence Page ─────────────────────────────────────────────────────
+
+// ─── Admin Panel ──────────────────────────────────────────────────────────────
+function AdminPage({ addToast }) {
+  const [tab,       setTab]      = useState("users");
+  const [users,     setUsers]    = useState([]);
+  const [stats,     setStats]    = useState(null);
+  const [loading,   setLoading]  = useState(false);
+  const [showAdd,   setShowAdd]  = useState(false);
+  const [editUser,  setEditUser] = useState(null);
+  const [newUser,   setNewUser]  = useState({
+    username:"", password:"", displayName:"", profileEmail:"",
+    profilePhone:"", profileTitle:"", currentCompany:"", keySkills:"", totalExp:"", isAdmin:false
+  });
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const [ur, sr] = await Promise.all([
+        axios.get(`${API}/api/admin/users`),
+        axios.get(`${API}/api/admin/stats`),
+      ]);
+      setUsers(ur.data.users || []);
+      setStats(sr.data.stats || {});
+    } catch(e) { addToast && addToast("❌ " + e.message, "error"); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetchUsers(); }, []);
+
+  const createUser = async () => {
+    if (!newUser.username || !newUser.password) return addToast && addToast("Username & password required", "error");
+    try {
+      await axios.post(`${API}/api/admin/users`, newUser);
+      addToast && addToast("✅ User created!");
+      setShowAdd(false);
+      setNewUser({ username:"", password:"", displayName:"", profileEmail:"", profilePhone:"", profileTitle:"", currentCompany:"", keySkills:"", totalExp:"", isAdmin:false });
+      fetchUsers();
+    } catch(e) { addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error"); }
+  };
+
+  const deleteUser = async (id, name) => {
+    if (!window.confirm(`Delete ${name}? This will also delete all their email logs.`)) return;
+    try {
+      await axios.delete(`${API}/api/admin/users/${id}`);
+      addToast && addToast("✅ User deleted");
+      fetchUsers();
+    } catch(e) { addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error"); }
+  };
+
+  const uploadResume = async (userId, file) => {
+    if (!file) return;
+    const fd = new FormData();
+    fd.append("resume", file);
+    try {
+      await axios.post(`${API}/api/admin/users/${userId}/resume`, fd, { headers:{"Content-Type":"multipart/form-data"} });
+      addToast && addToast("✅ Resume uploaded!");
+      fetchUsers();
+    } catch(e) { addToast && addToast("❌ Upload failed", "error"); }
+  };
+
+  const saveEdit = async () => {
+    try {
+      await axios.patch(`${API}/api/admin/users/${editUser._id}`, editUser);
+      addToast && addToast("✅ User updated!");
+      setEditUser(null);
+      fetchUsers();
+    } catch(e) { addToast && addToast("❌ Failed", "error"); }
+  };
+
+  const StatCard = ({ label, value, color="var(--blue)" }) => (
+    <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"16px 20px", textAlign:"center" }}>
+      <div style={{ fontSize:28, fontWeight:900, color }}>{value}</div>
+      <div style={{ fontSize:12, color:"var(--text-muted)", marginTop:4 }}>{label}</div>
+    </div>
+  );
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <h2 className="page-title">Admin Panel</h2>
+        <span style={{ fontSize:11, background:"#fef3c7", color:"#92400e", padding:"4px 10px", borderRadius:99, fontWeight:700 }}>
+          ADMIN ONLY
+        </span>
+      </div>
+
+      {/* Stats */}
+      {stats && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:16 }}>
+          <StatCard label="Total Users"   value={stats.totalUsers}   color="var(--blue)"  />
+          <StatCard label="Total Emails"  value={stats.totalEmails}  color="#7c3aed"      />
+          <StatCard label="Today Emails"  value={stats.todayEmails}  color="#059669"      />
+          <StatCard label="Reply Rate"    value={`${stats.replyRate}%`} color="#d97706"   />
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:6, marginBottom:16 }}>
+        {["users","add"].map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            style={{ padding:"7px 16px", borderRadius:99, fontSize:12, fontWeight:600, cursor:"pointer",
+              border:"1.5px solid", borderColor: tab===t ? "var(--blue)" : "var(--border)",
+              background: tab===t ? "var(--blue)" : "var(--surface)",
+              color: tab===t ? "#fff" : "var(--text-muted)" }}>
+            {t==="users" ? "👥 All Users" : "➕ Add User"}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Users List ── */}
+      {tab === "users" && (
+        <div>
+          {loading && <div style={{ textAlign:"center", padding:20, color:"var(--text-muted)" }}>Loading...</div>}
+          {users.map(u => (
+            <div key={u._id} style={{
+              background:"var(--surface)", border:"1px solid var(--border)",
+              borderRadius:12, padding:"14px 18px", marginBottom:10
+            }}>
+              {editUser?._id === u._id ? (
+                /* Edit mode */
+                <div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
+                    {[
+                      ["displayName","Display Name"],["profileEmail","Email"],
+                      ["profilePhone","Phone"],["profileTitle","Title"],
+                      ["currentCompany","Company"],["totalExp","Experience"],
+                      ["keySkills","Key Skills"],
+                    ].map(([k,l]) => (
+                      <div key={k} className="form-group" style={{ marginBottom:0 }}>
+                        <label className="form-label" style={{ fontSize:11 }}>{l}</label>
+                        <input className="form-input" style={{ fontSize:12 }}
+                          value={editUser[k]||""} onChange={e => setEditUser(p=>({...p,[k]:e.target.value}))} />
+                      </div>
+                    ))}
+                    <div className="form-group" style={{ marginBottom:0 }}>
+                      <label className="form-label" style={{ fontSize:11 }}>Admin Access</label>
+                      <select className="form-select" style={{ fontSize:12 }}
+                        value={editUser.isAdmin?"yes":"no"}
+                        onChange={e => setEditUser(p=>({...p,isAdmin:e.target.value==="yes"}))}>
+                        <option value="no">No</option>
+                        <option value="yes">Yes — Admin</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button className="btn-primary btn-sm" onClick={saveEdit}>💾 Save</button>
+                    <button className="btn-ghost btn-sm" onClick={() => setEditUser(null)}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                /* View mode */
+                <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+                  <div style={{
+                    width:40, height:40, borderRadius:"50%", flexShrink:0,
+                    background:"linear-gradient(135deg,#3b82f6,#7c3aed)",
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    color:"#fff", fontWeight:800, fontSize:15
+                  }}>
+                    {(u.displayName||u.username).slice(0,2).toUpperCase()}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:700, fontSize:13 }}>
+                      {u.displayName || u.username}
+                      {u.isAdmin && <span style={{ marginLeft:6, fontSize:10, background:"#fef3c7", color:"#92400e", padding:"2px 8px", borderRadius:99, fontWeight:700 }}>ADMIN</span>}
+                    </div>
+                    <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>
+                      @{u.username} · {u.profileEmail||"no email"}
+                    </div>
+                    <div style={{ fontSize:11, marginTop:3, display:"flex", gap:8, flexWrap:"wrap" }}>
+                      <span style={{ color: u.hasGmail ? "#059669" : "#dc2626" }}>
+                        {u.hasGmail ? "✅ Gmail" : "❌ No Gmail"}
+                      </span>
+                      <span style={{ color: u.hasResume ? "#059669" : "#6b7280" }}>
+                        {u.hasResume ? "✅ Resume" : "📎 No Resume"}
+                      </span>
+                      {u.profileTitle && <span style={{ color:"var(--text-muted)" }}>{u.profileTitle}</span>}
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+                    {/* Resume upload */}
+                    <label style={{
+                      padding:"5px 10px", borderRadius:8, fontSize:11, fontWeight:600, cursor:"pointer",
+                      background:"#ede9fe", color:"#5b21b6", border:"1px solid #c4b5fd"
+                    }}>
+                      📎 Resume
+                      <input type="file" accept=".pdf" style={{ display:"none" }}
+                        onChange={e => uploadResume(u._id, e.target.files[0])} />
+                    </label>
+                    <button className="btn-ghost btn-sm" style={{ fontSize:11 }}
+                      onClick={() => setEditUser({...u})}>✏️ Edit</button>
+                    <button style={{
+                      padding:"5px 10px", borderRadius:8, fontSize:11, fontWeight:600, cursor:"pointer",
+                      background:"#fee2e2", color:"#991b1b", border:"1px solid #fca5a5"
+                    }} onClick={() => deleteUser(u._id, u.displayName||u.username)}>
+                      🗑 Delete
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Add User ── */}
+      {tab === "add" && (
+        <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:"20px 24px" }}>
+          <h3 style={{ margin:"0 0 16px", fontSize:15, fontWeight:700 }}>➕ Create New User</h3>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 }}>
+            {[
+              ["username","Username *","john_doe"],
+              ["password","Password *","min 4 chars"],
+              ["displayName","Display Name","John Doe"],
+              ["profileEmail","Email","john@gmail.com"],
+              ["profilePhone","Phone","+91 9876543210"],
+              ["profileTitle","Title","Software Developer"],
+              ["currentCompany","Company","TechCorp"],
+              ["totalExp","Experience","2+ Years"],
+            ].map(([k,l,ph]) => (
+              <div key={k} className="form-group" style={{ marginBottom:0 }}>
+                <label className="form-label" style={{ fontSize:11 }}>{l}</label>
+                <input className="form-input" style={{ fontSize:13 }}
+                  placeholder={ph} value={newUser[k]||""}
+                  onChange={e => setNewUser(p=>({...p,[k]:e.target.value}))} />
+              </div>
+            ))}
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <label className="form-label" style={{ fontSize:11 }}>Key Skills</label>
+              <input className="form-input" style={{ fontSize:13 }}
+                placeholder="Node.js, React, AWS..."
+                value={newUser.keySkills||""}
+                onChange={e => setNewUser(p=>({...p,keySkills:e.target.value}))} />
+            </div>
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <label className="form-label" style={{ fontSize:11 }}>Admin Access</label>
+              <select className="form-select" style={{ fontSize:13 }}
+                value={newUser.isAdmin?"yes":"no"}
+                onChange={e => setNewUser(p=>({...p,isAdmin:e.target.value==="yes"}))}>
+                <option value="no">No — Regular User</option>
+                <option value="yes">Yes — Admin</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ background:"#fef9c3", border:"1px solid #fde047", borderRadius:8, padding:"10px 14px", marginBottom:14, fontSize:12, color:"#713f12" }}>
+            💡 User ko register nahi karna hoga — directly login kar sakta hai username/password se.
+            Invite code ki zarurat nahi.
+          </div>
+          <button className="btn-primary" onClick={createUser}>
+            ✅ Create User
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- Settings Page ---
 function SettingsPage({ addToast }) {
   const currentUser = getUser();
