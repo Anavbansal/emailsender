@@ -128,15 +128,25 @@ async function requireAdmin(req, res, next) {
     const header = req.headers.authorization || "";
     const token  = header.startsWith("Bearer ") ? header.slice(7) : null;
     if (!token) return res.status(401).json({ success: false, message: "No token" });
-    const { userId } = jwt.verify(token, JWT_SECRET);
-    const user = await User.findById(userId).lean();
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const userId  = decoded.userId;
+    const user    = await User.findById(userId).lean();
     if (!user) return res.status(401).json({ success: false, message: "User not found" });
-    if (!user.isAdmin && user.username !== (process.env.OWNER_USERNAME || "anav"))
+
+    const isOwner      = user.username === (process.env.OWNER_USERNAME || "anav");
+    const isAdminUser  = user.username === (process.env.ADMIN_USERNAME  || "superadmin");
+    const hasAdminFlag = !!user.isAdmin;
+
+    if (!isOwner && !isAdminUser && !hasAdminFlag)
       return res.status(403).json({ success: false, message: "Admin access required" });
+
     req.user   = user;
-    req.userId = userId;
+    req.userId = String(userId);
     next();
-  } catch(e) { res.status(401).json({ success: false, message: "Invalid token" }); }
+  } catch(e) {
+    console.error("requireAdmin error:", e.message);
+    res.status(401).json({ success: false, message: "Invalid token: " + e.message });
+  }
 }
 
 async function requireAuth(req, res, next) {
