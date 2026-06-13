@@ -2929,20 +2929,28 @@ app.post("/api/admin/users", requireAdmin, async (req, res) => {
     await user.save();
 
     // Send welcome email
-    const APP_URL = process.env.FRONTEND_URL || "https://emailsender-gl5q.vercel.app";
+    const APP_URL     = process.env.FRONTEND_URL  || "https://emailsender-gl5q.vercel.app";
+    const BACKEND_URL = process.env.BASE_URL       || "https://emailsender-v8a4.onrender.com";
+    let emailStatus = "";
     if (profileEmail) {
-      const BACKEND_URL = process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || "https://emailsender-v8a4.onrender.com";
-      sendWelcomeEmail({
-        displayName:  displayName || username,
-        username:     username.toLowerCase(),
-        password:     password,
-        profileEmail,
-        appUrl:       APP_URL,
-        backendUrl:   BACKEND_URL,
-      }).catch(e => console.error("Welcome email error:", e.message));
+      try {
+        await sendWelcomeEmail({
+          displayName:  displayName || username,
+          username:     username.toLowerCase(),
+          password:     password,
+          profileEmail,
+          appUrl:       APP_URL,
+          backendUrl:   BACKEND_URL,
+        });
+        emailStatus = " — Welcome email sent!";
+        console.log("✅ Welcome email sent to", profileEmail);
+      } catch(e) {
+        emailStatus = " — (email failed: " + e.message + ")";
+        console.error("❌ Welcome email error:", e.message);
+      }
     }
 
-    res.json({ success: true, message: "User created" + (profileEmail ? " — Welcome email sent!" : ""), userId: user._id });
+    res.json({ success: true, message: "User created" + emailStatus, userId: user._id });
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
