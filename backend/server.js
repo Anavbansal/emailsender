@@ -677,14 +677,7 @@ function footer(accentColor = "#2563eb") {
   </div>`;
 }
 
-function resumeBox(accentColor = "#2563eb") {
-  return `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:18px 24px;margin-bottom:24px;">
-    <p style="margin:0 0 10px;font-weight:600;color:#111827;font-size:14px;">📎 Resume / CV</p>
-    <p style="margin:0;font-size:14px;color:#374151;">Attached and available online:<br/>
-      <a href="${RESUME_DRIVE_LINK}" style="color:${accentColor};text-decoration:none;font-weight:500;">🔗 View on Google Drive →</a>
-    </p>
-  </div>`;
-}
+// resumeBox removed — resume attached directly
 
 
 // ─── HTML: CRM Expert ─────────────────────────────────────────────────────────
@@ -725,7 +718,6 @@ function buildCRMHTML({ hrName, company, role, customNote, trackUrl = "", custom
       <p style="margin:0 0 12px;font-weight:600;color:#134e4a;font-size:14px;">🏆 CRM & ServiceNow Expertise</p>
       <ul style="margin:0;padding-left:20px;color:#374151;font-size:14px;line-height:2;">${hlHtml}</ul>
     </div>
-    ${resumeBox("#0d9488")}
     <p style="color:#374151;line-height:1.8;margin:0;">Thank you for your time and consideration. I would love the opportunity to discuss how I can bring this expertise to your team.</p>
   </div>
   ${footer("#0d9488")}
@@ -923,7 +915,6 @@ function buildFullstackHTML({ hrName, company, role, customNote, trackUrl = "", 
       <p style="margin:0 0 12px;font-weight:600;color:#1e3a5f;font-size:14px;">⚡ Quick Highlights</p>
       <ul style="margin:0;padding-left:20px;color:#374151;font-size:14px;line-height:2;">${hlHtml}</ul>
     </div>
-    ${resumeBox("#2563eb")}
     <p style="color:#374151;line-height:1.8;margin:0;">Thank you for your time and consideration.</p>
   </div>
   ${footer("#2563eb")}
@@ -966,7 +957,6 @@ function buildCTIHTML({ hrName, company, role, customNote, trackUrl = "", custom
       <p style="margin:0 0 12px;font-weight:600;color:#4c1d95;font-size:14px;">📞 CTI Expertise Highlights</p>
       <ul style="margin:0;padding-left:20px;color:#374151;font-size:14px;line-height:2;">${hlHtml}</ul>
     </div>
-    ${resumeBox("#7c3aed")}
     <p style="color:#374151;line-height:1.8;margin:0;">Thank you for your time and consideration.</p>
   </div>
   ${footer("#7c3aed")}
@@ -1007,7 +997,6 @@ function buildFormalHTML({ hrName, company, role, customNote, trackUrl = "", cus
       <p style="margin:0 0 12px;font-weight:600;color:#1e3a5f;font-size:14px;">📋 Professional Qualifications</p>
       <ul style="margin:0;padding-left:20px;color:#374151;font-size:14px;line-height:2;">${hlHtml}</ul>
     </div>
-    ${resumeBox("#1d4ed8")}
     <p style="color:#374151;line-height:1.8;margin:0;">Thank you for your time and consideration.</p>
   </div>
   ${footer("#1d4ed8")}
@@ -1084,7 +1073,7 @@ function buildReferralHTML({ employeeName, company, role, customNote, trackUrl =
     </p>
     <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:18px 24px;margin-bottom:24px;">
       <p style="margin:0 0 10px;font-weight:600;color:#5b21b6;font-size:14px;">📄 Resume</p>
-      <a href="${RESUME_DRIVE_LINK}" style="color:#7c3aed;text-decoration:none;font-weight:500;font-size:14px;">🔗 View Resume on Google Drive →</a>
+
       <p style="margin:10px 0 0;font-size:13px;color:#6b7280;">
         LinkedIn: <a href="https://linkedin.com/in/anavbansal-51b191162" style="color:#7c3aed;text-decoration:none;">linkedin.com/in/anavbansal-51b191162</a>
       </p>
