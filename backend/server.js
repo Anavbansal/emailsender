@@ -3227,4 +3227,403 @@ Write a professional, concise reply covering the relevant screening questions.
   }
 });
 
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AI ROUTES — Powered by Groq (llama-3.1-8b-instant)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function groqChat(messages, maxTokens = 800, temperature = 0.8, model = "llama-3.1-8b-instant") {
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error?.message || "Groq API failed");
+  }
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content?.trim() || "";
+}
+
+// ─── 1. AI Email Writer ───────────────────────────────────────────────────────
+app.post("/api/ai/write-email", requireAuth, async (req, res) => {
+  try {
+    const { hrName, company, role, templateType, tone = "professional", keyPoints = "" } = req.body;
+    const cfg      = getUserConfig(req.user);
+    const userName = cfg.profileName    || req.user.displayName || "Anav Bansal";
+    const exp      = cfg.totalExp       || req.user.totalExp    || "4+ years";
+    const skills   = cfg.keySkills      || req.user.keySkills   || "";
+    const currCo   = cfg.currentCompany || req.user.currentCompany || "";
+    const title    = cfg.profileTitle   || req.user.profileTitle || "Software Developer";
+    const summary  = cfg.profileSummary || req.user.profileSummary || "";
+
+    const toneMap = {
+      professional: "formal and professional — impressive yet humble",
+      confident:    "confident and assertive — like a top performer",
+      friendly:     "warm and conversational — like talking to a colleague",
+      concise:      "very brief and direct — max 2 short paragraphs, no fluff",
+      creative:     "creative and memorable — stand out from 100 other applicants",
+    };
+
+    const text = await groqChat([{ role: "user", content:
+`You are an expert job application email writer. Write a HIGHLY personalized email body.
+
+CANDIDATE PROFILE:
+- Name: ${userName}
+- Title: ${title}
+- Experience: ${exp}
+- Current Company: ${currCo}
+- Key Skills: ${skills}
+- Summary: ${summary}
+${keyPoints ? "- MUST highlight: " + keyPoints : ""}
+
+TARGET:
+- HR Name: ${hrName || "Hiring Manager"}
+- Company: ${company || "the company"}
+- Role: ${role || "this position"}
+- Template: ${templateType}
+- Tone: ${toneMap[tone] || toneMap.professional}
+
+RULES:
+- Write ONLY the email body paragraphs (no subject, no Dear/salutation, no signature)
+- 2-3 focused paragraphs
+- Reference specific skills matching the role
+- Make it feel human and genuine — NOT a template
+- Each word must earn its place — no fluff
+- End with a strong call to action
+- Output: just the email body, nothing else` }], 600, 0.85);
+
+    res.json({ success: true, emailBody: text });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── 2. AI Subject Line Generator ────────────────────────────────────────────
+app.post("/api/ai/write-subject", requireAuth, async (req, res) => {
+  try {
+    const { company, role, templateType } = req.body;
+    const cfg      = getUserConfig(req.user);
+    const userName = cfg.profileName || req.user.displayName || "Anav Bansal";
+    const exp      = cfg.totalExp    || req.user.totalExp    || "4+ years";
+
+    const text = await groqChat([{ role: "user", content:
+`Generate 5 unique email subject lines for a job application.
+Candidate: ${userName} (${exp} exp)
+Role: ${role || "Software Developer"}
+Company: ${company || "the company"}
+Type: ${templateType}
+
+Rules: Max 65 chars each. No emojis. Human sounding. Varied styles (direct/intriguing/value-prop/urgent/creative).
+Output ONLY 5 lines numbered 1-5. Nothing else.` }], 200, 0.95);
+
+    const subjects = text.split("\n").filter(l => /^\d+[.)]/.test(l)).map(l => l.replace(/^\d+[.)]+\s*/, "").trim())
+      .filter(Boolean);
+    res.json({ success: true, subjects });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── 3. AI Follow-up Writer ───────────────────────────────────────────────────
+app.post("/api/ai/write-followup", requireAuth, async (req, res) => {
+  try {
+    const { company, role, originalDate, daysSince = 7, previousEmail = "" } = req.body;
+    const cfg      = getUserConfig(req.user);
+    const userName = cfg.profileName || req.user.displayName || "Anav Bansal";
+    const skills   = cfg.keySkills   || req.user.keySkills   || "";
+
+    const text = await groqChat([{ role: "user", content:
+`Write a follow-up email body for a job application.
+
+Candidate: ${userName}
+Applied for: ${role || "Software Developer"} at ${company || "your company"}
+Applied on: ${originalDate || `${daysSince} days ago`}
+Days since application: ${daysSince}
+Key Skills: ${skills}
+${previousEmail ? "Previous email summary: " + previousEmail.slice(0, 200) : ""}
+
+Rules:
+- Brief and polite — 2 short paragraphs max
+- Reiterate interest without being desperate  
+- Add ONE new value point not in original email
+- Professional but warm tone
+- Strong call to action
+- Output: just the email body paragraphs, nothing else` }], 350, 0.8);
+
+    res.json({ success: true, emailBody: text });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── 4. AI Screening Reply ────────────────────────────────────────────────────
+app.post("/api/ai/screening-reply", requireAuth, async (req, res) => {
+  try {
+    const { hrMessage = "" } = req.body;
+    const cfg = getUserConfig(req.user);
+    const u   = req.user;
+    const profile = {
+      name:      cfg.profileName     || u.displayName  || "Anav Bansal",
+      skills:    cfg.keySkills       || u.keySkills    || "",
+      exp:       cfg.totalExp        || u.totalExp     || "",
+      currCo:    cfg.currentCompany  || u.currentCompany || "",
+      currCTC:   cfg.currentCTC      || u.currentCTC   || "",
+      expCTC:    cfg.expectedCTC     || u.expectedCTC  || "",
+      notice:    cfg.noticePeriod    || u.noticePeriod || "30 Days",
+      location:  cfg.currentLocation || u.currentLocation || "",
+      prefLoc:   cfg.preferredLocation || u.preferredLocation || "PAN India",
+      reason:    cfg.reasonForChange || u.reasonForChange || "Better growth opportunity",
+      offer:     cfg.offerInHand     || u.offerInHand  || "No",
+      title:     cfg.profileTitle    || u.profileTitle || "Software Developer",
+    };
+
+    const text = await groqChat([{ role: "user", content:
+`You are ${profile.name}, a ${profile.title} with ${profile.exp} experience.
+HR has sent you a screening message. Reply professionally and concisely.
+
+YOUR PROFILE:
+Skills: ${profile.skills}
+Current Company: ${profile.currCo}
+Current CTC: ${profile.currCTC}
+Expected CTC: ${profile.expCTC}
+Notice Period: ${profile.notice}
+Current Location: ${profile.location}
+Preferred Location: ${profile.prefLoc}
+Reason for Change: ${profile.reason}
+Offer in Hand: ${profile.offer}
+
+HR's message: "${hrMessage}"
+
+Rules:
+- Answer ONLY what was asked
+- Be direct and confident
+- Keep under 120 words
+- Sound natural — not like a template
+- If they ask for profile, give a crisp summary
+Output: just the reply, nothing else` }], 300, 0.7);
+
+    res.json({ success: true, reply: text });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── 5. AI LinkedIn Connection Message ────────────────────────────────────────
+app.post("/api/ai/linkedin-msg", requireAuth, async (req, res) => {
+  try {
+    const { personName, personTitle, company, purpose = "job", mutualInfo = "" } = req.body;
+    const cfg      = getUserConfig(req.user);
+    const userName = cfg.profileName || req.user.displayName || "Anav Bansal";
+    const skills   = cfg.keySkills   || req.user.keySkills   || "";
+    const exp      = cfg.totalExp    || req.user.totalExp    || "4+ years";
+
+    const purposeMap = {
+      job:      "job opportunity or referral at their company",
+      network:  "professional networking and knowledge sharing",
+      referral: "a referral for an open position at their company",
+      connect:  "connecting as professionals in the same industry",
+    };
+
+    const text = await groqChat([{ role: "user", content:
+`Write a LinkedIn connection message (max 300 chars — LinkedIn limit).
+
+From: ${userName} (${exp} exp in ${skills.split(",")[0]?.trim()})
+To: ${personName || "HR/Recruiter"} (${personTitle || "Professional"} at ${company || "their company"})
+Purpose: ${purposeMap[purpose] || purposeMap.job}
+${mutualInfo ? "Mutual info: " + mutualInfo : ""}
+
+Rules:
+- MUST be under 300 characters (LinkedIn limit — very strict)
+- Personal, warm, specific — NOT generic
+- Clear ask in last sentence
+- No hashtags, no emojis
+Output: just the message text` }], 150, 0.9);
+
+    const msg = text.slice(0, 300);
+    res.json({ success: true, message: msg, chars: msg.length });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── 6. AI Referral Message ───────────────────────────────────────────────────
+app.post("/api/ai/referral-msg", requireAuth, async (req, res) => {
+  try {
+    const { personName, company, role, platform = "whatsapp" } = req.body;
+    const cfg      = getUserConfig(req.user);
+    const userName = cfg.profileName || req.user.displayName || "Anav Bansal";
+    const skills   = cfg.keySkills   || req.user.keySkills   || "";
+    const exp      = cfg.totalExp    || req.user.totalExp    || "4+ years";
+    const title    = cfg.profileTitle || req.user.profileTitle || "Software Developer";
+
+    const text = await groqChat([{ role: "user", content:
+`Write a ${platform === "whatsapp" ? "WhatsApp" : "email"} referral request message.
+
+From: ${userName} — ${title}, ${exp} experience
+To: ${personName || "connection"}
+Company: ${company || "their company"}
+Role: ${role || "Software Developer"}
+Key Skills: ${skills}
+
+Rules:
+- ${platform === "whatsapp" ? "Conversational, brief — WhatsApp style. 3-4 sentences max." : "Professional email format. 3 short paragraphs."}
+- Mention specific skills relevant to company/role
+- Clear ask for referral
+- End with a strong reason why they should refer you
+- Sound genuine — NOT desperate
+Output: just the message` }], 350, 0.85);
+
+    res.json({ success: true, message: text });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── 7. AI ATS Resume Score ───────────────────────────────────────────────────
+app.post("/api/ai/ats-score", requireAuth, async (req, res) => {
+  try {
+    const { jobDescription } = req.body;
+    if (!jobDescription) return res.status(400).json({ success: false, message: "Job description required" });
+    const cfg    = getUserConfig(req.user);
+    const skills = cfg.keySkills || req.user.keySkills || "";
+    const exp    = cfg.totalExp  || req.user.totalExp  || "";
+    const title  = cfg.profileTitle || req.user.profileTitle || "";
+    const summary = cfg.profileSummary || req.user.profileSummary || "";
+
+    const text = await groqChat([{ role: "user", content:
+`You are an ATS (Applicant Tracking System) expert. Analyze how well this candidate matches the job.
+
+CANDIDATE:
+Title: ${title}
+Experience: ${exp}
+Skills: ${skills}
+Summary: ${summary}
+
+JOB DESCRIPTION:
+${jobDescription.slice(0, 2000)}
+
+Provide a detailed analysis in this EXACT JSON format (no markdown, no backticks):
+{
+  "score": 85,
+  "matchedSkills": ["skill1", "skill2"],
+  "missingSkills": ["skill3", "skill4"],
+  "strengths": ["point1", "point2", "point3"],
+  "improvements": ["tip1", "tip2"],
+  "verdict": "Strong match — apply with confidence",
+  "emailTips": "Focus on X and Y in your email"
+}` }], 600, 0.3, "llama-3.3-70b-versatile");
+
+    try {
+      const cleaned = text.replace(/```json|```/g, "").trim();
+      const result  = JSON.parse(cleaned);
+      res.json({ success: true, result });
+    } catch {
+      res.json({ success: true, result: { score: 0, verdict: text, matchedSkills: [], missingSkills: [], strengths: [], improvements: [], emailTips: "" } });
+    }
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── 8. AI Interview Prep ─────────────────────────────────────────────────────
+app.post("/api/ai/interview-prep", requireAuth, async (req, res) => {
+  try {
+    const { company, role, round = "technical" } = req.body;
+    const cfg    = getUserConfig(req.user);
+    const skills = cfg.keySkills || req.user.keySkills || "";
+    const exp    = cfg.totalExp  || req.user.totalExp  || "4+ years";
+
+    const text = await groqChat([{ role: "user", content:
+`Generate interview preparation guide for:
+Company: ${company || "a tech company"}
+Role: ${role || "Software Developer"}
+Round: ${round}
+Candidate Skills: ${skills}
+Experience: ${exp}
+
+Provide in EXACT JSON (no markdown):
+{
+  "questions": [
+    {"q": "question", "hint": "key points to cover"},
+    {"q": "question", "hint": "key points to cover"},
+    {"q": "question", "hint": "key points to cover"},
+    {"q": "question", "hint": "key points to cover"},
+    {"q": "question", "hint": "key points to cover"}
+  ],
+  "tips": ["tip1", "tip2", "tip3"],
+  "companyInsights": "Brief info about company culture and what they look for",
+  "redFlags": ["avoid1", "avoid2"]
+}` }], 800, 0.5, "llama-3.3-70b-versatile");
+
+    try {
+      const result = JSON.parse(text.replace(/```json|```/g, "").trim());
+      res.json({ success: true, result });
+    } catch {
+      res.json({ success: true, result: { questions: [], tips: [text], companyInsights: "", redFlags: [] } });
+    }
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── 9. AI Salary Negotiation ─────────────────────────────────────────────────
+app.post("/api/ai/salary-negotiate", requireAuth, async (req, res) => {
+  try {
+    const { offeredCTC, role, company, yearsExp } = req.body;
+    const cfg    = getUserConfig(req.user);
+    const expCTC = cfg.expectedCTC || req.user.expectedCTC || "";
+    const skills = cfg.keySkills   || req.user.keySkills   || "";
+
+    const text = await groqChat([{ role: "user", content:
+`You are a salary negotiation expert. Analyze this job offer and provide strategy.
+
+Role: ${role || "Software Developer"}
+Company: ${company || "the company"}
+Offered CTC: ${offeredCTC} LPA
+Expected CTC: ${expCTC} LPA
+Years Experience: ${yearsExp || "4+"}
+Skills: ${skills}
+
+Provide in EXACT JSON (no markdown):
+{
+  "strategy": "negotiate|accept|counter",
+  "counterOffer": 18,
+  "marketRate": "16-22 LPA for this role/exp",
+  "confidence": "high|medium|low",
+  "emailScript": "Full negotiation email body here...",
+  "phoneScript": "What to say on call...",
+  "keyArguments": ["arg1", "arg2", "arg3"],
+  "walkawayPoint": 15,
+  "tips": ["tip1", "tip2"]
+}` }], 700, 0.5, "llama-3.3-70b-versatile");
+
+    try {
+      const result = JSON.parse(text.replace(/```json|```/g, "").trim());
+      res.json({ success: true, result });
+    } catch {
+      res.json({ success: true, result: { strategy: "negotiate", emailScript: text, keyArguments: [], tips: [] } });
+    }
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── 10. AI Job Description Analyzer ─────────────────────────────────────────
+app.post("/api/ai/analyze-jd", requireAuth, async (req, res) => {
+  try {
+    const { jobDescription } = req.body;
+    const text = await groqChat([{ role: "user", content:
+`Analyze this job description and extract key info in EXACT JSON (no markdown):
+{
+  "role": "extracted role title",
+  "company": "company name if mentioned",
+  "requiredSkills": ["skill1", "skill2"],
+  "niceToHave": ["skill1"],
+  "experience": "3-5 years",
+  "salaryRange": "if mentioned, else null",
+  "workMode": "remote|hybrid|onsite",
+  "redFlags": ["any concerning requirements"],
+  "keyResponsibilities": ["resp1", "resp2", "resp3"],
+  "applicationTips": "What to focus on in cover letter"
+}
+
+JOB DESCRIPTION:
+${jobDescription?.slice(0, 2000)}` }], 500, 0.3);
+
+    try {
+      const result = JSON.parse(text.replace(/```json|```/g, "").trim());
+      res.json({ success: true, result });
+    } catch {
+      res.json({ success: true, result: { applicationTips: text } });
+    }
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 app.listen(PORT, () => console.log(`\n🚀 Job Mailer API → http://localhost:${PORT}\n`));
