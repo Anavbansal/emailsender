@@ -4699,9 +4699,11 @@ function App() {
         </header>
 
         <main className="main-content">
-          <div className="page-header">
-            <h2 className="page-title">{NAV.find(n => n.id === page)?.icon} {NAV.find(n => n.id === page)?.label}</h2>
-          </div>
+          {page !== "ai" && (
+            <div className="page-header">
+              <h2 className="page-title">{NAV.find(n => n.id === page)?.icon} {NAV.find(n => n.id === page)?.label}</h2>
+            </div>
+          )}
 
           {page === "dashboard" && (
             <DashboardPage
@@ -6005,9 +6007,9 @@ function AIAssistantPage({ addToast }) {
   };
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"calc(100vh - 56px)", overflow:"hidden" }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"calc(100vh - 56px)", overflow:"hidden", padding:"0 20px" }}>
       {/* Compact top bar */}
-      <div style={{ flexShrink:0, padding:"8px 20px 6px", borderBottom:"1px solid var(--border)" }}>
+      <div style={{ flexShrink:0, padding:"8px 0 6px", borderBottom:"1px solid var(--border)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
           <span style={{ fontWeight:700, fontSize:15, background:"linear-gradient(135deg,#7c3aed,#2563eb)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>✨ AI Assistant</span>
           <span style={{ fontSize:10, background:"linear-gradient(135deg,#7c3aed,#2563eb)", color:"#fff", padding:"2px 8px", borderRadius:99, fontWeight:700 }}>Groq</span>
