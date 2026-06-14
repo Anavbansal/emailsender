@@ -113,6 +113,25 @@ const UserSchema = new mongoose.Schema({
 
 const User = mongoose.models.User || mongoose.model("User", UserSchema);
 
+// ─── EmailTemplate Model ─────────────────────────────────────────────────────
+const emailTemplateSchema = new mongoose.Schema({
+  userId:      { type: String, required: true },
+  templateId:  { type: String, required: true },
+  name:        { type: String, default: "" },
+  icon:        { type: String, default: "⚡" },
+  accent:      { type: String, default: "#2563eb" },
+  subject:     { type: String, default: "" },
+  customNote:  { type: String, default: "" },
+  intro:       { type: String, default: "" },
+  highlights:  [{ type: String }],
+  resumeType:  { type: String, default: "default" },
+  resumeDriveUrl:   { type: String, default: "" },
+  resumeUploadPath: { type: String, default: "" },
+  resumeFileName:   { type: String, default: "" },
+}, { timestamps: true });
+emailTemplateSchema.index({ userId: 1, templateId: 1 }, { unique: true });
+const EmailTemplate = mongoose.model("EmailTemplate", emailTemplateSchema);
+
 // ── JWT helpers ───────────────────────────────────────────────────────────────
 const JWT_SECRET = process.env.JWT_SECRET || "emailsender_secret_2026";
 const bcrypt     = require("bcryptjs");
