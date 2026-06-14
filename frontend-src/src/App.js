@@ -1942,6 +1942,40 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
 function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed }) {
   const [form, setForm]           = useState({ hrEmail: "", hrName: "", company: "", role: "", customNote: "" });
 
+  // ── AI Writer State ────────────────────────────────────────────────────────
+  const [aiDrawer,    setAiDrawer]    = useState(false);
+  const [aiLoading,   setAiLoading]   = useState(false);
+  const [aiTone,      setAiTone]      = useState("professional");
+  const [aiKeyPoints, setAiKeyPoints] = useState("");
+  const [aiSubjects,  setAiSubjects]  = useState([]);
+  const [aiBody,      setAiBody]      = useState("");
+
+  const generateAiEmail = async () => {
+    setAiLoading(true); setAiBody(""); setAiSubjects([]);
+    try {
+      const [emailRes, subjectRes] = await Promise.all([
+        axios.post(`${API}/api/ai/write-email`, {
+          hrName: form.hrName, company: form.company,
+          role: form.role, templateType: templateId,
+          tone: aiTone, keyPoints: aiKeyPoints,
+        }),
+        axios.post(`${API}/api/ai/write-subject`, {
+          hrName: form.hrName, company: form.company,
+          role: form.role, templateType: templateId,
+        }),
+      ]);
+      if (emailRes.data.success)   setAiBody(emailRes.data.emailBody);
+      if (subjectRes.data.success) setAiSubjects(subjectRes.data.subjects || []);
+    } catch(e) {
+      console.error("AI error:", e.message);
+    } finally { setAiLoading(false); }
+  };
+
+  const applyAiEmail = () => {
+    if (aiBody) setForm(p => ({ ...p, customNote: aiBody }));
+    setAiDrawer(false);
+  };
+
   // Apply prefill from Prospect / Find Jobs page
   useEffect(() => {
     if (!prefill) return;
