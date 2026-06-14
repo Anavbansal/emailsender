@@ -6005,42 +6005,40 @@ function AIAssistantPage({ addToast }) {
   };
 
   return (
-    <div className="page" style={{ display:"flex", flexDirection:"column", height:"calc(100vh - 60px)" }}>
-      {/* Header */}
-      <div className="page-header" style={{ flexShrink:0 }}>
-        <h2 className="page-title" style={{ background:"linear-gradient(135deg,#7c3aed,#2563eb)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
-          ✨ AI Assistant
-        </h2>
-        <span style={{ fontSize:11, background:"linear-gradient(135deg,#7c3aed,#2563eb)", color:"#fff", padding:"4px 12px", borderRadius:99, fontWeight:700 }}>Groq</span>
-      </div>
-
-      {/* Tool selector */}
-      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12, flexShrink:0 }}>
-        {TOOLS.map(t => (
-          <button key={t.id} onClick={() => setTool(t.id)}
-            style={{
-              padding:"6px 12px", borderRadius:99, fontSize:12, fontWeight:600, cursor:"pointer", border:"1.5px solid",
-              borderColor: tool===t.id ? "#7c3aed" : "var(--border)",
-              background: tool===t.id ? "linear-gradient(135deg,#7c3aed,#2563eb)" : "var(--surface)",
-              color: tool===t.id ? "#fff" : "var(--text-muted)",
-            }}>{t.icon} {t.label}</button>
-        ))}
-      </div>
-
-      {/* Tone selector for email */}
-      {tool === "email" && (
-        <div style={{ display:"flex", gap:6, marginBottom:10, flexShrink:0, alignItems:"center" }}>
-          <span style={{ fontSize:11, color:"var(--text-muted)", fontWeight:600 }}>Tone:</span>
-          {["professional","confident","friendly","concise","creative"].map(t => (
-            <button key={t} onClick={() => setTone(t)} style={{
-              padding:"3px 10px", borderRadius:99, fontSize:11, fontWeight:600, cursor:"pointer", border:"1.5px solid",
-              borderColor:tone===t?"#7c3aed":"var(--border)",
-              background:tone===t?"#7c3aed18":"var(--surface)",
-              color:tone===t?"#7c3aed":"var(--text-muted)"
-            }}>{t}</button>
+    <div style={{ display:"flex", flexDirection:"column", height:"calc(100vh - 56px)", overflow:"hidden" }}>
+      {/* Compact top bar */}
+      <div style={{ flexShrink:0, padding:"8px 20px 6px", borderBottom:"1px solid var(--border)" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
+          <span style={{ fontWeight:700, fontSize:15, background:"linear-gradient(135deg,#7c3aed,#2563eb)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>✨ AI Assistant</span>
+          <span style={{ fontSize:10, background:"linear-gradient(135deg,#7c3aed,#2563eb)", color:"#fff", padding:"2px 8px", borderRadius:99, fontWeight:700 }}>Groq</span>
+          {tool === "email" && (
+            <div style={{ display:"flex", gap:4, marginLeft:"auto", alignItems:"center" }}>
+              <span style={{ fontSize:10, color:"var(--text-muted)", fontWeight:600 }}>Tone:</span>
+              {["professional","confident","friendly","concise","creative"].map(t => (
+                <button key={t} onClick={() => setTone(t)} style={{
+                  padding:"2px 8px", borderRadius:99, fontSize:10, fontWeight:600, cursor:"pointer", border:"1px solid",
+                  borderColor:tone===t?"#7c3aed":"var(--border)",
+                  background:tone===t?"#7c3aed":"var(--surface)",
+                  color:tone===t?"#fff":"var(--text-muted)"
+                }}>{t}</button>
+              ))}
+            </div>
+          )}
+        </div>
+        {/* Tools — single scrollable row */}
+        <div style={{ display:"flex", gap:5, overflowX:"auto", paddingBottom:4, scrollbarWidth:"none" }}>
+          {TOOLS.map(t => (
+            <button key={t.id} onClick={() => setTool(t.id)}
+              style={{
+                padding:"4px 11px", borderRadius:99, fontSize:11, fontWeight:600, cursor:"pointer",
+                border:"1.5px solid", whiteSpace:"nowrap", flexShrink:0,
+                borderColor: tool===t.id ? "#7c3aed" : "var(--border)",
+                background: tool===t.id ? "linear-gradient(135deg,#7c3aed,#2563eb)" : "var(--surface)",
+                color: tool===t.id ? "#fff" : "var(--text-muted)",
+              }}>{t.icon} {t.label}</button>
           ))}
         </div>
-      )}
+      </div>
 
       {/* Chat messages */}
       <div style={{
