@@ -2841,15 +2841,40 @@ async function sendWelcomeEmail({ displayName, username, password, profileEmail,
   </div>
 </div></body></html>`;
 
-  // Use sendViaGmailAPI directly — already tested and working
-  await sendViaGmailAPI({
-    to:         profileEmail,
-    subject:    "Welcome to Job Mailer — Your Account is Ready! 🚀",
+  // Send via Anav's Gmail (owner) — welcome emails always from owner account
+  const ownerUsername = process.env.OWNER_USERNAME || "anav";
+  const ownerUser     = await require("./server").getUserByUsername?.(ownerUsername)
+                        .catch(() => null);
+
+  // Build raw email directly using owner's Gmail credentials
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI
+  );
+  oauth2Client.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN });
+  const gmail  = google.gmail({ version: "v1", auth: oauth2Client });
+  const from   = process.env.GMAIL_USER || "anavbansal06@gmail.com";
+  const subjectEncoded = `=?UTF-8?B?${Buffer.from("Welcome to Job Mailer — Your Account is Ready! 🚀").toString("base64")}?=`;
+
+  const boundary = "welcome_" + Date.now();
+  const rawEmail = [
+    `From: "Job Mailer" <${from}>`,
+    `To: ${profileEmail}`,
+    `Subject: ${subjectEncoded}`,
+    `MIME-Version: 1.0`,
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    ``,
+    `--${boundary}`,
+    `Content-Type: text/html; charset="UTF-8"`,
+    `Content-Transfer-Encoding: quoted-printable`,
+    ``,
     html,
-    userConfig: null,
-    user:       null,
-    templateType: "welcome",
-  });
+    `--${boundary}--`,
+  ].join("\r\n");
+
+  const encoded = Buffer.from(rawEmail).toString("base64url");
+  await gmail.users.messages.send({ userId: "me", requestBody: { raw: encoded } });
   console.log("✅ Welcome email sent to", profileEmail);
 }
 // ═══════════════════════════════════════════════════════════════════════════════
