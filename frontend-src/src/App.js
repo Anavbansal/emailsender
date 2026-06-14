@@ -5851,22 +5851,15 @@ function AIAssistantPage({ addToast }) {
   ];
 
   const PROMPTS = {
-    email:     "✉ Email Writer ready! Tell me:
-**Who to send?** (e.g. HR Name, Company, Role)
-Or just say: *Write email to Priya at Google for Senior Developer role*",
-    followup:  "🔁 Follow-up Writer! Tell me:
-Company name, role, and how many days since you applied?",
-    screening: "💬 Paste the HR's screening message and I'll write a perfect reply using your profile!",
-    linkedin:  "🔗 LinkedIn Message! Tell me:
-Person's name, their role/company, and purpose (job referral/networking)?",
-    referral:  "🤝 Referral Message! Tell me:
-Contact name, their company, role you want, and platform (WhatsApp/Email/LinkedIn)?",
-    ats:       "📊 ATS Score Checker! Paste the **job description** and I'll tell you how well your profile matches!",
-    interview: "🎯 Interview Prep! Tell me:
-Company name, role, and which round? (Technical/HR/Managerial/System Design)",
-    salary:    "💰 Salary Negotiation! Tell me:
-Offered CTC (LPA), company name, role, and your years of experience?",
-    analyzejd: "🔍 JD Analyzer! Paste the **job description** and I'll extract key info, required skills, red flags, and tips!",
+    email:     `✉ Email Writer ready! Tell me: Who to send? (HR Name, Company, Role)\nOr say: Write email to Priya at Google for Senior Developer role`,
+    followup:  `🔁 Follow-up Writer! Tell me: Company name, role, and how many days since you applied?`,
+    screening: `💬 Paste the HR's screening message and I'll write a perfect reply using your profile!`,
+    linkedin:  `🔗 LinkedIn Message! Tell me: Person's name, their role/company, and purpose (job referral/networking)?`,
+    referral:  `🤝 Referral Message! Tell me: Contact name, their company, role you want, and platform (WhatsApp/Email/LinkedIn)?`,
+    ats:       `📊 ATS Score Checker! Paste the job description and I'll tell you how well your profile matches!`,
+    interview: `🎯 Interview Prep! Tell me: Company name, role, and which round? (Technical/HR/Managerial/System Design)`,
+    salary:    `💰 Salary Negotiation! Tell me: Offered CTC (LPA), company name, role, and your years of experience?`,
+    analyzejd: `🔍 JD Analyzer! Paste the job description and I'll extract key info, required skills, red flags, and tips!`,
   };
 
   const ENDPOINT_MAP = {
