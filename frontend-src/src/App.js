@@ -4478,6 +4478,7 @@ function App() {
         { id: "jobs",        icon: "🔍", label: "Find Jobs" },
         { id: "scheduled",   icon: "🗓", label: "Scheduled",       badge: scheduledCount || null },
         { id: "settings",    icon: "S",  label: "Settings",         badge: null },
+        { id: "ai",           icon: "✨", label: "AI Assistant",     badge: "NEW" },
       ];
 
   const [prefillSend, setPrefillSend] = React.useState(null);
@@ -4635,6 +4636,7 @@ function App() {
           {page === "jobs"      && <FindJobsPage onFillApply={goToSendPrefilled} />}
           {page === "scheduled" && <ScheduledPage onRefresh={fetchScheduled} />}
           {page === "settings"   && <SettingsPage addToast={addToast} />}
+          {page === "ai"         && <AIAssistantPage addToast={addToast} />}
           {page === "admin"      && authUser?.isAdmin && <AdminPage addToast={addToast} />}
         </main>
       </div>
@@ -5830,6 +5832,305 @@ function TemplateManagerPage({ addToast }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── AI Assistant Page ────────────────────────────────────────────────────────
+function AIAssistantPage({ addToast }) {
+  const [tool,    setTool]    = React.useState("email");
+  const [loading, setLoading] = React.useState(false);
+  const [result,  setResult]  = React.useState(null);
+  const [form,    setForm]    = React.useState({
+    hrName:"", company:"", role:"", tone:"professional", keyPoints:"", templateType:"fullstack",
+    originalDate:"", daysSince:"7", hrMessage:"", personName:"", personTitle:"",
+    purpose:"job", platform:"whatsapp", mutualInfo:"", jobDescription:"",
+    round:"technical", offeredCTC:"", yearsExp:"",
+  });
+  const h = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const TOOLS = [
+    { id:"email",     icon:"✉",  label:"Email Writer"       },
+    { id:"followup",  icon:"🔁", label:"Follow-up Writer"   },
+    { id:"screening", icon:"💬", label:"Screening Reply"    },
+    { id:"linkedin",  icon:"🔗", label:"LinkedIn Message"   },
+    { id:"referral",  icon:"🤝", label:"Referral Message"   },
+    { id:"ats",       icon:"📊", label:"ATS Score"          },
+    { id:"interview", icon:"🎯", label:"Interview Prep"     },
+    { id:"salary",    icon:"💰", label:"Salary Negotiation" },
+    { id:"analyzejd", icon:"🔍", label:"Analyze JD"         },
+  ];
+
+  const call = async (endpoint, body) => {
+    setLoading(true); setResult(null);
+    try {
+      const r = await axios.post(`${API}/api/ai/${endpoint}`, body);
+      if (r.data.success) setResult(r.data);
+      else addToast && addToast("❌ " + r.data.message, "error");
+    } catch(e) {
+      addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error");
+    } finally { setLoading(false); }
+  };
+
+  const copy = (t) => { navigator.clipboard?.writeText(t); addToast && addToast("✅ Copied!"); };
+  const CopyBtn = ({ text }) => (
+    <button onClick={() => copy(text)} style={{ padding:"4px 10px", borderRadius:6, fontSize:11, fontWeight:600, background:"var(--surface-2,#f8fafc)", border:"1px solid var(--border)", cursor:"pointer", color:"var(--blue)" }}>📋 Copy</button>
+  );
+  const Inp = ({ label, k, ph, area=false, type="text" }) => (
+    <div className="form-group" style={{ marginBottom:0 }}>
+      <label className="form-label" style={{ fontSize:11 }}>{label}</label>
+      {area ? <textarea className="form-textarea" rows={3} style={{ fontSize:13 }} placeholder={ph} value={form[k]} onChange={e => h(k, e.target.value)} />
+             : <input type={type} className="form-input" style={{ fontSize:13 }} placeholder={ph} value={form[k]} onChange={e => h(k, e.target.value)} />}
+    </div>
+  );
+  const RunBtn = ({ onClick, label="✨ Generate" }) => (
+    <button onClick={onClick} disabled={loading} style={{
+      padding:"10px 20px", borderRadius:10, fontWeight:700, fontSize:14,
+      background:"linear-gradient(135deg,#7c3aed,#2563eb)", color:"#fff",
+      border:"none", cursor:loading?"not-allowed":"pointer", opacity:loading?0.7:1,
+      display:"flex", alignItems:"center", gap:8
+    }}>
+      {loading ? <><span className="spinner"/> Generating…</> : label}
+    </button>
+  );
+  const Box = ({ text, label="Result" }) => text ? (
+    <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:10, padding:"14px 16px" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+        <span style={{ fontWeight:700, fontSize:13 }}>{label}</span>
+        <CopyBtn text={text} />
+      </div>
+      <div style={{ fontSize:13, lineHeight:1.8, whiteSpace:"pre-wrap" }}>{text}</div>
+    </div>
+  ) : null;
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <h2 className="page-title" style={{ background:"linear-gradient(135deg,#7c3aed,#2563eb)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>✨ AI Assistant</h2>
+        <span style={{ fontSize:11, background:"linear-gradient(135deg,#7c3aed,#2563eb)", color:"#fff", padding:"4px 12px", borderRadius:99, fontWeight:700 }}>Powered by Groq</span>
+      </div>
+
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:20 }}>
+        {TOOLS.map(t => (
+          <button key={t.id} onClick={() => { setTool(t.id); setResult(null); }} style={{
+            padding:"7px 14px", borderRadius:99, fontSize:12, fontWeight:600, cursor:"pointer", border:"1.5px solid",
+            borderColor: tool===t.id ? "#7c3aed" : "var(--border)",
+            background: tool===t.id ? "linear-gradient(135deg,#7c3aed,#2563eb)" : "var(--surface)",
+            color: tool===t.id ? "#fff" : "var(--text-muted)",
+          }}>{t.icon} {t.label}</button>
+        ))}
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          {tool==="email" && (<>
+            <Inp k="hrName" label="HR Name" ph="Priya Sharma" />
+            <Inp k="company" label="Company" ph="Google, Infosys..." />
+            <Inp k="role" label="Role" ph="Senior Developer" />
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <label className="form-label" style={{ fontSize:11 }}>Tone</label>
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                {["professional","confident","friendly","concise","creative"].map(t => (
+                  <button key={t} onClick={() => h("tone",t)} style={{
+                    padding:"4px 12px", borderRadius:99, fontSize:11, fontWeight:600, cursor:"pointer", border:"1.5px solid",
+                    borderColor:form.tone===t?"#7c3aed":"var(--border)",
+                    background:form.tone===t?"#7c3aed18":"var(--surface)",
+                    color:form.tone===t?"#7c3aed":"var(--text-muted)"
+                  }}>{t}</button>
+                ))}
+              </div>
+            </div>
+            <Inp k="keyPoints" label="Key points to highlight (optional)" ph="Built similar product..." area />
+            <RunBtn onClick={() => call("write-email", { hrName:form.hrName, company:form.company, role:form.role, tone:form.tone, keyPoints:form.keyPoints, templateType:form.templateType })} />
+          </>)}
+          {tool==="followup" && (<>
+            <Inp k="company" label="Company" ph="Google" />
+            <Inp k="role" label="Role" ph="Senior Developer" />
+            <Inp k="originalDate" label="Applied Date" ph="1 June 2026" />
+            <Inp k="daysSince" label="Days Since" ph="7" type="number" />
+            <RunBtn onClick={() => call("write-followup", { company:form.company, role:form.role, originalDate:form.originalDate, daysSince:form.daysSince })} />
+          </>)}
+          {tool==="screening" && (<>
+            <Inp k="hrMessage" label="Paste HR's message" ph="Hi, please share your CTC, notice period..." area />
+            <div style={{ background:"#f0f9ff", borderRadius:8, padding:"10px 12px", fontSize:12, color:"#0369a1" }}>💡 AI uses your profile from Settings</div>
+            <RunBtn onClick={() => call("screening-reply", { hrMessage:form.hrMessage })} />
+          </>)}
+          {tool==="linkedin" && (<>
+            <Inp k="personName" label="Person's Name" ph="Rahul Sharma" />
+            <Inp k="personTitle" label="Their Title" ph="HR Manager" />
+            <Inp k="company" label="Company" ph="TCS" />
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <label className="form-label" style={{ fontSize:11 }}>Purpose</label>
+              <select className="form-select" style={{ fontSize:13 }} value={form.purpose} onChange={e => h("purpose",e.target.value)}>
+                <option value="job">Job opportunity</option>
+                <option value="referral">Ask for referral</option>
+                <option value="network">Network</option>
+                <option value="connect">Just connect</option>
+              </select>
+            </div>
+            <Inp k="mutualInfo" label="Mutual info (optional)" ph="Same college, know X..." />
+            <RunBtn onClick={() => call("linkedin-msg", { personName:form.personName, personTitle:form.personTitle, company:form.company, purpose:form.purpose, mutualInfo:form.mutualInfo })} />
+          </>)}
+          {tool==="referral" && (<>
+            <Inp k="personName" label="Contact Name" ph="Rahul Bhai" />
+            <Inp k="company" label="Their Company" ph="Google" />
+            <Inp k="role" label="Role you want" ph="Senior Developer" />
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <label className="form-label" style={{ fontSize:11 }}>Platform</label>
+              <select className="form-select" style={{ fontSize:13 }} value={form.platform} onChange={e => h("platform",e.target.value)}>
+                <option value="whatsapp">WhatsApp</option>
+                <option value="email">Email</option>
+                <option value="linkedin">LinkedIn</option>
+              </select>
+            </div>
+            <RunBtn onClick={() => call("referral-msg", { personName:form.personName, company:form.company, role:form.role, platform:form.platform })} />
+          </>)}
+          {tool==="ats" && (<>
+            <Inp k="jobDescription" label="Paste Job Description" ph="We are looking for..." area />
+            <div style={{ background:"#fef9c3", borderRadius:8, padding:"10px 12px", fontSize:12, color:"#713f12" }}>💡 Uses your Skills from Settings</div>
+            <RunBtn label="📊 Calculate ATS Score" onClick={() => call("ats-score", { jobDescription:form.jobDescription })} />
+          </>)}
+          {tool==="interview" && (<>
+            <Inp k="company" label="Company" ph="Google, TCS..." />
+            <Inp k="role" label="Role" ph="Senior Developer" />
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <label className="form-label" style={{ fontSize:11 }}>Round</label>
+              <select className="form-select" style={{ fontSize:13 }} value={form.round} onChange={e => h("round",e.target.value)}>
+                <option value="technical">Technical</option>
+                <option value="hr">HR Round</option>
+                <option value="managerial">Managerial</option>
+                <option value="system-design">System Design</option>
+                <option value="behavioral">Behavioral (STAR)</option>
+              </select>
+            </div>
+            <RunBtn label="🎯 Prep Me!" onClick={() => call("interview-prep", { company:form.company, role:form.role, round:form.round })} />
+          </>)}
+          {tool==="salary" && (<>
+            <Inp k="offeredCTC" label="Offered CTC (LPA)" ph="12" type="number" />
+            <Inp k="company" label="Company" ph="Google" />
+            <Inp k="role" label="Role" ph="Senior Developer" />
+            <Inp k="yearsExp" label="Years Exp" ph="4" type="number" />
+            <RunBtn label="💰 Analyze Offer" onClick={() => call("salary-negotiate", { offeredCTC:form.offeredCTC, company:form.company, role:form.role, yearsExp:form.yearsExp })} />
+          </>)}
+          {tool==="analyzejd" && (<>
+            <Inp k="jobDescription" label="Paste Job Description" ph="We are looking for..." area />
+            <RunBtn label="🔍 Analyze JD" onClick={() => call("analyze-jd", { jobDescription:form.jobDescription })} />
+          </>)}
+        </div>
+
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          {!result && !loading && (
+            <div style={{ textAlign:"center", padding:"40px 20px", color:"var(--text-muted)", border:"2px dashed var(--border)", borderRadius:12 }}>
+              <div style={{ fontSize:40, marginBottom:12 }}>✨</div>
+              <div style={{ fontWeight:600, fontSize:14, marginBottom:6 }}>AI Result will appear here</div>
+              <div style={{ fontSize:12 }}>Fill the form and click Generate</div>
+            </div>
+          )}
+          {loading && <div style={{ textAlign:"center", padding:"40px" }}><span className="spinner" style={{ width:32, height:32 }} /><div style={{ marginTop:12, fontSize:13, color:"var(--text-muted)" }}>AI is thinking…</div></div>}
+
+          {tool==="email" && result?.emailBody && <Box text={result.emailBody} label="✉ Generated Email Body" />}
+          {result?.subjects?.length > 0 && (
+            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:10, padding:"14px 16px" }}>
+              <div style={{ fontWeight:700, fontSize:13, marginBottom:10 }}>📌 Subject Lines</div>
+              {result.subjects.map((s,i) => (
+                <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 0", borderBottom:"0.5px solid var(--border)" }}>
+                  <span style={{ fontSize:13 }}>{s}</span><CopyBtn text={s} />
+                </div>
+              ))}
+            </div>
+          )}
+          {tool==="followup" && result?.emailBody && <Box text={result.emailBody} label="🔁 Follow-up Email" />}
+          {tool==="screening" && result?.reply && <Box text={result.reply} label="💬 AI Screening Reply" />}
+          {tool==="linkedin" && result?.message && (
+            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:10, padding:"14px 16px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                <span style={{ fontWeight:700, fontSize:13 }}>🔗 LinkedIn Message</span>
+                <span style={{ fontSize:11, color:result.chars>280?"#dc2626":"#059669", fontWeight:700 }}>{result.chars}/300</span>
+              </div>
+              <div style={{ fontSize:13, lineHeight:1.8, whiteSpace:"pre-wrap" }}>{result.message}</div>
+              <div style={{ marginTop:8 }}><CopyBtn text={result.message} /></div>
+            </div>
+          )}
+          {tool==="referral" && result?.message && <Box text={result.message} label="🤝 Referral Message" />}
+          {tool==="ats" && result?.result && (() => {
+            const r = result.result;
+            return (<div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              <div style={{ background:r.score>=80?"#d1fae5":r.score>=60?"#fef9c3":"#fee2e2", border:"1px solid", borderColor:r.score>=80?"#6ee7b7":r.score>=60?"#fde047":"#fca5a5", borderRadius:12, padding:"16px 20px", textAlign:"center" }}>
+                <div style={{ fontSize:40, fontWeight:900, color:r.score>=80?"#059669":r.score>=60?"#d97706":"#dc2626" }}>{r.score}%</div>
+                <div style={{ fontSize:13, fontWeight:600, marginTop:4 }}>{r.verdict}</div>
+              </div>
+              {r.matchedSkills?.length>0 && <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:10, padding:"12px 14px" }}>
+                <div style={{ fontWeight:700, fontSize:12, color:"#059669", marginBottom:6 }}>✅ Matched</div>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>{r.matchedSkills.map((s,i)=><span key={i} style={{ background:"#d1fae5", color:"#065f46", fontSize:11, padding:"2px 10px", borderRadius:99 }}>{s}</span>)}</div>
+              </div>}
+              {r.missingSkills?.length>0 && <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:10, padding:"12px 14px" }}>
+                <div style={{ fontWeight:700, fontSize:12, color:"#dc2626", marginBottom:6 }}>❌ Missing</div>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>{r.missingSkills.map((s,i)=><span key={i} style={{ background:"#fee2e2", color:"#991b1b", fontSize:11, padding:"2px 10px", borderRadius:99 }}>{s}</span>)}</div>
+              </div>}
+              {r.emailTips && <Box text={r.emailTips} label="📧 Email Tips" />}
+            </div>);
+          })()}
+          {tool==="interview" && result?.result && (() => {
+            const r = result.result;
+            return (<div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              {r.companyInsights && <Box text={r.companyInsights} label="🏢 Company Insights" />}
+              {r.questions?.length>0 && <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:10, padding:"12px 14px" }}>
+                <div style={{ fontWeight:700, fontSize:13, marginBottom:10 }}>❓ Expected Questions</div>
+                {r.questions.map((q,i)=><div key={i} style={{ marginBottom:12, paddingBottom:12, borderBottom:"0.5px solid var(--border)" }}>
+                  <div style={{ fontWeight:600, fontSize:13 }}>{i+1}. {q.q}</div>
+                  <div style={{ fontSize:12, color:"var(--text-muted)", marginTop:4 }}>💡 {q.hint}</div>
+                </div>)}
+              </div>}
+              {r.tips?.length>0 && <div style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:10, padding:"12px 14px" }}>
+                <div style={{ fontWeight:700, fontSize:12, color:"#065f46", marginBottom:6 }}>✅ Tips</div>
+                {r.tips.map((t,i)=><div key={i} style={{ fontSize:12, marginBottom:4 }}>• {t}</div>)}
+              </div>}
+            </div>);
+          })()}
+          {tool==="salary" && result?.result && (() => {
+            const r = result.result;
+            return (<div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              <div style={{ background:r.strategy==="accept"?"#d1fae5":"#fef9c3", border:"1px solid", borderColor:r.strategy==="accept"?"#6ee7b7":"#fde047", borderRadius:12, padding:"14px 18px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div>
+                  <div style={{ fontWeight:800, fontSize:16 }}>{r.strategy==="accept"?"✅ Good Offer":"💪 Negotiate!"}</div>
+                  <div style={{ fontSize:12, color:"var(--text-muted)", marginTop:2 }}>{r.marketRate}</div>
+                </div>
+                <div style={{ textAlign:"center" }}>
+                  <div style={{ fontSize:24, fontWeight:900, color:"#059669" }}>{r.counterOffer} LPA</div>
+                  <div style={{ fontSize:11, color:"var(--text-muted)" }}>Counter offer</div>
+                </div>
+              </div>
+              {r.emailScript && <Box text={r.emailScript} label="✉ Negotiation Email" />}
+              {r.phoneScript && <Box text={r.phoneScript} label="📞 Phone Script" />}
+              {r.keyArguments?.length>0 && <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:10, padding:"12px 14px" }}>
+                <div style={{ fontWeight:700, fontSize:12, marginBottom:6 }}>💡 Key Arguments</div>
+                {r.keyArguments.map((a,i)=><div key={i} style={{ fontSize:12, marginBottom:4 }}>• {a}</div>)}
+              </div>}
+            </div>);
+          })()}
+          {tool==="analyzejd" && result?.result && (() => {
+            const r = result.result;
+            return (<div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:10, padding:"12px 14px" }}>
+                <div style={{ fontWeight:700, fontSize:13, marginBottom:8 }}>📋 JD Summary</div>
+                {r.role && <div style={{ fontSize:13 }}><strong>Role:</strong> {r.role}</div>}
+                {r.experience && <div style={{ fontSize:13 }}><strong>Exp:</strong> {r.experience}</div>}
+                {r.workMode && <div style={{ fontSize:13 }}><strong>Mode:</strong> {r.workMode}</div>}
+                {r.salaryRange && <div style={{ fontSize:13 }}><strong>Salary:</strong> {r.salaryRange}</div>}
+              </div>
+              {r.requiredSkills?.length>0 && <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:10, padding:"12px 14px" }}>
+                <div style={{ fontWeight:700, fontSize:12, color:"#059669", marginBottom:6 }}>✅ Required Skills</div>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>{r.requiredSkills.map((s,i)=><span key={i} style={{ background:"#d1fae5", color:"#065f46", fontSize:11, padding:"2px 10px", borderRadius:99 }}>{s}</span>)}</div>
+              </div>}
+              {r.applicationTips && <Box text={r.applicationTips} label="📧 Application Tips" />}
+              {r.redFlags?.length>0 && <div style={{ background:"#fee2e2", border:"1px solid #fca5a5", borderRadius:10, padding:"12px 14px" }}>
+                <div style={{ fontWeight:700, fontSize:12, color:"#991b1b", marginBottom:6 }}>⚠️ Red Flags</div>
+                {r.redFlags.map((f,i)=><div key={i} style={{ fontSize:12, marginBottom:4, color:"#991b1b" }}>• {f}</div>)}
+              </div>}
+            </div>);
+          })()}
+        </div>
+      </div>
     </div>
   );
 }
