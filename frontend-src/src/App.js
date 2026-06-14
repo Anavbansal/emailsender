@@ -4767,8 +4767,6 @@ function App() {
   );
 }
 
-export default App;
-
 
 // ─── LinkedIn Connections Page ────────────────────────────────────────────────
 
@@ -4778,10 +4776,7 @@ export default App;
 
 // ─── Add Connection Modal ──────────────────────────────────────────────────────
 // ─── Scheduled Page ───────────────────────────────────────────────────────────
-// ═══════════════════════════════ MAIN APP ════════════════════════════════════
 
-// ─── Login / Register Page ────────────────────────────────────────────────────
-// ─── AI Intelligence Page ─────────────────────────────────────────────────────
 
 // ─── Admin Panel ──────────────────────────────────────────────────────────────
 function AdminPage({ addToast }) {
@@ -6133,3 +6128,6 @@ function AIAssistantPage({ addToast }) {
     </div>
   );
 }
+
+
+export default App;
