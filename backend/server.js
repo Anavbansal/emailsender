@@ -3059,4 +3059,172 @@ app.post("/api/admin/init", async (req, res) => {
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+
+// ─── POST /api/ai/write-email — AI powered email writer ──────────────────────
+app.post("/api/ai/write-email", requireAuth, async (req, res) => {
+  try {
+    const { hrName, company, role, templateType, tone = "professional", keyPoints = "" } = req.body;
+    const userCfg   = getUserConfig(req.user);
+    const userName  = userCfg.profileName  || req.user.displayName || "Anav Bansal";
+    const exp       = userCfg.totalExp     || req.user.totalExp    || "4+ years";
+    const skills    = userCfg.keySkills    || req.user.keySkills   || "Node.js, React, AWS";
+    const company2  = userCfg.currentCompany || req.user.currentCompany || "NovelVox";
+    const title     = userCfg.profileTitle || req.user.profileTitle || "Software Developer";
+
+    const toneMap = {
+      professional: "formal and professional",
+      confident:    "confident and assertive",
+      friendly:     "warm and conversational",
+      concise:      "brief and to the point — max 3 short paragraphs",
+    };
+
+    const prompt = `You are an expert job application email writer. Write a personalized job application email with these details:
+
+Candidate: ${userName}
+Title: ${title}
+Experience: ${exp}
+Current Company: ${company2}
+Key Skills: ${skills}
+${keyPoints ? "Key Points to highlight: " + keyPoints : ""}
+
+HR Name: ${hrName || "Hiring Manager"}
+Company: ${company || "the company"}
+Role: ${role || "this position"}
+Template Type: ${templateType || "fullstack"}
+Tone: ${toneMap[tone] || toneMap.professional}
+
+Write ONLY the email body (no subject line, no "Dear" salutation — start from first paragraph, end before signature).
+- 2-3 paragraphs max
+- Mention specific skills relevant to the role
+- Sound human and genuine, not robotic
+- Each email must feel unique and personalized
+- Do NOT use placeholder text like [Your Name]
+- End with a call to action`;
+
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 500,
+        temperature: 0.8,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      return res.status(500).json({ success: false, message: err.error?.message || "AI failed" });
+    }
+
+    const data    = await response.json();
+    const emailBody = data.choices?.[0]?.message?.content?.trim() || "";
+    res.json({ success: true, emailBody });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// ─── POST /api/ai/write-subject — AI subject line generator ──────────────────
+app.post("/api/ai/write-subject", requireAuth, async (req, res) => {
+  try {
+    const { hrName, company, role, templateType } = req.body;
+    const userCfg  = getUserConfig(req.user);
+    const userName = userCfg.profileName || req.user.displayName || "Anav Bansal";
+    const exp      = userCfg.totalExp    || "4+ years";
+
+    const prompt = `Generate 3 unique, catchy email subject lines for a job application.
+Candidate: ${userName} (${exp} experience)
+Role: ${role || "Software Developer"}
+Company: ${company || "the company"}
+Template: ${templateType || "fullstack"}
+
+Rules:
+- Each must be different in style
+- Max 60 characters each
+- Sound human, not generic
+- No emojis
+- Format: just the 3 lines, numbered 1. 2. 3.`;
+
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 150,
+        temperature: 0.9,
+      }),
+    });
+
+    const data     = await response.json();
+    const raw      = data.choices?.[0]?.message?.content?.trim() || "";
+    const subjects = raw.split("\n").filter(l => l.match(/^\d+\./)).map(l => l.replace(/^\d+\.\s*/, "").trim());
+    res.json({ success: true, subjects });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// ─── POST /api/ai/screening-reply — AI screening reply generator ───────────────
+app.post("/api/ai/screening-reply", requireAuth, async (req, res) => {
+  try {
+    const { hrMessage = "" } = req.body;
+    const userCfg   = getUserConfig(req.user);
+    const userName  = userCfg.profileName     || req.user.displayName  || "Anav Bansal";
+    const skills    = userCfg.keySkills       || req.user.keySkills    || "";
+    const exp       = userCfg.totalExp        || req.user.totalExp     || "";
+    const currCTC   = userCfg.currentCTC      || req.user.currentCTC   || "";
+    const expCTC    = userCfg.expectedCTC     || req.user.expectedCTC  || "";
+    const notice    = userCfg.noticePeriod    || req.user.noticePeriod || "30 Days";
+    const location  = userCfg.currentLocation || req.user.currentLocation || "";
+    const company   = userCfg.currentCompany  || req.user.currentCompany  || "";
+
+    const prompt = `You are ${userName}, a job seeker. An HR has sent you a screening message.
+
+Your Profile:
+- Skills: ${skills}
+- Experience: ${exp}
+- Current Company: ${company}
+- Current CTC: ${currCTC}
+- Expected CTC: ${expCTC}
+- Notice Period: ${notice}
+- Location: ${location}
+
+HR's message: "${hrMessage || "Please share your profile details"}"
+
+Write a professional, concise reply covering the relevant screening questions.
+- Be direct and confident
+- Only answer what was asked
+- Keep it under 150 words
+- Sound natural, not robotic`;
+
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 300,
+        temperature: 0.7,
+      }),
+    });
+
+    const data  = await response.json();
+    const reply = data.choices?.[0]?.message?.content?.trim() || "";
+    res.json({ success: true, reply });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 app.listen(PORT, () => console.log(`\n🚀 Job Mailer API → http://localhost:${PORT}\n`));
