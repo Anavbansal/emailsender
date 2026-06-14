@@ -4662,7 +4662,6 @@ function App() {
             }} />}
 
       <ToastContainer toasts={toasts} />
-    </div>
 
     {/* ── AI Writer Drawer ── */}
     {aiDrawer && (
