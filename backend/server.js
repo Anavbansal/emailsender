@@ -1171,18 +1171,57 @@ app.post("/api/track/reset/:trackingId", (req, res) => {
 });
 
 app.get("/api/track/:trackingId", (req, res) => {
-  const record = markTrackingOpened(
-    req.params.trackingId,
-    req.headers["x-forwarded-for"] || req.socket.remoteAddress || "",
-    req.headers["user-agent"] || ""
-  );
-  if (record) {
-    logToSheets([record.trackingId, record.hrEmail, record.company||"", record.role||"",
-      new Date(record.sentAt).toISOString(), record.trackingId, "Opened", new Date(record.openedAt).toISOString()]);
-    console.log(`👁 Opened: ${record.company} | ${record.hrEmail}`);
+  const ua = (req.headers["user-agent"] || "").toLowerCase();
+  const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
+
+  // ── Filter out known bots & email clients that auto-prefetch ──────────────
+  // Gmail proxy: GoogleImageProxy, Google Image Proxy
+  // Outlook safe links, Apple Mail proxy, email scanners
+  const BOT_PATTERNS = [
+    "googleimageproxy",
+    "google image proxy",
+    "yahoo pipes",
+    "msnbot",
+    "bingbot",
+    "facebookexternalhit",
+    "twitterbot",
+    "linkedinbot",
+    "applebot",
+    "imapfilter",
+    "imapproxy",
+    "mailchimp",
+    "sendgrid",
+    "preview",
+    "prefetch",
+    "outlook-ios",
+    "microsoft office",
+  ];
+
+  const isBot = BOT_PATTERNS.some(p => ua.includes(p));
+
+  // Also filter by IP: Google proxy ranges start with 66.102 or 74.125 or 209.85
+  const isGoogleProxy = /^(66\.102\.|74\.125\.|209\.85\.|172\.217\.|142\.250\.)/.test(ip);
+
+  if (!isBot && !isGoogleProxy) {
+    // Real human open — mark it
+    const record = markTrackingOpened(req.params.trackingId, ip, ua);
+    if (record) {
+      logToSheets([record.trackingId, record.hrEmail, record.company||"", record.role||"",
+        new Date(record.sentAt).toISOString(), record.trackingId, "Opened", new Date(record.openedAt).toISOString()]);
+      console.log(`👁 Real Open: ${record.company} | ${record.hrEmail} | UA: ${ua.slice(0,60)}`);
+    }
+  } else {
+    console.log(`🤖 Bot/Proxy ignored: ${ua.slice(0,80)} | IP: ${ip}`);
   }
+
   const pixel = getPixelBuffer();
-  res.writeHead(200, { "Content-Type": "image/gif", "Content-Length": pixel.length, "Cache-Control": "no-store" });
+  res.writeHead(200, {
+    "Content-Type":  "image/gif",
+    "Content-Length": pixel.length,
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    "Pragma":        "no-cache",
+    "Expires":       "0",
+  });
   res.end(pixel);
 });
 
