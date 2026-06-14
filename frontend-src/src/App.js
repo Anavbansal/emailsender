@@ -3871,8 +3871,7 @@ Bahut helpful hoga agar refer kar sako! 😊`;
 }
 
 
-// ─── LinkedIn Connections Page
-────────────────────────────────────────────────
+// ─── LinkedIn Connections Page ────────────────────────────────────────────────
 const LI_FILTERS = [
   { key: "all",     label: "All"           },
   { key: "hr",      label: "HR / Recruiter" },
