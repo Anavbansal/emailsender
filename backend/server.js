@@ -1203,9 +1203,16 @@ app.get("/api/track/:trackingId", (req, res) => {
   const isGoogleProxy = /^(66\.102\.|74\.125\.|209\.85\.|172\.217\.|142\.250\.)/.test(ip);
 
   if (!isBot && !isGoogleProxy) {
-    // Real human open — mark it
+    // Real human open — mark it (only if not already opened)
     const record = markTrackingOpened(req.params.trackingId, ip, ua);
     if (record) {
+      // Also update MongoDB SentEmailLog
+      if (mongoose.connection.readyState === 1) {
+        SentEmailLog.updateOne(
+          { trackingId: req.params.trackingId, opened: { $ne: true } },
+          { $set: { opened: true, openedAt: new Date() } }
+        ).catch(() => {});
+      }
       logToSheets([record.trackingId, record.hrEmail, record.company||"", record.role||"",
         new Date(record.sentAt).toISOString(), record.trackingId, "Opened", new Date(record.openedAt).toISOString()]);
       console.log(`👁 Real Open: ${record.company} | ${record.hrEmail} | UA: ${ua.slice(0,60)}`);
