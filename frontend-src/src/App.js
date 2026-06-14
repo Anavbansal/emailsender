@@ -2133,7 +2133,18 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed }) 
         <div className="preview-card">
           <div className="preview-card-header">
             <p className="preview-title">📧 Preview</p>
-            <button type="button" className="btn-preview" onClick={openPreview}>View Full Email ↗</button>
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              <button type="button"
+                onClick={() => setAiDrawer(true)}
+                style={{
+                  padding:"5px 12px", borderRadius:99, fontSize:11, fontWeight:700,
+                  background:"linear-gradient(135deg,#7c3aed,#2563eb)",
+                  color:"#fff", border:"none", cursor:"pointer"
+                }}>
+                ✨ AI Write
+              </button>
+              <button type="button" className="btn-preview" onClick={openPreview}>View Full Email ↗</button>
+            </div>
           </div>
           <p className="preview-subject"><strong>Subject:</strong> {(() => {
               const u = getUser();
@@ -4650,6 +4661,108 @@ function App() {
 
       <ToastContainer toasts={toasts} />
     </div>
+
+    {/* ── AI Writer Drawer ── */}
+    {aiDrawer && (
+      <div className="modal-overlay" onClick={() => setAiDrawer(false)}>
+        <div className="modal-box modal-box-form" onClick={e => e.stopPropagation()} style={{ maxWidth:520 }}>
+          <div className="modal-header">
+            <div className="modal-title-row">
+              <h3 className="modal-title">✨ AI Email Writer</h3>
+            </div>
+            <button className="modal-close" onClick={() => setAiDrawer(false)}>✕</button>
+          </div>
+          <div className="modal-scroll">
+            <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+              <div style={{ background:"linear-gradient(135deg,#7c3aed18,#2563eb18)", borderRadius:10, padding:"10px 14px", fontSize:12, color:"var(--text-muted)" }}>
+                ✨ AI will write a personalized email based on your profile and the HR details you filled above.
+              </div>
+
+              <div className="form-group" style={{ marginBottom:0 }}>
+                <label className="form-label">Tone</label>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  {[
+                    { id:"professional", label:"🤝 Professional" },
+                    { id:"confident",    label:"💪 Confident" },
+                    { id:"friendly",     label:"😊 Friendly" },
+                    { id:"concise",      label:"⚡ Concise" },
+                  ].map(t => (
+                    <button key={t.id} type="button" onClick={() => setAiTone(t.id)}
+                      style={{
+                        padding:"5px 14px", borderRadius:99, fontSize:12, fontWeight:600,
+                        cursor:"pointer", border:"1.5px solid",
+                        borderColor: aiTone===t.id ? "#7c3aed" : "var(--border)",
+                        background: aiTone===t.id ? "#7c3aed18" : "var(--surface)",
+                        color: aiTone===t.id ? "#7c3aed" : "var(--text-muted)",
+                      }}>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom:0 }}>
+                <label className="form-label">Extra points to highlight <span style={{ fontSize:11, color:"var(--text-muted)", fontWeight:400 }}>(optional)</span></label>
+                <textarea className="form-textarea" rows={2} style={{ fontSize:13 }}
+                  placeholder="e.g. I built a similar product, I know their tech stack, I'm open to relocation..."
+                  value={aiKeyPoints} onChange={e => setAiKeyPoints(e.target.value)} />
+              </div>
+
+              <button onClick={generateAiEmail} disabled={aiLoading}
+                style={{
+                  padding:"11px 20px", borderRadius:10, fontWeight:700, fontSize:14,
+                  background:"linear-gradient(135deg,#7c3aed,#2563eb)", color:"#fff",
+                  border:"none", cursor: aiLoading?"not-allowed":"pointer",
+                  opacity: aiLoading?0.7:1, display:"flex", alignItems:"center", gap:8, justifyContent:"center"
+                }}>
+                {aiLoading ? <><span className="spinner"/> Generating…</> : "✨ Generate Email"}
+              </button>
+
+              {aiBody && (<>
+                <div className="form-group" style={{ marginBottom:0 }}>
+                  <label className="form-label">✅ Generated Email Body <span style={{ fontSize:11, color:"var(--text-muted)", fontWeight:400 }}>(editable)</span></label>
+                  <textarea rows={8} className="form-textarea" style={{ fontSize:13 }}
+                    value={aiBody} onChange={e => setAiBody(e.target.value)} />
+                </div>
+              </>)}
+
+              {aiSubjects.length > 0 && (
+                <div>
+                  <label className="form-label">📌 Subject Line Suggestions</label>
+                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {aiSubjects.map((s,i) => (
+                      <div key={i} style={{
+                        background:"var(--surface-2,#f8fafc)", border:"1px solid var(--border)",
+                        borderRadius:8, padding:"8px 12px", fontSize:13,
+                        display:"flex", justifyContent:"space-between", alignItems:"center", gap:8
+                      }}>
+                        <span style={{ flex:1 }}>{s}</span>
+                        <button type="button"
+                          onClick={() => { navigator.clipboard?.writeText(s); addToast && addToast("Copied!"); }}
+                          style={{ background:"none", border:"1px solid var(--border)", borderRadius:6, cursor:"pointer", fontSize:11, padding:"2px 8px", color:"var(--blue)", flexShrink:0 }}>
+                          Copy
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          {aiBody && (
+            <div className="modal-footer">
+              <button className="btn-ghost" onClick={() => setAiDrawer(false)}>Cancel</button>
+              <button className="btn-primary"
+                style={{ background:"linear-gradient(135deg,#7c3aed,#2563eb)" }}
+                onClick={applyAiEmail}>
+                ✅ Use This Email
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
   );
 }
 
