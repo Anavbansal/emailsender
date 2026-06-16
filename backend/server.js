@@ -1732,6 +1732,81 @@ app.delete("/api/scheduled-emails/:jobId", requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
+// ─── POST /api/scheduled-emails/:jobId/retry — retry a single failed job ─────
+app.post("/api/scheduled-emails/:jobId/retry", requireAuth, async (req, res) => {
+  try {
+    const allJobs = await loadScheduled();
+    const job = allJobs.find(j => j.jobId === req.params.jobId);
+    if (!job) return res.status(404).json({ success: false, message: "Job not found" });
+    if (job.userId && job.userId !== req.userId && job.userId !== "default")
+      return res.status(403).json({ success: false, message: "Not your job" });
+
+    const jobUser   = req.user;
+    const jobUserCfg = getUserConfig(jobUser);
+
+    const { info, trackRecord } = await sendApplicationEmail({
+      ...job.emailData, user: jobUser, userCfg: jobUserCfg,
+    });
+
+    logToSheets([
+      info.id, job.emailData.hrEmail, job.emailData.company || "", job.emailData.role || "",
+      new Date().toISOString(), trackRecord.trackingId, "Retry-Sent", "",
+    ]);
+    await saveSentEmail({
+      messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
+      type: "scheduled", hrEmail: job.emailData.hrEmail, hrName: job.emailData.hrName || "",
+      company: job.emailData.company || "", role: job.emailData.role || "",
+      subject: trackRecord.subject, sentAt: new Date(),
+    });
+    await deleteJob(job.jobId);
+
+    res.json({ success: true, message: "Email sent successfully!" });
+  } catch(e) {
+    await updateJobStatus(req.params.jobId, "failed", e.message);
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// ─── POST /api/scheduled-emails/retry-all-failed — retry every failed job ────
+app.post("/api/scheduled-emails/retry-all-failed", requireAuth, async (req, res) => {
+  try {
+    const allJobs = await loadScheduled();
+    const isOwner = req.user.username === (process.env.OWNER_USERNAME || "anav");
+    const myFailedJobs = allJobs.filter(j =>
+      j.status === "failed" &&
+      (isOwner ? (!j.userId || j.userId === req.userId || j.userId === "default") : j.userId === req.userId)
+    );
+
+    const jobUser    = req.user;
+    const jobUserCfg = getUserConfig(jobUser);
+
+    let sent = 0, failed = 0;
+    for (const job of myFailedJobs) {
+      try {
+        const { info, trackRecord } = await sendApplicationEmail({
+          ...job.emailData, user: jobUser, userCfg: jobUserCfg,
+        });
+        await saveSentEmail({
+          messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
+          type: "scheduled", hrEmail: job.emailData.hrEmail, hrName: job.emailData.hrName || "",
+          company: job.emailData.company || "", role: job.emailData.role || "",
+          subject: trackRecord.subject, sentAt: new Date(),
+        });
+        await deleteJob(job.jobId);
+        sent++;
+        await new Promise(r => setTimeout(r, 300)); // gentle rate limit
+      } catch(e) {
+        await updateJobStatus(job.jobId, "failed", e.message);
+        failed++;
+      }
+    }
+
+    res.json({ success: true, message: `Retried ${myFailedJobs.length} jobs — ${sent} sent, ${failed} failed`, sent, failed, total: myFailedJobs.length });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // ─── GET /api/jobs/search ─────────────────────────────────────────────────────
 app.get("/api/jobs/search", async (req, res) => {
   const { keywords = "", location = "India", page = 0, employment, datePosted, salary } = req.query;
