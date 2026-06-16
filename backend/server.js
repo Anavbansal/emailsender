@@ -408,7 +408,21 @@ cron.schedule("* * * * *", async () => {
   for (const job of jobs) {
     if (job.status === "pending" && parseScheduledTime(job.scheduledTime) <= now) {
       try {
-        const { info, trackRecord } = await sendApplicationEmail(job.emailData);
+        // Fetch the user who scheduled this email — so we use THEIR Gmail
+        let jobUser = null, jobUserCfg = null;
+        if (job.userId && job.userId !== "default" && mongoose.connection.readyState === 1) {
+          jobUser = await User.findById(job.userId).lean().catch(() => null);
+          if (jobUser) jobUserCfg = getUserConfig(jobUser);
+        }
+        if (!jobUser) {
+          // Fallback to owner (anav) if no user found
+          jobUser = await User.findOne({ username: process.env.OWNER_USERNAME || "anav" }).lean().catch(() => null);
+          if (jobUser) jobUserCfg = getUserConfig(jobUser);
+        }
+
+        const { info, trackRecord } = await sendApplicationEmail({
+          ...job.emailData, user: jobUser, userCfg: jobUserCfg,
+        });
         logToSheets([
           info.id,
           job.emailData.hrEmail,
