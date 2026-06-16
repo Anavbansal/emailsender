@@ -4287,12 +4287,15 @@ function LinkedInConnectionsPage({ onFillApply, addToast }) {
 }
 
 // ─── Scheduled Page ───────────────────────────────────────────────────────────
-function ScheduledPage() {
-  const [jobs, setJobs]   = useState([]);
-  const [now,  setNow]    = useState(Date.now());
+function ScheduledPage({ addToast }) {
+  const [jobs,      setJobs]      = useState([]);
+  const [now,       setNow]       = useState(Date.now());
+  const [tab,       setTab]       = useState("pending");
+  const [retrying,  setRetrying]  = useState(false);
+  const [retryingId, setRetryingId] = useState(null);
 
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 30000); // update every 30s
+    const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
   }, []);
 
@@ -4305,30 +4308,112 @@ function ScheduledPage() {
     if (h > 0)  return `⏰ ${h}h ${m}m`;
     return `⏰ ${m}m`;
   };
-  useEffect(() => { axios.get(`${API}/api/scheduled-emails`).then(r => setJobs(r.data.jobs || [])).catch(() => {}); }, []);
+
+  const fetchJobs = () => axios.get(`${API}/api/scheduled-emails`).then(r => setJobs(r.data.jobs || [])).catch(() => {});
+  useEffect(() => { fetchJobs(); }, []);
+
   const remove = async id => { await axios.delete(`${API}/api/scheduled-emails/${id}`); setJobs(p => p.filter(j => j.jobId !== id)); };
+
+  const retryOne = async id => {
+    setRetryingId(id);
+    try {
+      const r = await axios.post(`${API}/api/scheduled-emails/${id}/retry`);
+      if (r.data.success) {
+        addToast && addToast("✅ Email sent!");
+        setJobs(p => p.filter(j => j.jobId !== id));
+      }
+    } catch(e) {
+      addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error");
+      fetchJobs();
+    } finally { setRetryingId(null); }
+  };
+
+  const retryAllFailed = async () => {
+    setRetrying(true);
+    try {
+      const r = await axios.post(`${API}/api/scheduled-emails/retry-all-failed`);
+      if (r.data.success) {
+        addToast && addToast(`✅ ${r.data.message}`);
+        fetchJobs();
+      }
+    } catch(e) {
+      addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error");
+    } finally { setRetrying(false); }
+  };
+
   const pending = jobs.filter(j => j.status === "pending");
+  const failed  = jobs.filter(j => j.status === "failed");
+
+  const TABS = [
+    { id:"pending", label:`🗓 Pending (${pending.length})` },
+    { id:"failed",  label:`⚠️ Failed (${failed.length})` },
+  ];
+
+  const list = tab === "pending" ? pending : failed;
+
   return (
     <div className="page">
-      {pending.length === 0
-        ? <div className="empty-state"><span className="empty-icon">🗓</span><p>No scheduled emails.</p></div>
+      <div style={{ display:"flex", gap:6, marginBottom:16 }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{
+              padding:"7px 16px", borderRadius:99, fontSize:12, fontWeight:600, cursor:"pointer",
+              border:"1.5px solid", borderColor: tab===t.id ? "var(--blue)" : "var(--border)",
+              background: tab===t.id ? "var(--blue)" : "var(--surface)",
+              color: tab===t.id ? "#fff" : "var(--text-muted)"
+            }}>
+            {t.label}
+          </button>
+        ))}
+        {tab === "failed" && failed.length > 0 && (
+          <button onClick={retryAllFailed} disabled={retrying}
+            style={{
+              marginLeft:"auto", padding:"7px 16px", borderRadius:99, fontSize:12, fontWeight:700, cursor:retrying?"not-allowed":"pointer",
+              background:"linear-gradient(135deg,#059669,#10b981)", color:"#fff", border:"none", opacity:retrying?0.7:1
+            }}>
+            {retrying ? "Retrying..." : `🔄 Retry All Failed (${failed.length})`}
+          </button>
+        )}
+      </div>
+
+      {list.length === 0
+        ? <div className="empty-state">
+            <span className="empty-icon">{tab==="pending"?"🗓":"✅"}</span>
+            <p>{tab==="pending" ? "No scheduled emails." : "No failed emails — all good!"}</p>
+          </div>
         : <div className="contacts-list">
-            {pending.map(job => (
+            {list.map(job => (
               <div key={job.jobId} className="contact-card">
-                <div className="contact-avatar" style={{ background: "#7c3aed" }}>🗓</div>
+                <div className="contact-avatar" style={{ background: tab==="failed" ? "#dc2626" : "#7c3aed" }}>
+                  {tab==="failed" ? "⚠️" : "🗓"}
+                </div>
                 <div className="contact-body">
                   <div className="contact-top">
                     <span className="contact-company">{job.emailData.company}</span>
-                    <span className="badge badge-scheduled">Scheduled</span>
+                    <span className={`badge ${tab==="failed"?"badge-failed":"badge-scheduled"}`} style={tab==="failed"?{background:"#fee2e2",color:"#991b1b"}:{}}>
+                      {tab==="failed" ? "Failed" : "Scheduled"}
+                    </span>
                   </div>
                   <p className="contact-email">{job.emailData.hrEmail}</p>
                   <div className="contact-meta">
-                    <span>📅 {new Date(job.scheduledTime + "+05:30").toLocaleString("en-IN", { dateStyle:"medium", timeStyle:"short" })}</span>
-                    <span style={{ color:"var(--blue)", fontWeight:600 }}>{countdown(job.scheduledTime)}</span>
+                    {tab==="pending" ? (<>
+                      <span>📅 {new Date(job.scheduledTime + "+05:30").toLocaleString("en-IN", { dateStyle:"medium", timeStyle:"short" })}</span>
+                      <span style={{ color:"var(--blue)", fontWeight:600 }}>{countdown(job.scheduledTime)}</span>
+                    </>) : (
+                      <span style={{ color:"#dc2626", fontSize:12 }}>❌ {job.error || "Unknown error"}</span>
+                    )}
                   </div>
                 </div>
                 <div className="contact-actions">
-                  <button className="btn-ghost btn-sm" onClick={() => remove(job.jobId)}>Cancel</button>
+                  {tab==="failed" && (
+                    <button className="btn-ghost btn-sm" style={{ color:"#059669", marginRight:6 }}
+                      onClick={() => retryOne(job.jobId)} disabled={retryingId===job.jobId}>
+                      {retryingId===job.jobId ? "Sending..." : "🔄 Retry"}
+                    </button>
+                  )}
+                  <button className="btn-ghost btn-sm" onClick={() => remove(job.jobId)}>
+                    {tab==="failed" ? "🗑 Delete" : "Cancel"}
+                  </button>
                 </div>
               </div>
             ))}
@@ -4735,7 +4820,7 @@ function App() {
           {page === "messages"  && <MessagesPage contacts={contacts} />}
           {page === "prospect"  && <ProspectPage onFillApply={goToSendPrefilled} addToast={addToast} />}
           {page === "jobs"      && <FindJobsPage onFillApply={goToSendPrefilled} />}
-          {page === "scheduled" && <ScheduledPage onRefresh={fetchScheduled} />}
+          {page === "scheduled" && <ScheduledPage onRefresh={fetchScheduled} addToast={addToast} />}
           {page === "settings"   && <SettingsPage addToast={addToast} />}
           {page === "ai"         && <AIAssistantPage addToast={addToast} />}
           {page === "admin"      && authUser?.isAdmin && <AdminPage addToast={addToast} />}
