@@ -402,6 +402,90 @@ function parseScheduledTime(scheduledTime) {
   return new Date(scheduledTime).getTime();
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GMAIL TOKEN HEALTH MONITORING
+// ═══════════════════════════════════════════════════════════════════════════════
+const ALERT_FILE = path.join(__dirname, "gmail-alerts.json");
+
+function loadAlerts() {
+  try { return JSON.parse(fs.readFileSync(ALERT_FILE, "utf8")); } catch { return {}; }
+}
+function saveAlerts(alerts) {
+  fs.writeFileSync(ALERT_FILE, JSON.stringify(alerts, null, 2), "utf8");
+}
+
+// Send an alert email using a DIFFERENT auth path (raw fetch to a backup, or console+DB flag)
+// Since the user's own Gmail might be broken, we store the alert in DB/file and show it
+// prominently in the dashboard. We also attempt a best-effort email via any working account.
+async function recordGmailFailure(username, errorMessage) {
+  const alerts = loadAlerts();
+  const key = username;
+  const prevCount = alerts[key]?.count || 0;
+
+  alerts[key] = {
+    username,
+    error: errorMessage,
+    lastFailedAt: new Date().toISOString(),
+    count: prevCount + 1,
+    acknowledged: false,
+  };
+  saveAlerts(alerts);
+
+  // Try to notify via any OTHER connected user's Gmail (in case this user's token is dead)
+  if (errorMessage.includes("invalid_grant") || errorMessage.includes("invalid_rapt")) {
+    try {
+      const otherUsers = await User.find({
+        username: { $ne: username },
+        gmailRefreshToken: { $exists: true, $ne: null },
+      }).lean();
+
+      for (const altUser of otherUsers) {
+        try {
+          const oauth2Client = new google.auth.OAuth2(
+            process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, process.env.GOOGLE_REDIRECT_URI
+          );
+          oauth2Client.setCredentials({ refresh_token: altUser.gmailRefreshToken });
+          const gmail = google.gmail({ version: "v1", auth: oauth2Client });
+
+          const notifyEmail = process.env.OWNER_NOTIFY_EMAIL || "anavbansal06@gmail.com";
+          const subject = `=?UTF-8?B?${Buffer.from(`⚠️ Gmail Token Expired — ${username}`).toString("base64")}?=`;
+          const html = `<div style="font-family:sans-serif;max-width:500px;margin:20px auto;border:2px solid #fee2e2;border-radius:12px;overflow:hidden;">
+            <div style="background:#dc2626;color:#fff;padding:16px 24px;font-weight:700;font-size:16px;">⚠️ Gmail Connection Lost</div>
+            <div style="padding:20px 24px;color:#374151;font-size:14px;line-height:1.7;">
+              <p><strong>User:</strong> ${username}</p>
+              <p><strong>Error:</strong> ${errorMessage}</p>
+              <p><strong>Time:</strong> ${new Date().toLocaleString("en-IN")}</p>
+              <p style="margin-top:16px;">Scheduled emails for this user will FAIL until reconnected.</p>
+              <a href="${BASE_URL}/api/gmail/auth?username=${username}" style="display:inline-block;margin-top:12px;padding:10px 20px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-weight:700;">🔗 Reconnect Now</a>
+            </div>
+          </div>`;
+          const raw = [
+            `From: "Job Mailer Alert" <${altUser.gmailUser || "anavbansal06@gmail.com"}>`,
+            `To: ${notifyEmail}`, `Subject: ${subject}`, `MIME-Version: 1.0`,
+            `Content-Type: text/html; charset="UTF-8"`, ``, html,
+          ].join("\r\n");
+          await gmail.users.messages.send({ userId:"me", requestBody:{ raw: Buffer.from(raw).toString("base64url") }});
+          console.log(`✅ Alert email sent via ${altUser.username}'s Gmail`);
+          break; // success, stop trying other accounts
+        } catch (innerErr) {
+          continue; // try next user
+        }
+      }
+    } catch(e) {
+      console.error("Could not send alert email:", e.message);
+    }
+  }
+}
+
+async function clearGmailAlert(username) {
+  const alerts = loadAlerts();
+  if (alerts[username]) {
+    delete alerts[username];
+    saveAlerts(alerts);
+  }
+}
+
 cron.schedule("* * * * *", async () => {
   const jobs = await loadScheduled();
   const now  = Date.now();
@@ -442,6 +526,8 @@ cron.schedule("* * * * *", async () => {
         await deleteJob(job.jobId);
       } catch (e) {
         await updateJobStatus(job.jobId, "failed", e.message);
+        const failedUsername = jobUser?.username || "unknown";
+        await recordGmailFailure(failedUsername, e.message);
       }
     }
   }
@@ -3720,6 +3806,24 @@ ${jobDescription?.slice(0, 2000)}` }], 500, 0.3);
     } catch {
       res.json({ success: true, result: { applicationTips: text } });
     }
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+
+// ─── GET /api/gmail/alerts — check for Gmail health issues ──────────────────
+app.get("/api/gmail/alerts", requireAuth, async (req, res) => {
+  try {
+    const alerts = loadAlerts();
+    const myAlert = alerts[req.user.username] || null;
+    res.json({ success: true, alert: myAlert });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── POST /api/gmail/alerts/clear — dismiss alert ─────────────────────────────
+app.post("/api/gmail/alerts/clear", requireAuth, async (req, res) => {
+  try {
+    await clearGmailAlert(req.user.username);
+    res.json({ success: true });
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
