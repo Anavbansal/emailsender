@@ -162,6 +162,20 @@ router.get("/api/gmail/callback", async (req, res) => {
             }}
           );
           console.log(`✅ Gmail connected for user: ${username} (${gmailUser})`);
+
+          // Clear any Gmail failure alert for this user
+          try {
+            const fs   = require("fs");
+            const path = require("path");
+            const ALERT_FILE = path.join(__dirname, "gmail-alerts.json");
+            const alerts = JSON.parse(fs.readFileSync(ALERT_FILE, "utf8") || "{}");
+            if (alerts[username.toLowerCase()]) {
+              delete alerts[username.toLowerCase()];
+              fs.writeFileSync(ALERT_FILE, JSON.stringify(alerts, null, 2), "utf8");
+              console.log(`✅ Cleared Gmail alert for ${username}`);
+            }
+          } catch (alertErr) { /* ignore — file may not exist yet */ }
+
           return res.send(`
             <html><body style="font-family:sans-serif;text-align:center;padding:40px">
               <h2>✅ Gmail Connected!</h2>
