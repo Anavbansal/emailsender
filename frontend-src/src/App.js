@@ -672,7 +672,7 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
   ];
 
   return (
-
+    <div className="page">
       {gmailAlert && (
         <div style={{
           background:"linear-gradient(135deg,#fee2e2,#fef2f2)", border:"2px solid #fca5a5",
@@ -697,7 +697,7 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
           <button onClick={dismissAlert} style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, color:"#991b1b", flexShrink:0 }}>✕</button>
         </div>
       )}
-    <div className="page dashboard-page">
+      <div className="dashboard-page">
       {/* Welcome + health pill */}
       <div className="dash-welcome">
         <div>
@@ -842,6 +842,9 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
           </button>
         </div>
       )}
+      </div>
+    </div>
+    </div>
     </div>
   );
 }
