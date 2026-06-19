@@ -403,6 +403,17 @@ function parseScheduledTime(scheduledTime) {
 }
 
 
+// ─── LinkedInStatus Model (stores sent/replied without needing Sheets) ───────
+const linkedInStatusSchema = new mongoose.Schema({
+  userId:    { type: String, required: true },
+  rowIndex:  { type: String, required: true },
+  sent:      { type: Boolean, default: false },
+  replied:   { type: Boolean, default: false },
+  ignored:   { type: Boolean, default: false },
+}, { timestamps: true });
+linkedInStatusSchema.index({ userId: 1, rowIndex: 1 }, { unique: true });
+const LinkedInStatus = mongoose.model("LinkedInStatus", linkedInStatusSchema);
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // GMAIL TOKEN HEALTH MONITORING
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2055,9 +2066,22 @@ app.get("/api/linkedin/connections", requireAuth, async (req, res) => {
 app.post("/api/linkedin/update-connection", requireAuth, async (req, res) => {
   const { rowIndex, field, value } = req.body;
   if (!rowIndex || !field) return res.status(400).json({ success: false, message: "rowIndex and field required" });
-  const col = field === "sent" ? "H" : field === "replied" ? "I" : null;
-  if (!col) return res.status(400).json({ success: false, message: "field must be 'sent' or 'replied'" });
+  if (!["sent","replied"].includes(field)) return res.status(400).json({ success: false, message: "field must be sent or replied" });
+
+  // Save to MongoDB (primary — always works)
   try {
+    await LinkedInStatus.findOneAndUpdate(
+      { userId: req.userId, rowIndex: String(rowIndex) },
+      { $set: { [field]: value } },
+      { upsert: true, new: true }
+    );
+  } catch(dbErr) {
+    console.error("MongoDB LinkedIn save error:", dbErr.message);
+  }
+
+  // Also try Google Sheets (secondary — ignore failure)
+  try {
+    const col = field === "sent" ? "H" : "I";
     const sheets = await getSheetsClient();
     await sheets.spreadsheets.values.update({
       spreadsheetId: LINKEDIN_SHEET_ID,
@@ -2065,10 +2089,11 @@ app.post("/api/linkedin/update-connection", requireAuth, async (req, res) => {
       valueInputOption: "USER_ENTERED",
       requestBody: { values: [[value ? "TRUE" : "FALSE"]] },
     });
-    return res.json({ success: true });
-  } catch (e) {
-    return res.status(500).json({ success: false, message: e.message });
+  } catch(sheetsErr) {
+    console.warn("Sheets update failed (non-critical):", sheetsErr.message);
   }
+
+  return res.json({ success: true });
 });
 
 
@@ -2104,44 +2129,31 @@ app.post("/api/linkedin/add-connection", requireAuth, async (req, res) => {
 app.post("/api/linkedin/ignore-connection", requireAuth, async (req, res) => {
   const { rowIndex } = req.body;
   if (!rowIndex) return res.status(400).json({ success: false, message: "rowIndex required" });
+
+  // Save ignored to MongoDB
   try {
-    const cfg       = getUserConfig(req.user);
-    const liSheetId = cfg.linkedinSheetId || LINKEDIN_SHEET_ID;
-    const sheets     = getUserSheetsClient(req.user);
-    const sheetsMeta = await sheets.spreadsheets.get({ spreadsheetId: liSheetId });
-
-    const tabMeta = sheetsMeta.data.sheets.find(
-      s => s.properties.title === LINKEDIN_TAB
+    await LinkedInStatus.findOneAndUpdate(
+      { userId: req.userId, rowIndex: String(rowIndex) },
+      { $set: { ignored: true } },
+      { upsert: true, new: true }
     );
-    if (!tabMeta) return res.status(400).json({ success: false, message: `Tab "${LINKEDIN_TAB}" not found` });
-
-    const sheetId = tabMeta.properties.sheetId;
-
-    // Delete the actual row from sheet — permanent
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: liSheetId,
-      requestBody: {
-        requests: [{
-          deleteDimension: {
-            range: {
-              sheetId,
-              dimension:  "ROWS",
-              startIndex: rowIndex - 1,  // 0-based
-              endIndex:   rowIndex,       // exclusive
-            }
-          }
-        }]
-      }
-    });
-
-    console.log(`🗑 Deleted row ${rowIndex} from ${LINKEDIN_TAB}`);
-    return res.json({ success: true, message: `Row ${rowIndex} permanently deleted` });
-  } catch (e) {
-    console.error("Ignore/delete error:", e.message);
-    return res.status(500).json({ success: false, message: e.message });
+  } catch(dbErr) {
+    console.error("MongoDB ignore error:", dbErr.message);
   }
-});
 
+  // Try Sheets too (non-critical)
+  try {
+    const sheets = await getSheetsClient();
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: LINKEDIN_SHEET_ID,
+      range: `${LINKEDIN_TAB}!J${rowIndex}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [["IGNORED"]] },
+    });
+  } catch(e) { console.warn("Sheets ignore failed:", e.message); }
+
+  return res.json({ success: true });
+});
 app.get("/", (req, res) => res.json({ status: "ok" }));
 
 // ─── POST /api/import-contacts — bulk import from xlsx/JSON ──────────────────
