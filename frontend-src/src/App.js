@@ -843,8 +843,8 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
           </button>
         </div>
       )}
-      </div>
-      </div>
+          </div>
+        </div>
       </div>
     </div>
   );
