@@ -72,6 +72,7 @@ const SentEmailLogSchema = new mongoose.Schema({
   replied:      { type: Boolean, default: false },
   repliedAt:    { type: Date,    default: null },
   followupSent: { type: Boolean, default: false },
+  followupScheduled: { type: Boolean, default: false },
   notes:        { type: String,  default: "" },
   status:       { type: String,  default: "Sent" },
   source:       { type: String,  default: "app" },
@@ -1572,6 +1573,7 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
       replied:       c.replied            || false,
       repliedAt:     toMs(c.repliedAt)    || null,
       followupSent:  c.followupSent       || false,
+      followupScheduled: c.followupScheduled || false,
       notes:         typeof c.notes === "string" ? c.notes : "",
       phone:         c.phone          || "",
       stage:         c.stage          || "Applied",
@@ -2589,7 +2591,7 @@ app.patch("/api/contact/update", requireAuth, async (req, res) => {
     if (mongoose.connection.readyState !== 1)
       return res.status(503).json({ success: false, message: "MongoDB not connected" });
 
-    const { hrEmail, replied, repliedAt, notes, followupSent, status,
+    const { hrEmail, replied, repliedAt, notes, followupSent, followupScheduled, status,
             phone, stage, priority, interviewRound, interviewDate, callLog } = req.body;
     if (!hrEmail) return res.status(400).json({ success: false, message: "hrEmail required" });
 
@@ -2597,7 +2599,8 @@ app.patch("/api/contact/update", requireAuth, async (req, res) => {
     if (replied        !== undefined) updates.replied        = replied;
     if (repliedAt      !== undefined) updates.repliedAt      = repliedAt ? new Date(repliedAt) : new Date();
     if (notes          !== undefined) updates.notes          = notes;
-    if (followupSent   !== undefined) updates.followupSent   = followupSent;
+    if (followupSent      !== undefined) updates.followupSent      = followupSent;
+    if (followupScheduled !== undefined) updates.followupScheduled = followupScheduled;
     if (status         !== undefined) updates.status         = status;
     if (phone          !== undefined) updates.phone          = phone;
     if (stage          !== undefined) updates.stage          = stage;
