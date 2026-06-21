@@ -1783,6 +1783,13 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
       type: "followup", hrEmail, hrName: hrName||"", company: company||"", role: role||"",
       subject, sentAt: new Date(), inReplyTo: originalMessageId || null,
     });
+    // Mark followupSent, clear needsFollowUp and followupScheduled
+    if (mongoose.connection.readyState === 1) {
+      await SentEmailLog.updateMany(
+        { hrEmail: { $regex: new RegExp("^" + hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", "i"), userId: String(req.user._id) } },
+        { $set: { followupSent: true, needsFollowUp: false, followupScheduled: false } }
+      ).catch(() => {});
+    }
     return res.status(200).json({ success: true, message: `Follow-up sent to ${hrEmail}!`, messageId: info.id });
   } catch (err) {
     const msg = err.message?.includes("Gmail not connected")
