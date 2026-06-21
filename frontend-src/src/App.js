@@ -1299,8 +1299,20 @@ function FollowUpModal({ contact, onClose, onSent }) {
     try {
       if (mode === "schedule") {
         if (!scheduledTime) throw new Error("Choose a date and time.");
+        // Warn if already scheduled
+        if (contact?.followupScheduled) {
+          const ok = window.confirm(`⚠️ A follow-up for ${contact.company || contact.hrEmail} is already scheduled!\n\nSchedule another one anyway?`);
+          if (!ok) { setLoading(false); return; }
+        }
         const res = await axios.post(`${API}/api/schedule-email`, { ...form, type: "followup", scheduledTime });
         setStatus({ type: "success", text: res.data.message });
+        // Mark contact as followup scheduled
+        try {
+          await axios.patch(`${API}/api/contact/update`, {
+            hrEmail: form.hrEmail, followupScheduled: true
+          });
+        } catch {}
+        onSent && onSent(form.hrEmail);
       } else {
         const res = await axios.post(`${API}/api/send-followup`, form);
         setStatus({ type: "success", text: res.data.message });
@@ -1497,8 +1509,9 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
   const FILTER_TABS = [
     { key: "all",           icon: "👥", label: "All",           color: "#2563eb" },
     { key: "replied",       icon: "↩",  label: "Replied",       color: "#059669" },
-    { key: "followup",      icon: "⏰", label: "Follow-up Due", color: "#d97706" },
-    { key: "followup_sent", icon: "🔁", label: "Follow-up Sent",color: "#7c3aed" },
+    { key: "followup",           icon: "⏰", label: "Follow-up Due",       color: "#d97706" },
+    { key: "followup_sent",      icon: "🔁", label: "Follow-up Sent",      color: "#7c3aed" },
+    { key: "followup_scheduled", icon: "🗓", label: "Follow-up Scheduled", color: "#2563eb" },
     { key: "opened",        icon: "👁", label: "Opened",        color: "#0d9488" },
     { key: "thread",        icon: "🧵", label: "Has Thread",    color: "#6366f1" },
   ];
@@ -1515,8 +1528,9 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
   const filtered = searchFiltered.filter(c => {
     if (activeTab === "all")           return true;
     if (activeTab === "replied")       return c.replied || replyEmails.has(c.hrEmail.toLowerCase());
-    if (activeTab === "followup")      return c.needsFollowUp;
-    if (activeTab === "followup_sent") return c.followupSent;
+    if (activeTab === "followup")           return c.needsFollowUp && !c.followupScheduled;
+    if (activeTab === "followup_sent")      return c.followupSent;
+    if (activeTab === "followup_scheduled") return c.followupScheduled && !c.followupSent;
     if (activeTab === "thread")        return !!c.lastMessageId;
     if (activeTab === "opened")        return c.opened;
     return true;
