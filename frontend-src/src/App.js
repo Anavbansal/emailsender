@@ -673,7 +673,7 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
 
 
   return (
-    <div className="page">
+    <div className="page dashboard-page">
       {gmailAlert && (
         <div style={{
           background:"linear-gradient(135deg,#fee2e2,#fef2f2)", border:"2px solid #fca5a5",
@@ -684,21 +684,17 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
           <div style={{ flex:1, minWidth:200 }}>
             <div style={{ fontWeight:800, fontSize:14, color:"#991b1b" }}>Gmail Connection Lost!</div>
             <div style={{ fontSize:12, color:"#7f1d1d", marginTop:2 }}>
-              Scheduled emails are failing ({gmailAlert.count}x). Error: {gmailAlert.error}
-            </div>
-            <div style={{ fontSize:11, color:"#9ca3af", marginTop:2 }}>
-              Last failed: {new Date(gmailAlert.lastFailedAt).toLocaleString("en-IN")}
+              Scheduled emails failing ({gmailAlert.count}x): {gmailAlert.error}
             </div>
           </div>
           <a href={`${API}/api/gmail/auth?username=${currentUser?.username}`}
             target="_blank" rel="noreferrer"
-            style={{ padding:"8px 18px", borderRadius:8, background:"#dc2626", color:"#fff", fontWeight:700, fontSize:13, textDecoration:"none", flexShrink:0 }}>
+            style={{ padding:"8px 18px", borderRadius:8, background:"#dc2626", color:"#fff", fontWeight:700, fontSize:13, textDecoration:"none" }}>
             🔗 Reconnect Gmail
           </a>
-          <button onClick={dismissAlert} style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, color:"#991b1b", flexShrink:0 }}>✕</button>
+          <button onClick={dismissAlert} style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, color:"#991b1b" }}>✕</button>
         </div>
       )}
-      <div className="dashboard-page">
       {/* Welcome + health pill */}
       <div className="dash-welcome">
         <div>
@@ -843,9 +839,6 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
           </button>
         </div>
       )}
-      </div>
-      </div>
-      </div>
     </div>
   );
 }
