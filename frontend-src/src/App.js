@@ -672,29 +672,31 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
   ];
 
 
+  const GmailAlert = () => !gmailAlert ? null : (
+    <div style={{
+      background:"linear-gradient(135deg,#fee2e2,#fef2f2)", border:"2px solid #fca5a5",
+      borderRadius:12, padding:"14px 20px", marginBottom:16,
+      display:"flex", alignItems:"center", gap:14, flexWrap:"wrap"
+    }}>
+      <div style={{ fontSize:28 }}>⚠️</div>
+      <div style={{ flex:1, minWidth:200 }}>
+        <div style={{ fontWeight:800, fontSize:14, color:"#991b1b" }}>Gmail Connection Lost!</div>
+        <div style={{ fontSize:12, color:"#7f1d1d", marginTop:2 }}>
+          Scheduled emails failing ({gmailAlert.count}x): {gmailAlert.error}
+        </div>
+      </div>
+      <a href={`${API}/api/gmail/auth?username=${currentUser?.username}`}
+        target="_blank" rel="noreferrer"
+        style={{ padding:"8px 18px", borderRadius:8, background:"#dc2626", color:"#fff", fontWeight:700, fontSize:13, textDecoration:"none" }}>
+        🔗 Reconnect Gmail
+      </a>
+      <button onClick={dismissAlert} style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, color:"#991b1b" }}>✕</button>
+    </div>
+  );
+
   return (
     <div className="page dashboard-page">
-      {gmailAlert && (
-        <div style={{
-          background:"linear-gradient(135deg,#fee2e2,#fef2f2)", border:"2px solid #fca5a5",
-          borderRadius:12, padding:"14px 20px", marginBottom:16,
-          display:"flex", alignItems:"center", gap:14, flexWrap:"wrap"
-        }}>
-          <div style={{ fontSize:28 }}>⚠️</div>
-          <div style={{ flex:1, minWidth:200 }}>
-            <div style={{ fontWeight:800, fontSize:14, color:"#991b1b" }}>Gmail Connection Lost!</div>
-            <div style={{ fontSize:12, color:"#7f1d1d", marginTop:2 }}>
-              Scheduled emails failing ({gmailAlert.count}x): {gmailAlert.error}
-            </div>
-          </div>
-          <a href={`${API}/api/gmail/auth?username=${currentUser?.username}`}
-            target="_blank" rel="noreferrer"
-            style={{ padding:"8px 18px", borderRadius:8, background:"#dc2626", color:"#fff", fontWeight:700, fontSize:13, textDecoration:"none" }}>
-            🔗 Reconnect Gmail
-          </a>
-          <button onClick={dismissAlert} style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, color:"#991b1b" }}>✕</button>
-        </div>
-      )}
+      <GmailAlert />
       {/* Welcome + health pill */}
       <div className="dash-welcome">
         <div>
