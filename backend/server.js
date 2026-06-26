@@ -3849,4 +3849,246 @@ app.post("/api/gmail/alerts/clear", requireAuth, async (req, res) => {
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ANALYTICS ROUTES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── GET /api/analytics/dashboard ────────────────────────────────────────────
+app.get("/api/analytics/dashboard", requireAuth, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const isOwner = req.user.username === (process.env.OWNER_USERNAME || "anav");
+    const userFilter = isOwner
+      ? { $or: [{ userId }, { userId: "default" }, { userId: { $exists: false } }] }
+      : { userId };
+
+    const [totalSent, totalOpened, totalReplied, totalFollowup, byTemplate, byDay, byHour, topCompanies, recentTrend] = await Promise.all([
+      // Total counts
+      SentEmailLog.countDocuments({ ...userFilter }),
+      SentEmailLog.countDocuments({ ...userFilter, opened: true }),
+      SentEmailLog.countDocuments({ ...userFilter, replied: true }),
+      SentEmailLog.countDocuments({ ...userFilter, followupSent: true }),
+
+      // By template type
+      SentEmailLog.aggregate([
+        { $match: { ...userFilter, type: "application" } },
+        { $group: { _id: "$type", count: { $sum: 1 }, opened: { $sum: { $cond: ["$opened", 1, 0] } }, replied: { $sum: { $cond: ["$replied", 1, 0] } } } },
+      ]),
+
+      // Emails by day of week (0=Sun, 1=Mon...)
+      SentEmailLog.aggregate([
+        { $match: userFilter },
+        { $group: { _id: { $dayOfWeek: "$sentAt" }, count: { $sum: 1 }, replied: { $sum: { $cond: ["$replied", 1, 0] } } } },
+        { $sort: { "_id": 1 } }
+      ]),
+
+      // Emails by hour
+      SentEmailLog.aggregate([
+        { $match: userFilter },
+        { $group: { _id: { $hour: "$sentAt" }, count: { $sum: 1 }, replied: { $sum: { $cond: ["$replied", 1, 0] } } } },
+        { $sort: { "_id": 1 } }
+      ]),
+
+      // Top responding companies
+      SentEmailLog.aggregate([
+        { $match: { ...userFilter, replied: true, company: { $ne: "" } } },
+        { $group: { _id: "$company", replies: { $sum: 1 }, sent: { $sum: 1 } } },
+        { $sort: { replies: -1 } },
+        { $limit: 10 }
+      ]),
+
+      // Last 30 days trend
+      SentEmailLog.aggregate([
+        { $match: { ...userFilter, sentAt: { $gte: new Date(Date.now() - 30*24*60*60*1000) } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$sentAt" } }, sent: { $sum: 1 }, replied: { $sum: { $cond: ["$replied", 1, 0] } } } },
+        { $sort: { "_id": 1 } }
+      ])
+    ]);
+
+    const openRate  = totalSent > 0 ? Math.round(totalOpened  / totalSent * 100) : 0;
+    const replyRate = totalSent > 0 ? Math.round(totalReplied / totalSent * 100) : 0;
+
+    res.json({ success: true, data: {
+      summary: { totalSent, totalOpened, totalReplied, totalFollowup, openRate, replyRate },
+      byTemplate, byDay, byHour, topCompanies, recentTrend
+    }});
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INTERVIEW TRACKER ROUTES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── GET /api/interviews ─────────────────────────────────────────────────────
+app.get("/api/interviews", requireAuth, async (req, res) => {
+  try {
+    const isOwner = req.user.username === (process.env.OWNER_USERNAME || "anav");
+    const userFilter = isOwner
+      ? { $or: [{ userId: req.userId }, { userId: "default" }] }
+      : { userId: req.userId };
+
+    const interviews = await SentEmailLog.find({
+      ...userFilter,
+      $or: [
+        { stage: { $in: ["Interview", "Interview Scheduled", "Offer", "Rejected", "Selected"] } },
+        { interviewDate: { $ne: null } },
+        { interviewRound: { $ne: "" } }
+      ]
+    }, {
+      hrEmail:1, hrName:1, company:1, role:1, stage:1,
+      interviewRound:1, interviewDate:1, callLog:1,
+      replied:1, repliedAt:1, sentAt:1, notes:1, priority:1
+    }).sort({ interviewDate: 1 }).lean();
+
+    // Deduplicate by company+hrEmail
+    const seen = new Set();
+    const unique = interviews.filter(i => {
+      const key = i.company + i.hrEmail;
+      if (seen.has(key)) return false;
+      seen.add(key); return true;
+    });
+
+    res.json({ success: true, interviews: unique });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── PATCH /api/interviews/:id ───────────────────────────────────────────────
+app.patch("/api/interviews/:id", requireAuth, async (req, res) => {
+  try {
+    const { stage, interviewRound, interviewDate, callLog, notes, priority } = req.body;
+    const updates = {};
+    if (stage         !== undefined) updates.stage         = stage;
+    if (interviewRound !== undefined) updates.interviewRound = interviewRound;
+    if (interviewDate !== undefined) updates.interviewDate  = interviewDate ? new Date(interviewDate) : null;
+    if (callLog       !== undefined) updates.callLog        = callLog;
+    if (notes         !== undefined) updates.notes          = notes;
+    if (priority      !== undefined) updates.priority       = priority;
+
+    await SentEmailLog.updateMany(
+      { _id: req.params.id },
+      { $set: updates }
+    );
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// KANBAN / PIPELINE ROUTES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── GET /api/pipeline ───────────────────────────────────────────────────────
+app.get("/api/pipeline", requireAuth, async (req, res) => {
+  try {
+    const isOwner = req.user.username === (process.env.OWNER_USERNAME || "anav");
+    const userFilter = isOwner
+      ? { $or: [{ userId: req.userId }, { userId: "default" }] }
+      : { userId: req.userId };
+
+    const contacts = await SentEmailLog.aggregate([
+      { $match: userFilter },
+      { $sort: { sentAt: -1 } },
+      { $group: {
+        _id: "$hrEmail",
+        company:       { $first: "$company" },
+        hrName:        { $first: "$hrName" },
+        role:          { $first: "$role" },
+        stage:         { $first: "$stage" },
+        priority:      { $first: "$priority" },
+        replied:       { $max:   "$replied" },
+        opened:        { $max:   "$opened" },
+        sentAt:        { $first: "$sentAt" },
+        interviewDate: { $first: "$interviewDate" },
+        notes:         { $first: "$notes" },
+        docId:         { $first: "$_id" },
+      }},
+    ]);
+
+    // Group by stage
+    const STAGES = ["Applied", "Opened", "Replied", "Interview", "Offer", "Rejected"];
+    const pipeline = {};
+    STAGES.forEach(s => { pipeline[s] = []; });
+
+    contacts.forEach(c => {
+      const stage = c.stage && STAGES.includes(c.stage) ? c.stage
+        : c.replied ? "Replied"
+        : c.opened  ? "Opened"
+        : "Applied";
+      if (!pipeline[stage]) pipeline[stage] = [];
+      pipeline[stage].push({ ...c, stage });
+    });
+
+    res.json({ success: true, pipeline, stages: STAGES });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── PATCH /api/pipeline/move — move card to different stage ─────────────────
+app.patch("/api/pipeline/move", requireAuth, async (req, res) => {
+  try {
+    const { hrEmail, stage } = req.body;
+    if (!hrEmail || !stage) return res.status(400).json({ success: false, message: "hrEmail and stage required" });
+    const escaped = hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    await SentEmailLog.updateMany(
+      { hrEmail: { $regex: new RegExp("^" + escaped + "$", "i") }, userId: req.userId },
+      { $set: { stage } }
+    );
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BULK EMAIL WITH AI PERSONALIZATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── POST /api/bulk-send — send personalized emails to multiple HRs ──────────
+app.post("/api/bulk-send", requireAuth, async (req, res) => {
+  try {
+    const { contacts, templateType = "fullstack", customNote = "", useAI = false } = req.body;
+    if (!contacts?.length) return res.status(400).json({ success: false, message: "No contacts" });
+    if (contacts.length > 100) return res.status(400).json({ success: false, message: "Max 100 at a time" });
+
+    const results = { sent: 0, failed: 0, errors: [] };
+    const userCfg = getUserConfig(req.user);
+
+    for (const contact of contacts) {
+      try {
+        let personalNote = customNote;
+
+        // AI personalization if enabled
+        if (useAI && process.env.GROQ_API_KEY) {
+          const prompt = `Write 2 sentences personalized email opening for:
+HR: ${contact.hrName || "Hiring Manager"} at ${contact.company || "the company"}
+Role: ${contact.role || "Software Developer"}
+Candidate: ${userCfg.profileName || req.user.displayName}, ${userCfg.totalExp || "4+"} years, skills: ${(userCfg.keySkills || "").split(",").slice(0,3).join(",")}
+Output: just the 2 sentences, nothing else`;
+          try {
+            const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+              method: "POST",
+              headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ model: "llama-3.1-8b-instant", messages: [{ role: "user", content: prompt }], max_tokens: 100, temperature: 0.9 })
+            });
+            const aiData = await aiRes.json();
+            personalNote = aiData.choices?.[0]?.message?.content?.trim() || customNote;
+          } catch {}
+        }
+
+        const emailData = {
+          hrEmail: contact.hrEmail, hrName: contact.hrName || "",
+          company: contact.company || "", role: contact.role || "",
+          customNote: personalNote, templateType,
+          userCfg, user: req.user
+        };
+        await sendApplicationEmail(emailData);
+        results.sent++;
+        await new Promise(r => setTimeout(r, 500)); // rate limit
+      } catch(e) {
+        results.failed++;
+        results.errors.push({ email: contact.hrEmail, error: e.message });
+      }
+    }
+
+    res.json({ success: true, message: `Sent ${results.sent}, Failed ${results.failed}`, ...results });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 app.listen(PORT, () => console.log(`\n🚀 Job Mailer API → http://localhost:${PORT}\n`));
