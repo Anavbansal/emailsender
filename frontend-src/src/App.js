@@ -4363,7 +4363,12 @@ function ScheduledPage({ addToast }) {
   const fetchJobs = () => axios.get(`${API}/api/scheduled-emails`).then(r => setJobs(r.data.jobs || [])).catch(() => {});
   useEffect(() => { fetchJobs(); }, []);
 
-  const remove = async id => { await axios.delete(`${API}/api/scheduled-emails/${id}`); setJobs(p => p.filter(j => j.jobId !== id)); };
+  const remove = async id => {
+    try {
+      await axios.delete(`${API}/api/scheduled-emails/${id}`);
+      setJobs(p => p.filter(j => j.jobId !== id));
+    } catch(e) { addToast && addToast("❌ Failed to cancel: " + (e.response?.data?.message || e.message), "error"); }
+  };
 
   const retryOne = async id => {
     setRetryingId(id);
@@ -6411,7 +6416,7 @@ function PipelinePage({ addToast, onNavigate }) {
     setLoading(true);
     axios.get(`${API}/api/pipeline`)
       .then(r => { if (r.data.success) { setPipeline(r.data.pipeline); setStages(r.data.stages); } })
-      .catch(() => {})
+      .catch(e => { console.error("Pipeline fetch error:", e.message); })
       .finally(() => setLoading(false));
   };
 
