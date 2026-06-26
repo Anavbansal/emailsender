@@ -1446,12 +1446,98 @@ const PIPELINE_STAGES = [
   { key: "replied",  label: "Replied",       icon: "↩", color: "#059669" },
 ];
 
+// ─── Shared UI Components ─────────────────────────────────────────────────────
+function Pagination({ page, total, perPage, onChange }) {
+  const totalPages = Math.ceil(total / perPage);
+  if (totalPages <= 1) return null;
+  const range = [];
+  let s = Math.max(1, page - 2), e = Math.min(totalPages, page + 2);
+  if (page <= 3) e = Math.min(5, totalPages);
+  if (page >= totalPages - 2) s = Math.max(1, totalPages - 4);
+  for (let i = s; i <= e; i++) range.push(i);
+  const btn = (label, pg, disabled) => (
+    <button key={label} onClick={() => !disabled && onChange(pg)} disabled={disabled}
+      style={{ minWidth:32, height:32, padding:"0 10px", borderRadius:6, border:"1px solid var(--border)",
+        background:"var(--surface)", color: disabled?"var(--text-muted)":"var(--text-700,#374151)",
+        cursor:disabled?"not-allowed":"pointer", fontSize:13, fontWeight:500, transition:"all 0.12s" }}>
+      {label}
+    </button>
+  );
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:4, justifyContent:"center", padding:"14px 0", flexWrap:"wrap" }}>
+      {btn("«", 1, page===1)}
+      {btn("‹", page-1, page===1)}
+      {s > 1 && <span style={{ color:"var(--text-muted)", padding:"0 4px" }}>…</span>}
+      {range.map(p => (
+        <button key={p} onClick={() => onChange(p)}
+          style={{ minWidth:32, height:32, padding:"0 10px", borderRadius:6, fontSize:13, fontWeight: p===page?700:400,
+            border: p===page?"1.5px solid var(--blue)":"1px solid var(--border)",
+            background: p===page?"var(--blue)":"var(--surface)",
+            color: p===page?"#fff":"var(--text-700,#374151)", cursor:"pointer" }}>
+          {p}
+        </button>
+      ))}
+      {e < totalPages && <span style={{ color:"var(--text-muted)", padding:"0 4px" }}>…</span>}
+      {btn("›", page+1, page===totalPages)}
+      {btn("»", totalPages, page===totalPages)}
+      <span style={{ fontSize:11, color:"var(--text-muted)", marginLeft:6 }}>{total.toLocaleString()} total</span>
+    </div>
+  );
+}
+
+function SearchBar({ value, onChange, placeholder="Search...", width="100%", autoFocus=false }) {
+  return (
+    <div style={{ position:"relative", width, flexShrink:0 }}>
+      <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", fontSize:13, color:"var(--text-muted)", pointerEvents:"none" }}>🔍</span>
+      <input type="text" value={value} onChange={e => onChange(e.target.value)}
+        placeholder={placeholder} autoFocus={autoFocus}
+        style={{ width:"100%", height:36, paddingLeft:32, paddingRight:value?32:10,
+          borderRadius:8, border:"1px solid var(--border)", background:"var(--surface)",
+          color:"var(--text-700,#374151)", fontSize:13, boxSizing:"border-box",
+          outline:"none", transition:"border-color 0.15s" }}
+        onFocus={e => e.target.style.borderColor="var(--blue)"}
+        onBlur={e => e.target.style.borderColor="var(--border)"} />
+      {value && <button onClick={() => onChange("")}
+        style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)",
+          background:"none", border:"none", cursor:"pointer", fontSize:14, color:"var(--text-muted)", padding:2, lineHeight:1 }}>✕</button>}
+    </div>
+  );
+}
+
+function DropdownSelect({ value, onChange, options=[], placeholder, width="auto", size="md" }) {
+  const h = size==="sm" ? 30 : 36;
+  const fs = size==="sm" ? 12 : 13;
+  return (
+    <div style={{ position:"relative", width, flexShrink:0 }}>
+      <select value={value} onChange={e => onChange(e.target.value)}
+        style={{ appearance:"none", WebkitAppearance:"none", MozAppearance:"none",
+          width:"100%", height:h, paddingLeft:10, paddingRight:26,
+          borderRadius:8, border:"1px solid var(--border)", background:"var(--surface)",
+          color: value?"var(--text-700,#374151)":"var(--text-muted)", fontSize:fs,
+          cursor:"pointer", outline:"none", transition:"border-color 0.15s" }}
+        onFocus={e => e.target.style.borderColor="var(--blue)"}
+        onBlur={e => e.target.style.borderColor="var(--border)"}>
+        {placeholder && <option value="">{placeholder}</option>}
+        {options.map(o => <option key={o.value??o} value={o.value??o}>{o.label??o}</option>)}
+      </select>
+      <span style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)",
+        pointerEvents:"none", fontSize:9, color:"var(--text-muted)", lineHeight:1 }}>▼</span>
+    </div>
+  );
+}
+
+
 function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail, onFollowUp, onMessage, onRefresh, addToast, onViewThread, onManualUpdate }) {
   const [search,     setSearch]    = useState("");
   const [view,       setView]      = useState("list"); // "list" | "kanban"
   const [activeTab,  setActiveTab] = useState("all");  // filter tab
   const [clearing,   setClearing]  = useState(null);
   const [syncing,    setSyncing]   = useState(false);
+  const [contactPage, setContactPage] = useState(1);
+  const [perPage,     setPerPage]     = useState(25);
+  const [sortBy,      setSortBy]      = useState("recent");
+  const [companyFilter, setCompanyFilter] = useState("");
+  useEffect(() => { setContactPage(1); }, [search, activeTab, sortBy, companyFilter]);
   const [syncResult, setSyncResult]= useState(null);
   const [bulkModal,  setBulkModal]  = useState(false);
 
@@ -1512,25 +1598,41 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
     { key: "thread",        icon: "🧵", label: "Has Thread",    color: "#6366f1" },
   ];
 
-  // ── Apply search + tab filter ──────────────────────────────────────────────
-  const searchFiltered = contacts.filter(c =>
-    !search ||
-    c.company?.toLowerCase().includes(search.toLowerCase()) ||
-    c.hrEmail?.toLowerCase().includes(search.toLowerCase()) ||
-    c.role?.toLowerCase().includes(search.toLowerCase()) ||
-    c.hrName?.toLowerCase().includes(search.toLowerCase())
-  );
+  // ── Company list for dropdown ──────────────────────────────────────────────
+  const companyList = useMemo(() => {
+    const s = new Set(contacts.map(c => c.company).filter(Boolean));
+    return Array.from(s).sort();
+  }, [contacts]);
 
-  const filtered = searchFiltered.filter(c => {
-    if (activeTab === "all")           return true;
-    if (activeTab === "replied")       return c.replied || replyEmails.has(c.hrEmail.toLowerCase());
-    if (activeTab === "followup")           return c.needsFollowUp && !c.followupScheduled;
-    if (activeTab === "followup_sent")      return c.followupSent;
-    if (activeTab === "followup_scheduled") return c.followupScheduled && !c.followupSent;
-    if (activeTab === "thread")        return !!c.lastMessageId;
-    if (activeTab === "opened")        return c.opened;
-    return true;
-  });
+  // ── Apply search + tab + company filter + sort ────────────────────────────
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    let list = contacts.filter(c => {
+      const matchSearch = !q || c.company?.toLowerCase().includes(q)
+        || c.hrEmail?.toLowerCase().includes(q) || c.role?.toLowerCase().includes(q)
+        || c.hrName?.toLowerCase().includes(q);
+      const matchCompany = !companyFilter || c.company === companyFilter;
+      const matchTab = (() => {
+        if (activeTab === "all")                return true;
+        if (activeTab === "replied")            return c.replied || replyEmails.has(c.hrEmail.toLowerCase());
+        if (activeTab === "followup")           return c.needsFollowUp && !c.followupScheduled;
+        if (activeTab === "followup_sent")      return c.followupSent;
+        if (activeTab === "followup_scheduled") return c.followupScheduled && !c.followupSent;
+        if (activeTab === "thread")             return !!c.lastMessageId;
+        if (activeTab === "opened")             return c.opened;
+        return true;
+      })();
+      return matchSearch && matchCompany && matchTab;
+    });
+    if (sortBy === "company") list = [...list].sort((a,b)=>(a.company||"").localeCompare(b.company||""));
+    else if (sortBy === "opened")  list = [...list].sort((a,b)=>(b.opened?1:0)-(a.opened?1:0));
+    else if (sortBy === "replied") list = [...list].sort((a,b)=>(b.replied?1:0)-(a.replied?1:0));
+    else list = [...list].sort((a,b)=>new Date(b.lastSentAt||0)-new Date(a.lastSentAt||0));
+    return list;
+  }, [contacts, search, activeTab, replyEmails, companyFilter, sortBy]);
+
+  const totalFiltered = filtered.length;
+  const paginated = filtered.slice((contactPage-1)*perPage, contactPage*perPage);
 
   const reminders = searchFiltered.filter(c => c.needsFollowUp);
 
@@ -1602,6 +1704,24 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
             )}
           </button>
         ))}
+      </div>
+
+      {/* ── Professional Toolbar: Search + Filters + Sort + Per-page ── */}
+      <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", marginBottom:10 }}>
+        <div style={{ flex:"1 1 200px", minWidth:160 }}>
+          <SearchBar value={search} onChange={v=>{setSearch(v);setContactPage(1);}}
+            placeholder="Search company, email, name, role…" width="100%" />
+        </div>
+        <DropdownSelect value={companyFilter} onChange={v=>{setCompanyFilter(v);setContactPage(1);}}
+          placeholder="All Companies" width="160px"
+          options={companyList.slice(0,150).map(c=>({value:c,label:c.length>22?c.slice(0,22)+"…":c}))} />
+        <DropdownSelect value={sortBy} onChange={setSortBy} width="130px"
+          options={[{value:"recent",label:"↓ Recent"},{value:"company",label:"A–Z Company"},{value:"opened",label:"👁 Opened"},{value:"replied",label:"↩ Replied"}]} />
+        <DropdownSelect value={String(perPage)} onChange={v=>{setPerPage(Number(v));setContactPage(1);}} width="88px"
+          options={[{value:"10",label:"10 / pg"},{value:"25",label:"25 / pg"},{value:"50",label:"50 / pg"},{value:"100",label:"100 / pg"}]} />
+        {(search||companyFilter) && (
+          <button onClick={()=>{setSearch("");setCompanyFilter("");}} className="btn-ghost btn-sm" style={{fontSize:11,whiteSpace:"nowrap"}}>✕ Clear</button>
+        )}
       </div>
 
       <div className="page-toolbar">
@@ -1709,8 +1829,13 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
         </div>
       ) : (
         /* ── List view ── */
+        <>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, fontSize:12, color:"var(--text-muted)" }}>
+          <span>Showing <strong>{Math.min((contactPage-1)*perPage+1,totalFiltered).toLocaleString()}</strong>–<strong>{Math.min(contactPage*perPage,totalFiltered).toLocaleString()}</strong> of <strong>{totalFiltered.toLocaleString()}</strong></span>
+          {totalFiltered !== contacts.length && <span style={{color:"var(--blue)"}}>Filtered from {contacts.length.toLocaleString()} total</span>}
+        </div>
         <div className="contacts-list">
-          {filtered.map((c, i) => (
+          {paginated.map((c, i) => (
             <div key={i} className={`contact-card ${c.needsFollowUp ? "contact-card-reminder" : ""} ${c.replied ? "contact-card-replied" : ""}`}>
               {/* Avatar + Status dot */}
               <div style={{ position: "relative", flexShrink: 0 }}>
@@ -1851,6 +1976,8 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
             </div>
           ))}
         </div>
+        <Pagination page={contactPage} total={totalFiltered} perPage={perPage} onChange={setContactPage} />
+        </>
       )}
     </div>
 
@@ -4232,17 +4359,23 @@ function LinkedInConnectionsPage({ onFillApply, addToast }) {
         <button type="button" className="btn-ghost btn-sm" onClick={() => fetchConnections(search, filter)} disabled={loading}>↻</button>
       </form>
 
-      {/* Filter chips */}
-      <div className="chip-row" style={{ marginBottom: 12 }}>
-        {LI_FILTERS.map(f => (
-          <button key={f.key} type="button"
-            className={`chip ${filter === f.key ? "chip-active" : ""}`}
-            onClick={() => applyFilter(f.key)}>{f.label}</button>
-        ))}
+      {/* Filter chips + Sort + Per-page */}
+      <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", marginBottom:10 }}>
+        <div className="chip-row" style={{ margin:0, flex:1, flexWrap:"wrap" }}>
+          {LI_FILTERS.map(f => (
+            <button key={f.key} type="button"
+              className={`chip ${filter === f.key ? "chip-active" : ""}`}
+              onClick={() => { applyFilter(f.key); setLiPage(1); }}>{f.label}</button>
+          ))}
+        </div>
+        <DropdownSelect value={liSort} onChange={setLiSort} width="130px" size="sm"
+          options={[{value:"recent",label:"↓ Recent"},{value:"name",label:"A–Z Name"},{value:"company",label:"A–Z Co"}]} />
+        <DropdownSelect value={String(liPer)} onChange={v=>{setLiPer(Number(v));setLiPage(1);}} width="82px" size="sm"
+          options={[{value:"12",label:"12/pg"},{value:"24",label:"24/pg"},{value:"48",label:"48/pg"}]} />
       </div>
-
-      {/* Connection count */}
-      {!loading && <p className="li-count">{connections.length} connection{connections.length !== 1 ? "s" : ""}</p>}
+      {!loading && <p className="li-count" style={{marginBottom:6}}>
+        {connections.length.toLocaleString()} connections · showing {Math.min((liPage-1)*liPer+1,connections.length)}–{Math.min(liPage*liPer,connections.length)}
+      </p>}
 
       {/* Grid */}
       {connections.length === 0 ? (
@@ -4252,7 +4385,7 @@ function LinkedInConnectionsPage({ onFillApply, addToast }) {
         </div>
       ) : (
         <div className="li-grid">
-          {connections.map((c, i) => (
+          {[...connections].sort((a,b)=>liSort==="name"?(a.name||"").localeCompare(b.name||""):liSort==="company"?(a.company||"").localeCompare(b.company||""):0).slice((liPage-1)*liPer,liPage*liPer).map((c, i) => (
             <div key={i} className={`li-card ${c.sent ? "li-card-sent" : ""} ${c.replied ? "li-card-replied" : ""}`}>
               {/* Avatar */}
               <div className="li-avatar" style={{ background: avatarColor(c) }}>{initials(c)}</div>
@@ -4315,10 +4448,11 @@ function LinkedInConnectionsPage({ onFillApply, addToast }) {
             </div>
           ))}
         </div>
+        <Pagination page={liPage} total={connections.length} perPage={liPer} onChange={setLiPage} />
       )}
     </div>
 
-    {/* Modals rendered outside page div to avoid overflow clipping */}
+    {/* Modals */}
     {refModal && (
       <ReferralMessageModal
         connection={refModal}
@@ -4711,7 +4845,7 @@ function App() {
         { id: "contacts",    icon: "👥", label: "HR Contacts",     badge: reminderCount  || null },
         { id: "send",        icon: "✉",  label: "Send Application" },
         { id: "linkedin",    icon: "🔗", label: "Connections" },
-        { id: "referral",    icon: "🤝", label: "Referral" },
+
         { id: "prospect",    icon: "🎯", label: "Find HR Emails" },
         { id: "inbox",       icon: "📥", label: "Inbox",           badge: replyCount     || null },
         { id: "messages",    icon: "💬", label: "Messages" },
@@ -4875,7 +5009,6 @@ function App() {
           )}
           {page === "send"      && <SendApplicationPage onContactsRefresh={fetchContacts} prefill={prefillSend} onPrefillConsumed={() => setPrefillSend(null)} addToast={addToast} />}
           {page === "linkedin"  && <LinkedInConnectionsPage onFillApply={goToSendPrefilled} addToast={addToast} />}
-          {page === "referral"  && <ReferralPage addToast={addToast} />}
           {page === "inbox"     && <InboxPage contacts={contacts} onFollowUp={contact => setModal({ type: "followUp", contact })} addToast={addToast} />}
           {page === "messages"  && <MessagesPage contacts={contacts} />}
           {page === "prospect"  && <ProspectPage onFillApply={goToSendPrefilled} addToast={addToast} />}
@@ -4935,6 +5068,7 @@ function AdminPage({ addToast }) {
   const [loading,   setLoading]  = useState(false);
   const [showAdd,   setShowAdd]  = useState(false);
   const [editUser,  setEditUser] = useState(null);
+  const [adminSearch, setAdminSearch] = useState("");
   const [newUser,   setNewUser]  = useState({
     username:"", password:"", displayName:"", profileEmail:"",
     profilePhone:"", profileTitle:"", currentCompany:"", keySkills:"", totalExp:"", isAdmin:false
@@ -5038,7 +5172,15 @@ function AdminPage({ addToast }) {
       {tab === "users" && (
         <div>
           {loading && <div style={{ textAlign:"center", padding:20, color:"var(--text-muted)" }}>Loading...</div>}
-          {users.map(u => (
+          <div style={{ marginBottom:12 }}>
+            <SearchBar value={adminSearch} onChange={setAdminSearch} placeholder="Search users by name, username, email…" />
+          </div>
+          {users.filter(u => {
+            const q = adminSearch.toLowerCase();
+            return !q || u.username?.toLowerCase().includes(q)
+              || u.displayName?.toLowerCase().includes(q)
+              || u.profileEmail?.toLowerCase().includes(q);
+          }).map(u => (
             <div key={u._id} style={{
               background:"var(--surface)", border:"1px solid var(--border)",
               borderRadius:12, padding:"14px 18px", marginBottom:10
@@ -6673,15 +6815,7 @@ function BulkSendPage({ addToast, contacts }) {
               {templates.map(t => <option key={t.id} value={t.id}>{t.icon} {t.name}</option>)}
             </select>
           </div>
-          <div className="form-group" style={{ marginBottom:0 }}>
-            <label className="form-label" style={{ fontSize:11 }}>Filter Contacts</label>
-            <select className="form-select" style={{ fontSize:13 }} value={filter} onChange={e => setFilter(e.target.value)}>
-              <option value="not_applied">Not Applied Yet</option>
-              <option value="no_reply">Applied, No Reply</option>
-              <option value="opened">Opened Email</option>
-              <option value="all">All Contacts</option>
-            </select>
-          </div>
+
         </div>
         <div className="form-group" style={{ marginBottom:12 }}>
           <label className="form-label" style={{ fontSize:11 }}>Custom Note (optional — overridden by AI if enabled)</label>
@@ -6710,12 +6844,15 @@ function BulkSendPage({ addToast, contacts }) {
 
       {/* Contact list */}
       <div style={{ display:"flex", gap:8, marginBottom:12, alignItems:"center", flexWrap:"wrap" }}>
-        <input className="form-input" placeholder="Search company, email..." style={{ fontSize:13, maxWidth:240 }}
-          value={search} onChange={e => setSearch(e.target.value)} />
+        <div style={{ flex:"1 1 180px" }}>
+          <SearchBar value={search} onChange={setSearch} placeholder="Search company, email, name…" />
+        </div>
+        <DropdownSelect value={filter} onChange={v=>{setFilter(v);setSelected(new Set());}} width="155px"
+          options={[{value:"not_applied",label:"Not Applied Yet"},{value:"no_reply",label:"Applied, No Reply"},{value:"opened",label:"Opened Email"},{value:"all",label:"All Contacts"}]} />
         <button className="btn-ghost btn-sm" onClick={toggleAll}>
           {selected.size === filtered.length ? "Deselect All" : `Select All (${filtered.length})`}
         </button>
-        <span style={{ fontSize:12, color:"var(--text-muted)", marginLeft:"auto" }}>{selected.size} selected</span>
+        <span style={{ fontSize:12, color:"var(--text-muted)", marginLeft:"auto", flexShrink:0 }}>{selected.size} selected</span>
       </div>
 
       <div style={{ display:"flex", flexDirection:"column", gap:6, maxHeight:"55vh", overflowY:"auto" }}>
