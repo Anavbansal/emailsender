@@ -4713,7 +4713,11 @@ function App() {
         { id: "jobs",        icon: "🔍", label: "Find Jobs" },
         { id: "scheduled",   icon: "🗓", label: "Scheduled",       badge: scheduledCount || null },
         { id: "settings",    icon: "S",  label: "Settings",         badge: null },
-        { id: "ai",           icon: "✨", label: "AI Assistant",     badge: "NEW" },
+        { id: "ai",           icon: "✨", label: "AI Assistant",     badge: null },
+        { id: "analytics",   icon: "📊", label: "Analytics",        badge: null },
+        { id: "pipeline",    icon: "🎯", label: "Pipeline",         badge: null },
+        { id: "interviews",  icon: "🗓", label: "Interviews",       badge: null },
+        { id: "bulk",        icon: "⚡", label: "Bulk Send",        badge: null },
       ];
 
   const [prefillSend, setPrefillSend] = React.useState(null);
@@ -4874,6 +4878,10 @@ function App() {
           {page === "scheduled" && <ScheduledPage onRefresh={fetchScheduled} addToast={addToast} />}
           {page === "settings"   && <SettingsPage addToast={addToast} />}
           {page === "ai"         && <AIAssistantPage addToast={addToast} />}
+          {page === "analytics"  && <AnalyticsPage />}
+          {page === "pipeline"   && <PipelinePage addToast={addToast} onNavigate={navigate} />}
+          {page === "interviews" && <InterviewsPage addToast={addToast} />}
+          {page === "bulk"       && <BulkSendPage addToast={addToast} contacts={contacts} />}
           {page === "admin"      && authUser?.isAdmin && <AdminPage addToast={addToast} />}
         </main>
       </div>
@@ -6272,3 +6280,462 @@ function AIAssistantPage({ addToast }) {
 
 
 export default App;
+// ─── Analytics Page ────────────────────────────────────────────────────────────
+function AnalyticsPage() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState("30");
+
+  useEffect(() => {
+    setLoading(true);
+    axios.get(`${API}/api/analytics/dashboard`)
+      .then(r => { if (r.data.success) setData(r.data.data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [period]);
+
+  const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const HOURS = Array.from({length:24}, (_,i) => i === 0 ? "12am" : i < 12 ? `${i}am` : i === 12 ? "12pm" : `${i-12}pm`);
+
+  const StatCard = ({ label, value, sub, color="#2563eb" }) => (
+    <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"16px 20px" }}>
+      <div style={{ fontSize:28, fontWeight:800, color }}>{value}</div>
+      <div style={{ fontSize:12, color:"var(--text-muted)", marginTop:4 }}>{label}</div>
+      {sub && <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>{sub}</div>}
+    </div>
+  );
+
+  const Bar = ({ value, max, color="#2563eb", label }) => (
+    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+      <div style={{ width:30, fontSize:11, color:"var(--text-muted)", textAlign:"right", flexShrink:0 }}>{label}</div>
+      <div style={{ flex:1, background:"var(--surface-2,#f8fafc)", borderRadius:4, height:16, overflow:"hidden" }}>
+        <div style={{ width:`${max>0?Math.round(value/max*100):0}%`, background:color, height:"100%", borderRadius:4, minWidth: value>0?4:0 }} />
+      </div>
+      <div style={{ width:24, fontSize:11, color:"var(--text-muted)", flexShrink:0 }}>{value}</div>
+    </div>
+  );
+
+  if (loading) return <div className="page"><div style={{textAlign:"center",padding:60,color:"var(--text-muted)"}}>Loading analytics...</div></div>;
+  if (!data)   return <div className="page"><div style={{textAlign:"center",padding:60,color:"var(--text-muted)"}}>No data yet</div></div>;
+
+  const { summary, byDay, byHour, topCompanies, recentTrend } = data;
+  const maxDay  = Math.max(...(byDay||[]).map(d=>d.count), 1);
+  const maxHour = Math.max(...(byHour||[]).map(d=>d.count), 1);
+
+  return (
+    <div className="page">
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:12, marginBottom:20 }}>
+        <StatCard label="Total Sent"    value={summary.totalSent}    color="#2563eb" />
+        <StatCard label="Emails Opened" value={summary.totalOpened}  sub={`${summary.openRate}% open rate`}  color="#7c3aed" />
+        <StatCard label="Replies"       value={summary.totalReplied} sub={`${summary.replyRate}% reply rate`} color="#059669" />
+        <StatCard label="Follow-ups"    value={summary.totalFollowup} color="#d97706" />
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
+        {/* Best day to send */}
+        <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"16px 20px" }}>
+          <div style={{ fontWeight:700, fontSize:13, marginBottom:14 }}>📅 Emails by Day of Week</div>
+          {(byDay||[]).map(d => (
+            <Bar key={d._id} label={DAYS[(d._id-1+7)%7]} value={d.count} max={maxDay} color="#2563eb" />
+          ))}
+          {byDay?.length > 0 && (() => {
+            const best = byDay.reduce((a,b) => (b.replied/Math.max(b.count,1)) > (a.replied/Math.max(a.count,1)) ? b : a, byDay[0]);
+            return <div style={{ fontSize:11, color:"#059669", marginTop:8 }}>✅ Best day: {DAYS[(best._id-1+7)%7]} ({Math.round(best.replied/Math.max(best.count,1)*100)}% reply rate)</div>;
+          })()}
+        </div>
+
+        {/* Best hour */}
+        <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"16px 20px" }}>
+          <div style={{ fontWeight:700, fontSize:13, marginBottom:14 }}>⏰ Best Hours to Send</div>
+          {(byHour||[]).filter(h => h.count > 0).sort((a,b) => b.count - a.count).slice(0,8).map(h => (
+            <Bar key={h._id} label={HOURS[h._id]} value={h.count} max={maxHour} color="#7c3aed" />
+          ))}
+        </div>
+      </div>
+
+      {/* Recent 30 day trend */}
+      {recentTrend?.length > 0 && (
+        <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"16px 20px", marginBottom:20 }}>
+          <div style={{ fontWeight:700, fontSize:13, marginBottom:14 }}>📈 Last 30 Days</div>
+          <div style={{ display:"flex", alignItems:"flex-end", gap:3, height:80 }}>
+            {recentTrend.map((d,i) => {
+              const maxV = Math.max(...recentTrend.map(x=>x.sent), 1);
+              const h = Math.round(d.sent/maxV*72);
+              return (
+                <div key={i} title={`${d._id}: ${d.sent} sent, ${d.replied} replied`} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
+                  <div style={{ width:"100%", height:h, background: d.replied>0?"#059669":"#2563eb", borderRadius:"3px 3px 0 0", minHeight:2 }} />
+                  {i % 5 === 0 && <div style={{ fontSize:9, color:"var(--text-muted)", whiteSpace:"nowrap" }}>{d._id.slice(5)}</div>}
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ display:"flex", gap:16, marginTop:8, fontSize:11 }}>
+            <span style={{ color:"#2563eb" }}>■ Sent</span>
+            <span style={{ color:"#059669" }}>■ Got reply</span>
+          </div>
+        </div>
+      )}
+
+      {/* Top companies */}
+      {topCompanies?.length > 0 && (
+        <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"16px 20px" }}>
+          <div style={{ fontWeight:700, fontSize:13, marginBottom:14 }}>🏆 Companies that Replied</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {topCompanies.slice(0,8).map((c,i) => (
+              <div key={i} style={{ display:"flex", alignItems:"center", gap:12 }}>
+                <div style={{ width:20, fontSize:12, color:"var(--text-muted)", textAlign:"center" }}>{i+1}</div>
+                <div style={{ flex:1, fontSize:13 }}>{c._id}</div>
+                <div style={{ fontSize:12, color:"#059669", fontWeight:700 }}>{c.replies} replies</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Pipeline / Kanban Board ──────────────────────────────────────────────────
+function PipelinePage({ addToast, onNavigate }) {
+  const [pipeline, setPipeline] = useState({});
+  const [stages,   setStages]   = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [moving,   setMoving]   = useState(null);
+
+  const STAGE_COLORS = {
+    Applied:"#2563eb", Opened:"#7c3aed", Replied:"#059669",
+    Interview:"#d97706", Offer:"#16a34a", Rejected:"#dc2626"
+  };
+
+  const fetchPipeline = () => {
+    setLoading(true);
+    axios.get(`${API}/api/pipeline`)
+      .then(r => { if (r.data.success) { setPipeline(r.data.pipeline); setStages(r.data.stages); } })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchPipeline(); }, []);
+
+  const moveCard = async (hrEmail, newStage) => {
+    setMoving(hrEmail);
+    try {
+      await axios.patch(`${API}/api/pipeline/move`, { hrEmail, stage: newStage });
+      addToast && addToast(`✅ Moved to ${newStage}`);
+      fetchPipeline();
+    } catch(e) {
+      addToast && addToast("❌ Failed", "error");
+    } finally { setMoving(null); }
+  };
+
+  if (loading) return <div className="page"><div style={{textAlign:"center",padding:60,color:"var(--text-muted)"}}>Loading pipeline...</div></div>;
+
+  return (
+    <div className="page" style={{ overflowX:"auto" }}>
+      <div style={{ display:"flex", gap:12, minWidth: stages.length * 220 }}>
+        {stages.map(stage => {
+          const cards = pipeline[stage] || [];
+          const color = STAGE_COLORS[stage] || "#6b7280";
+          return (
+            <div key={stage} style={{ width:210, flexShrink:0 }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+                <div style={{ fontWeight:700, fontSize:13, color }}>
+                  {stage}
+                </div>
+                <span style={{ background:`${color}22`, color, fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:99 }}>
+                  {cards.length}
+                </span>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:8, minHeight:100 }}>
+                {cards.map(card => (
+                  <div key={card._id} style={{
+                    background:"var(--surface)", border:`1px solid ${color}44`,
+                    borderLeft:`3px solid ${color}`,
+                    borderRadius:8, padding:"10px 12px",
+                    opacity: moving===card._id ? 0.5 : 1,
+                  }}>
+                    <div style={{ fontWeight:700, fontSize:12, marginBottom:2 }}>{card.company || "Unknown"}</div>
+                    <div style={{ fontSize:11, color:"var(--text-muted)", marginBottom:6 }}>{card.role || card.hrEmail}</div>
+                    {card.interviewDate && (
+                      <div style={{ fontSize:10, color:"#d97706", marginBottom:4 }}>
+                        📅 {new Date(card.interviewDate).toLocaleDateString("en-IN")}
+                      </div>
+                    )}
+                    <select style={{
+                      width:"100%", fontSize:10, padding:"3px 6px", borderRadius:6,
+                      border:"1px solid var(--border)", background:"var(--surface)",
+                      color:"var(--text-700,#374151)", cursor:"pointer"
+                    }} value={stage} onChange={e => moveCard(card._id || card.hrEmail, e.target.value)}>
+                      {stages.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                ))}
+                {cards.length === 0 && (
+                  <div style={{ border:"1.5px dashed var(--border)", borderRadius:8, padding:"20px 12px", textAlign:"center", fontSize:11, color:"var(--text-muted)" }}>
+                    Drop here
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Interviews Page ──────────────────────────────────────────────────────────
+function InterviewsPage({ addToast }) {
+  const [interviews, setInterviews] = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [editing,    setEditing]    = useState(null);
+  const [form,       setForm]       = useState({});
+
+  const ROUNDS = ["R1 Technical","R2 Technical","HR Round","Managerial","System Design","Final Round","Offer Discussion"];
+  const STAGES = ["Interview","Interview Scheduled","Offer","Selected","Rejected","On Hold"];
+
+  const fetch2 = () => {
+    setLoading(true);
+    axios.get(`${API}/api/interviews`)
+      .then(r => { if (r.data.success) setInterviews(r.data.interviews); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => { fetch2(); }, []);
+
+  const save = async () => {
+    try {
+      await axios.patch(`${API}/api/interviews/${editing}`, form);
+      addToast && addToast("✅ Saved!");
+      setEditing(null);
+      fetch2();
+    } catch(e) { addToast && addToast("❌ Failed", "error"); }
+  };
+
+  const upcoming = interviews.filter(i => i.interviewDate && new Date(i.interviewDate) >= new Date()).sort((a,b) => new Date(a.interviewDate)-new Date(b.interviewDate));
+  const past = interviews.filter(i => !i.interviewDate || new Date(i.interviewDate) < new Date());
+
+  return (
+    <div className="page">
+      {upcoming.length > 0 && (
+        <div style={{ background:"linear-gradient(135deg,#fef3c7,#fef9c3)", border:"1px solid #fde047", borderRadius:12, padding:"14px 18px", marginBottom:16 }}>
+          <div style={{ fontWeight:700, fontSize:13, color:"#713f12", marginBottom:8 }}>🗓 Upcoming Interviews</div>
+          {upcoming.map((i,idx) => (
+            <div key={idx} style={{ fontSize:13, color:"#713f12", marginBottom:4 }}>
+              <strong>{i.company}</strong> — {i.interviewRound || "Interview"} — {new Date(i.interviewDate).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {loading ? <div style={{textAlign:"center",padding:40,color:"var(--text-muted)"}}>Loading...</div>
+      : interviews.length === 0 ? (
+        <div className="empty-state">
+          <span className="empty-icon">🗓</span>
+          <p>No interviews tracked yet. Move contacts to "Interview" stage in Pipeline.</p>
+        </div>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          {interviews.map(iv => (
+            <div key={iv._id} style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"14px 18px" }}>
+              {editing === String(iv._id) ? (
+                <div>
+                  <div style={{ fontWeight:700, fontSize:13, marginBottom:12 }}>{iv.company} — {iv.hrEmail}</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
+                    <div className="form-group" style={{ marginBottom:0 }}>
+                      <label className="form-label" style={{ fontSize:11 }}>Stage</label>
+                      <select className="form-select" style={{ fontSize:13 }} value={form.stage||iv.stage||"Interview"} onChange={e => setForm(p=>({...p,stage:e.target.value}))}>
+                        {STAGES.map(s => <option key={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ marginBottom:0 }}>
+                      <label className="form-label" style={{ fontSize:11 }}>Round</label>
+                      <select className="form-select" style={{ fontSize:13 }} value={form.interviewRound||iv.interviewRound||""} onChange={e => setForm(p=>({...p,interviewRound:e.target.value}))}>
+                        <option value="">Select round...</option>
+                        {ROUNDS.map(r => <option key={r}>{r}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ marginBottom:0 }}>
+                      <label className="form-label" style={{ fontSize:11 }}>Interview Date & Time</label>
+                      <input type="datetime-local" className="form-input" style={{ fontSize:13 }}
+                        value={form.interviewDate ? new Date(form.interviewDate).toISOString().slice(0,16) : iv.interviewDate ? new Date(iv.interviewDate).toISOString().slice(0,16) : ""}
+                        onChange={e => setForm(p=>({...p,interviewDate:e.target.value}))} />
+                    </div>
+                    <div className="form-group" style={{ marginBottom:0 }}>
+                      <label className="form-label" style={{ fontSize:11 }}>Priority</label>
+                      <select className="form-select" style={{ fontSize:13 }} value={form.priority||iv.priority||"Normal"} onChange={e => setForm(p=>({...p,priority:e.target.value}))}>
+                        {["Low","Normal","High","Dream Company"].map(p => <option key={p}>{p}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="form-group" style={{ marginBottom:12 }}>
+                    <label className="form-label" style={{ fontSize:11 }}>Notes / Feedback</label>
+                    <textarea className="form-textarea" rows={3} style={{ fontSize:13 }}
+                      placeholder="Interview notes, feedback, questions asked..."
+                      value={form.callLog||iv.callLog||""}
+                      onChange={e => setForm(p=>({...p,callLog:e.target.value}))} />
+                  </div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button className="btn-primary btn-sm" onClick={save}>💾 Save</button>
+                    <button className="btn-ghost btn-sm" onClick={() => setEditing(null)}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+                  <div style={{ width:36, height:36, borderRadius:"50%", background:"linear-gradient(135deg,#2563eb,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:700, fontSize:13, flexShrink:0 }}>
+                    {(iv.company||"?").slice(0,2).toUpperCase()}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:700, fontSize:13 }}>{iv.company} <span style={{ fontSize:11, color:"var(--text-muted)", fontWeight:400 }}>— {iv.role || iv.hrEmail}</span></div>
+                    <div style={{ fontSize:12, color:"var(--text-muted)", marginTop:3, display:"flex", gap:12, flexWrap:"wrap" }}>
+                      {iv.stage && <span style={{ color: iv.stage==="Offer"?"#16a34a":iv.stage==="Rejected"?"#dc2626":"#d97706", fontWeight:600 }}>{iv.stage}</span>}
+                      {iv.interviewRound && <span>{iv.interviewRound}</span>}
+                      {iv.interviewDate && <span>📅 {new Date(iv.interviewDate).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})}</span>}
+                      {iv.priority && iv.priority !== "Normal" && <span style={{ color:"#d97706" }}>⭐ {iv.priority}</span>}
+                    </div>
+                    {iv.callLog && <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:4, fontStyle:"italic" }}>{iv.callLog.slice(0,80)}{iv.callLog.length>80?"...":""}</div>}
+                  </div>
+                  <button className="btn-ghost btn-sm" onClick={() => { setEditing(String(iv._id)); setForm({}); }}>✏️ Edit</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Bulk Send Page ───────────────────────────────────────────────────────────
+function BulkSendPage({ addToast, contacts }) {
+  const templates    = getEmailTemplates();
+  const [selected,   setSelected]   = useState(new Set());
+  const [templateId, setTemplateId] = useState(templates[0]?.id || "fullstack");
+  const [customNote, setCustomNote] = useState("");
+  const [useAI,      setUseAI]      = useState(false);
+  const [sending,    setSending]    = useState(false);
+  const [result,     setResult]     = useState(null);
+  const [search,     setSearch]     = useState("");
+  const [filter,     setFilter]     = useState("not_applied");
+
+  const filtered = (contacts || []).filter(c => {
+    const q = search.toLowerCase();
+    const matchSearch = !q || c.company?.toLowerCase().includes(q) || c.hrEmail?.toLowerCase().includes(q) || c.hrName?.toLowerCase().includes(q);
+    const matchFilter = filter === "all" ? true
+      : filter === "not_applied" ? !c.sent
+      : filter === "no_reply"    ? (c.sent && !c.replied)
+      : filter === "opened"      ? c.opened
+      : true;
+    return matchSearch && matchFilter;
+  });
+
+  const toggle = email => setSelected(prev => {
+    const next = new Set(prev);
+    next.has(email) ? next.delete(email) : next.add(email);
+    return next;
+  });
+
+  const toggleAll = () => {
+    if (selected.size === filtered.length) setSelected(new Set());
+    else setSelected(new Set(filtered.map(c => c.hrEmail)));
+  };
+
+  const send = async () => {
+    if (!selected.size) return;
+    if (!window.confirm(`Send ${selected.size} emails? ${useAI ? "AI will personalize each one." : ""}`)) return;
+    setSending(true); setResult(null);
+    try {
+      const toSend = filtered.filter(c => selected.has(c.hrEmail)).map(c => ({
+        hrEmail: c.hrEmail, hrName: c.hrName, company: c.company, role: c.role
+      }));
+      const r = await axios.post(`${API}/api/bulk-send`, { contacts: toSend, templateType: templateId, customNote, useAI });
+      setResult(r.data);
+      addToast && addToast(`✅ ${r.data.sent} emails sent!`);
+      setSelected(new Set());
+    } catch(e) {
+      addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error");
+    } finally { setSending(false); }
+  };
+
+  return (
+    <div className="page">
+      {/* Controls */}
+      <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"16px 20px", marginBottom:16 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+          <div className="form-group" style={{ marginBottom:0 }}>
+            <label className="form-label" style={{ fontSize:11 }}>Template</label>
+            <select className="form-select" style={{ fontSize:13 }} value={templateId} onChange={e => setTemplateId(e.target.value)}>
+              {templates.map(t => <option key={t.id} value={t.id}>{t.icon} {t.name}</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{ marginBottom:0 }}>
+            <label className="form-label" style={{ fontSize:11 }}>Filter Contacts</label>
+            <select className="form-select" style={{ fontSize:13 }} value={filter} onChange={e => setFilter(e.target.value)}>
+              <option value="not_applied">Not Applied Yet</option>
+              <option value="no_reply">Applied, No Reply</option>
+              <option value="opened">Opened Email</option>
+              <option value="all">All Contacts</option>
+            </select>
+          </div>
+        </div>
+        <div className="form-group" style={{ marginBottom:12 }}>
+          <label className="form-label" style={{ fontSize:11 }}>Custom Note (optional — overridden by AI if enabled)</label>
+          <textarea className="form-textarea" rows={2} style={{ fontSize:13 }}
+            placeholder="I am interested in opportunities at your company..."
+            value={customNote} onChange={e => setCustomNote(e.target.value)} />
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:16, flexWrap:"wrap" }}>
+          <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, cursor:"pointer" }}>
+            <input type="checkbox" checked={useAI} onChange={e => setUseAI(e.target.checked)} />
+            <span>✨ AI personalize each email (Groq)</span>
+          </label>
+          <button className={`btn-primary ${sending?"loading":""}`}
+            onClick={send} disabled={sending || !selected.size}
+            style={{ background:"linear-gradient(135deg,#7c3aed,#2563eb)", marginLeft:"auto" }}>
+            {sending ? "Sending..." : `⚡ Send ${selected.size} Emails`}
+          </button>
+        </div>
+      </div>
+
+      {result && (
+        <div style={{ background:result.failed>0?"#fef3c7":"#d1fae5", border:`1px solid ${result.failed>0?"#fde047":"#6ee7b7"}`, borderRadius:10, padding:"12px 16px", marginBottom:16 }}>
+          ✅ <strong>{result.sent}</strong> sent {result.failed>0 && <span style={{color:"#dc2626"}}>· ❌ {result.failed} failed</span>}
+        </div>
+      )}
+
+      {/* Contact list */}
+      <div style={{ display:"flex", gap:8, marginBottom:12, alignItems:"center", flexWrap:"wrap" }}>
+        <input className="form-input" placeholder="Search company, email..." style={{ fontSize:13, maxWidth:240 }}
+          value={search} onChange={e => setSearch(e.target.value)} />
+        <button className="btn-ghost btn-sm" onClick={toggleAll}>
+          {selected.size === filtered.length ? "Deselect All" : `Select All (${filtered.length})`}
+        </button>
+        <span style={{ fontSize:12, color:"var(--text-muted)", marginLeft:"auto" }}>{selected.size} selected</span>
+      </div>
+
+      <div style={{ display:"flex", flexDirection:"column", gap:6, maxHeight:"55vh", overflowY:"auto" }}>
+        {filtered.slice(0, 200).map(c => (
+          <div key={c.hrEmail} onClick={() => toggle(c.hrEmail)}
+            style={{
+              display:"flex", alignItems:"center", gap:12, padding:"10px 14px",
+              background: selected.has(c.hrEmail) ? "var(--blue-50,#eff6ff)" : "var(--surface)",
+              border:`1px solid ${selected.has(c.hrEmail)?"#93c5fd":"var(--border)"}`,
+              borderRadius:8, cursor:"pointer"
+            }}>
+            <input type="checkbox" checked={selected.has(c.hrEmail)} onChange={() => toggle(c.hrEmail)} onClick={e => e.stopPropagation()} />
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:13, fontWeight:600 }}>{c.company || "Unknown"}</div>
+              <div style={{ fontSize:11, color:"var(--text-muted)" }}>{c.hrEmail} {c.hrName ? `· ${c.hrName}` : ""}</div>
+            </div>
+            <div style={{ display:"flex", gap:6 }}>
+              {c.sent     && <span style={{ fontSize:10, background:"#dbeafe", color:"#1e40af", padding:"2px 6px", borderRadius:99 }}>Applied</span>}
+              {c.opened   && <span style={{ fontSize:10, background:"#ede9fe", color:"#5b21b6", padding:"2px 6px", borderRadius:99 }}>Opened</span>}
+              {c.replied  && <span style={{ fontSize:10, background:"#d1fae5", color:"#065f46", padding:"2px 6px", borderRadius:99 }}>Replied</span>}
+            </div>
+          </div>
+        ))}
+        {filtered.length === 0 && <div style={{textAlign:"center",padding:40,color:"var(--text-muted)"}}>No contacts found</div>}
+      </div>
+    </div>
+  );
+}
