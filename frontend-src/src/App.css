@@ -2117,3 +2117,245 @@ input, textarea, select { font-family: var(--font); }
   .cft-active { background: var(--blue-light) !important; }
 }
 
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   PROFESSIONAL UI ENHANCEMENTS v2.0
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Smooth scrollbars */
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-focus); }
+
+/* Page transitions */
+.page { animation: pageIn 0.18s ease; }
+@keyframes pageIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Enhanced contact cards */
+.contact-card {
+  transition: all 0.15s ease;
+  border-left: 3px solid transparent;
+}
+.contact-card:hover {
+  transform: translateX(2px);
+  border-left-color: var(--blue);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+
+/* Better form inputs */
+.form-input, .form-select, .form-textarea {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+  outline: none;
+}
+
+/* Professional buttons */
+.btn-primary {
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37,99,235,0.3);
+}
+.btn-primary:active:not(:disabled) { transform: translateY(0); }
+
+.btn-ghost {
+  transition: all 0.15s ease;
+}
+.btn-ghost:hover { background: var(--surface-2, #f8fafc); }
+
+/* Badge improvements */
+.badge {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: 99px;
+  font-size: 10px;
+  padding: 2px 8px;
+}
+
+/* Nav item polish */
+.nav-item {
+  transition: all 0.12s ease;
+  border-radius: 8px;
+  margin: 1px 6px;
+}
+.nav-item:hover:not(.active) {
+  background: var(--surface-2, rgba(255,255,255,0.05));
+  transform: translateX(2px);
+}
+.nav-item.active {
+  box-shadow: 0 2px 8px rgba(37,99,235,0.2);
+}
+
+/* Modal improvements */
+.modal-box {
+  animation: modalIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+@keyframes modalIn { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* Page header refinement */
+.page-header {
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 800;
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+/* Stats cards hover */
+.stat-card {
+  transition: all 0.15s ease;
+  cursor: default;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+}
+
+/* Toast animations */
+.toast {
+  animation: toastIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes toastIn { from { opacity: 0; transform: translateX(100%) scale(0.9); } to { opacity: 1; transform: none; } }
+
+/* Preview card enhancement */
+.preview-card {
+  border-radius: 12px;
+  transition: box-shadow 0.15s ease;
+}
+.preview-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+
+/* Table-like contact list */
+.contacts-list { display: flex; flex-direction: column; gap: 6px; }
+
+/* Spinner improvement */
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-muted, #9ca3af);
+}
+.empty-icon { font-size: 48px; display: block; margin-bottom: 12px; opacity: 0.6; }
+
+/* Sidebar bottom mini stats */
+.sidebar-mini-stats {
+  padding: 10px 12px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
+  margin-top: auto;
+}
+.mini-stat {
+  text-align: center;
+  padding: 6px 4px;
+  border-radius: 6px;
+}
+.mini-stat-value { font-size: 15px; font-weight: 800; color: var(--blue); }
+.mini-stat-label { font-size: 9px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 1px; }
+
+/* Analytics bars */
+.analytics-bar { transition: width 0.4s ease; }
+
+/* Pipeline board */
+.pipeline-col {
+  transition: background 0.15s ease;
+}
+.pipeline-col:hover { background: rgba(37,99,235,0.02); }
+
+.pipeline-card {
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.pipeline-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+/* Interview page */
+.interview-card {
+  transition: all 0.15s ease;
+}
+.interview-card:hover { box-shadow: 0 3px 10px rgba(0,0,0,0.07); }
+
+/* Bulk send checkboxes */
+.bulk-contact-row {
+  transition: all 0.1s ease;
+}
+.bulk-contact-row:hover { background: var(--surface-2, #f8fafc) !important; }
+
+/* Sidebar user info */
+.sidebar-user {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 8px;
+}
+
+/* Profile avatar */
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 13px;
+  color: #fff;
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  flex-shrink: 0;
+}
+
+/* Mobile touch improvements */
+@media (max-width: 640px) {
+  .modal-box { border-radius: 16px 16px 0 0; position: fixed; bottom: 0; left: 0; right: 0; max-height: 90vh; }
+  .page { padding: 12px; }
+  .nav-item { padding: 10px 12px; }
+}
+
+/* Focus visible for accessibility */
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* Loading skeleton */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2, #f0f0f0) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+}
