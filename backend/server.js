@@ -801,10 +801,10 @@ function buildCRMHTML({ hrName, company, role, customNote, trackUrl = "", custom
   const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
   const intro     = customIntro ||
     `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}.
-     With <strong>4.7+ years as a CRM Integration Expert</strong>, I specialize in <strong>ServiceNow platform development</strong>
+     With <strong>4.8+ years as a CRM Integration Expert</strong>, I specialize in <strong>ServiceNow platform development</strong>
      (Flow Designer, IntegrationHub, Virtual Agent, Scripted REST APIs) and <strong>Freshdesk CTI integrations</strong> —
      delivering enterprise-grade solutions that automate ticket workflows, enable real-time telephony-to-CRM sync,
-     and measurably reduce agent handle time.`;
+     and measurably reduce agent handle time. I am currently serving my notice period with a 4.8-year tenure at NovelVox, and am available to join by late August 2026 or earlier for the right opportunity.`;
   const items     = (customHighlights && customHighlights.length) ? customHighlights : CRM_HIGHLIGHTS;
   const hlHtml    = items.map(h => `<li>${h}</li>`).join("");
 
@@ -1002,9 +1002,9 @@ function buildFullstackHTML({ hrName, company, role, customNote, trackUrl = "", 
   const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
   const intro     = customIntro ||
     `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}.
-     With <strong>4.7+ years of hands-on experience</strong> as a Senior Full-Stack Developer, I have architected and
+     With <strong>4.8+ years of hands-on experience</strong> as a Senior Full-Stack Developer, I have architected and
      shipped production-grade applications across Node.js, AngularJS, AWS Lambda, and REST APIs — with deep expertise
-     in CTI/Telephony integrations for enterprise platforms.`;
+     in CTI/Telephony integrations for enterprise platforms. I am currently serving my notice period with a 4.8-year tenure at NovelVox, and am available to join by late August 2026 or earlier for the right opportunity.`;
   const items     = (customHighlights && customHighlights.length) ? customHighlights : DEFAULT_HIGHLIGHTS;
   const hlHtml    = items.map(h => `<li>${h}</li>`).join("");
 
@@ -1042,9 +1042,9 @@ function buildCTIHTML({ hrName, company, role, customNote, trackUrl = "", custom
   const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
   const intro     = customIntro ||
     `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}.
-     With <strong>4.7+ years specializing in CTI/Telephony integrations</strong>, I have architected enterprise-grade solutions
+     With <strong>4.8+ years specializing in CTI/Telephony integrations</strong>, I have architected enterprise-grade solutions
      across Avaya AACC, Avaya AES, Genesys, Webex Contact Center, Zoom, and Amazon Connect — enabling seamless agent workflows,
-     real-time call controls, screen popups, and CRM synchronization at scale.`;
+     real-time call controls, screen popups, and CRM synchronization at scale. I am currently serving my notice period with a 4.8-year tenure at NovelVox, and am available to join by late August 2026 or earlier for the right opportunity.`;
   const items     = (customHighlights && customHighlights.length) ? customHighlights : CTI_HIGHLIGHTS;
   const hlHtml    = items.map(h => `<li>${h}</li>`).join("");
 
@@ -1084,8 +1084,8 @@ function buildFormalHTML({ hrName, company, role, customNote, trackUrl = "", cus
   const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
   const intro     = customIntro ||
     `I am respectfully submitting my application${roleText} at <strong>${company||"your organization"}</strong>.
-     I am a Senior Software Developer with <strong>4.7+ years of professional experience</strong> in full-stack development,
-     cloud architecture, and enterprise system integrations.`;
+     I am a Senior Software Developer with <strong>4.8+ years of professional experience</strong> in full-stack development,
+     cloud architecture, and enterprise system integrations. I am currently serving my notice period with a 4.8-year tenure at NovelVox, and am available to join by late August 2026 or earlier for the right opportunity.`;
   const items  = (customHighlights && customHighlights.length) ? customHighlights : DEFAULT_HIGHLIGHTS;
   const hlHtml = items.map(h => `<li>${h}</li>`).join("");
 
@@ -1130,7 +1130,7 @@ function buildFollowUpHTML({ hrName, company, role, originalDate, customNote, tr
     : "Senior Full Stack Developer · Node.js · Angular · AWS";
   const bodyText = isPriyal
     ? `I remain very enthusiastic and confident that my <strong>2+ years of experience</strong> in digital lending, credit risk assessment, and GenAI automation at Tata Capital would be a strong fit for your team.`
-    : `I remain very enthusiastic and confident that my <strong>4.7+ years of experience</strong> in full-stack development, Node.js, AWS serverless architectures, and enterprise CTI/Telephony integrations would be a strong fit for your team.`;
+    : `I remain very enthusiastic and confident that my <strong>4.8+ years of experience</strong> in full-stack development, Node.js, AWS serverless architectures, and enterprise CTI/Telephony integrations would be a strong fit for your team. I am currently in my notice period and available to join by late August 2026.`;
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',sans-serif;">
