@@ -3368,6 +3368,16 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
           </div>
         </>
       )}
+
+      {/* Interview Schedule Modal */}
+      {interviewModal && (
+        <InterviewScheduleModal
+          contact={interviewModal}
+          onClose={() => setInterviewModal(null)}
+          onSaved={() => {}}
+          addToast={addToast}
+        />
+      )}
     </div>
   );
 }
