@@ -3287,9 +3287,9 @@ function MessagesPage({ contacts }) {
   useEffect(() => setEditedMsg(buildMsg(tab)), [tab, buildMsg]);
 
   const copy = () => {
-    navigator.clipboard.writeText(editedMsg).then(().catch(()=>{}) => {
+    navigator.clipboard.writeText(editedMsg).then(() => {
       setCopied(true); setTimeout(() => setCopied(false), 2000);
-    });
+    }).catch(()=>{});
   };
 
   return (
@@ -3619,9 +3619,9 @@ function ProspectPage({ onFillApply }) {
   };
 
   const copyEmail = (email, idx) => {
-    navigator.clipboard.writeText(email).then(().catch(()=>{}) => {
+    navigator.clipboard.writeText(email).then(() => {
       setCopied(idx); setTimeout(() => setCopied(null), 2000);
-    });
+    }).catch(()=>{});
   };
 
   return (
@@ -3826,10 +3826,10 @@ Bahut helpful hoga agar refer kar sako! 😊`;
   useEffect(() => setEditedMsg(currentMsg), [tab, name, company, role, relation]);
 
   const copy = () => {
-    navigator.clipboard.writeText(editedMsg).then(().catch(()=>{}) => {
+    navigator.clipboard.writeText(editedMsg).then(() => {
       setCopied(true); setTimeout(() => setCopied(false), 2000);
       addToast && addToast("Message copied!");
-    });
+    }).catch(()=>{});
   };
 
   // ── Add to tracker
@@ -4494,7 +4494,7 @@ function ScheduledPage({ addToast }) {
     return `⏰ ${m}m`;
   };
 
-  const fetchJobs = () => axios.get(`${API}/api/scheduled-emails`).then(r => setJobs(r.data.jobs || [])).catch(() => {});
+  const fetchJobs = () => axios.get(`${API}/api/scheduled-emails`).then(r => setJobs(r.data.jobs || [])).catch(()=>{}).catch(() => {});
   useEffect(() => { fetchJobs(); }, []);
 
   const remove = async id => {
