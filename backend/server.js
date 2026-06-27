@@ -236,8 +236,8 @@ function getUserConfig(user) {
     noticePeriod:     user.noticePeriod     || (isOwner ? "30 Days" : ""),
     currentLocation:  user.currentLocation  || (isOwner ? "Faridabad, Haryana" : ""),
     preferredLocation:user.preferredLocation|| (isOwner ? "PAN India" : ""),
-    totalExp:         user.totalExp         || (isOwner ? "4.7+ Years" : ""),
-    relevantExp:         user.relevantExp         || (isOwner ? "4.7+ Years" : ""),
+    totalExp:         user.totalExp         || (isOwner ? "4.8+ Years" : ""),
+    relevantExp:         user.relevantExp         || (isOwner ? "4.8+ Years" : ""),
     // Gmail credentials — critical for sending emails
     gmailRefreshToken:   user.gmailRefreshToken   || (isOwner ? process.env.GMAIL_REFRESH_TOKEN : ""),
     gmailAccessToken:    user.gmailAccessToken    || "",
@@ -663,21 +663,21 @@ const HEADER_THEMES = {
   orange: "linear-gradient(135deg,#92400e 0%,#d97706 100%)",
 };
 const DEFAULT_HIGHLIGHTS = [
-  "4.7+ years · Node.js, AngularJS, ReactJS, Express.js",
+  "4.8+ years · Node.js, AngularJS, Express.js",
   "AWS Lambda · DynamoDB · S3 · Amazon Connect",
   "10+ enterprise CTI integrations (Avaya, Genesys, Webex, Zoom)",
   "CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics, CDK Global",
   "AI-assisted development: Claude, GitHub Copilot, ChatGPT",
 ];
 const CTI_HIGHLIGHTS = [
-  "4.7+ years · CTI/Telephony Integration Specialist",
+  "4.8+ years · CTI/Telephony Integration Specialist",
   "Avaya (AACC, AES, IPO) · Genesys · Webex · Zoom · Amazon Connect",
   "10+ enterprise CTI integrations delivered end-to-end",
   "CRM: ServiceNow, Salesforce, Freshdesk, Zendesk, CDK Global",
   "AWS Lambda · DynamoDB · IVR/ACD Design · Chatbot Development",
 ];
 const CRM_HIGHLIGHTS = [
-  "4.7+ years · Senior CRM Integration Expert",
+  "4.8+ years · Senior CRM Integration Expert",
   "ServiceNow (ITSM, CSM, Flow Designer, IntegrationHub, Virtual Agent, Scripted REST)",
   "Freshdesk (FDK, Marketplace Apps, CTI API) · Salesforce Open CTI · Zendesk Apps Framework",
   "3 published marketplace apps: ServiceNow Store · Freshdesk · Webex App Hub",
@@ -884,10 +884,10 @@ function buildMohitHTML({ hrName, company, role, customNote, trackUrl = "", temp
   const pixel     = trackUrl  ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
 
   const intros = {
-    backend:  `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}. With <strong>4.7+ years of experience</strong> as a Senior Software Backend Engineer, I specialize in Java, Spring Boot, Microservices, REST APIs, and enterprise CRM/CTI integrations across Microsoft Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse.`,
-    crm:      `I am reaching out regarding${roleText} at <strong>${company||"your organization"}</strong>. My 4.7+ years specializing in CRM/CTI integrations — including MS Dynamics 365, ServiceNow, Salesforce, and Cisco Finesse — have enabled me to deliver enterprise-grade solutions, resolve critical P1/P2 incidents, and mentor junior developers.`,
-    java:     `I am applying${roleText} at <strong>${company||"your organization"}</strong>. As a Senior Java Developer with 4.7+ years in Spring Boot, Microservices, REST APIs, and SQL, I have independently owned end-to-end projects from design to production — delivering high-performance, scalable solutions in Agile environments.`,
-    formal:   `I am respectfully submitting my application${roleText} at <strong>${company||"your organization"}</strong>. With 4.7+ years of enterprise software development experience, I am confident my background aligns with your requirements.`,
+    backend:  `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}. With <strong>4.8+ years of experience</strong> as a Senior Software Backend Engineer, I specialize in Java, Spring Boot, Microservices, REST APIs, and enterprise CRM/CTI integrations across Microsoft Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse.`,
+    crm:      `I am reaching out regarding${roleText} at <strong>${company||"your organization"}</strong>. My 4.8+ years specializing in CRM/CTI integrations — including MS Dynamics 365, ServiceNow, Salesforce, and Cisco Finesse — have enabled me to deliver enterprise-grade solutions, resolve critical P1/P2 incidents, and mentor junior developers.`,
+    java:     `I am applying${roleText} at <strong>${company||"your organization"}</strong>. As a Senior Java Developer with 4.8+ years in Spring Boot, Microservices, REST APIs, and SQL, I have independently owned end-to-end projects from design to production — delivering high-performance, scalable solutions in Agile environments.`,
+    formal:   `I am respectfully submitting my application${roleText} at <strong>${company||"your organization"}</strong>. With 4.8+ years of enterprise software development experience, I am confident my background aligns with your requirements.`,
   };
 
   const intro = intros[templateType] || intros.backend;
@@ -1095,7 +1095,7 @@ function buildFormalHTML({ hrName, company, role, customNote, trackUrl = "", cus
   <div style="background:${gradient};padding:36px 40px;">
     <p style="margin:0 0 6px;color:#bfdbfe;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Senior Software Developer</p>
     <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Anav Bansal</h1>
-    <p style="margin:6px 0 0;color:#bfdbfe;font-size:14px;">B.Tech Computer Science · 4.7+ Years Experience</p>
+    <p style="margin:6px 0 0;color:#bfdbfe;font-size:14px;">B.Tech Computer Science · 4.8+ Years Experience</p>
   </div>
   <div style="padding:36px 40px;">
     <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
@@ -1179,7 +1179,7 @@ function buildReferralHTML({ employeeName, company, role, customNote, trackUrl =
     </p>
     ${noteBlock}
     <p style="color:#374151;line-height:1.8;margin:0 0 16px;">
-      A quick background — I have <strong>4.7+ years of experience</strong> in full-stack development
+      A quick background — I have <strong>4.8+ years of experience</strong> in full-stack development
       with Node.js, Angular, AWS serverless, and enterprise CTI/Telephony integrations. I'd love the
       opportunity to contribute to your team.
     </p>
@@ -3288,7 +3288,7 @@ app.post("/api/ai/write-email", requireAuth, async (req, res) => {
     const userCfg   = getUserConfig(req.user);
     const userName  = userCfg.profileName  || req.user.displayName || "Anav Bansal";
     const exp       = userCfg.totalExp     || req.user.totalExp    || "4+ years";
-    const skills    = userCfg.keySkills    || req.user.keySkills   || "Node.js, React, AWS";
+    const skills    = userCfg.keySkills    || req.user.keySkills   || "Node.js, AngularJS, AWS";
     const company2  = userCfg.currentCompany || req.user.currentCompany || "NovelVox";
     const title     = userCfg.profileTitle || req.user.profileTitle || "Software Developer";
 
