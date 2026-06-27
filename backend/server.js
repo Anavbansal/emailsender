@@ -3928,27 +3928,41 @@ app.get("/api/interviews", requireAuth, async (req, res) => {
       ? { $or: [{ userId: req.userId }, { userId: "default" }] }
       : { userId: req.userId };
 
-    const interviews = await SentEmailLog.find({
-      ...userFilter,
-      $or: [
-        { stage: { $in: ["Interview", "Interview Scheduled", "Offer", "Selected"] } },
-        { interviewDate: { $ne: null } },
-      ]
-    }, {
-      hrEmail:1, hrName:1, company:1, role:1, stage:1,
-      interviewRound:1, interviewDate:1, callLog:1,
-      replied:1, repliedAt:1, sentAt:1, notes:1, priority:1
-    }).sort({ interviewDate: 1 }).lean();
+    // Aggregate — group by hrEmail, pick the record with interviewDate set
+    const interviews = await SentEmailLog.aggregate([
+      { $match: {
+        ...( isOwner
+          ? { $or: [{ userId: req.userId }, { userId: "default" }] }
+          : { userId: req.userId }
+        ),
+        $or: [
+          { stage: { $in: ["Interview", "Interview Scheduled", "Offer", "Selected"] } },
+          { interviewDate: { $ne: null } },
+        ]
+      }},
+      { $sort: { interviewDate: 1, sentAt: -1 } },
+      // Group by hrEmail — prefer record with interviewDate
+      { $group: {
+        _id:           "$hrEmail",
+        docId:         { $first: "$_id" },
+        hrEmail:       { $first: "$hrEmail" },
+        hrName:        { $first: "$hrName" },
+        company:       { $first: "$company" },
+        role:          { $first: "$role" },
+        stage:         { $first: "$stage" },
+        interviewRound:{ $first: "$interviewRound" },
+        interviewDate: { $max:   "$interviewDate" },   // latest date wins
+        callLog:       { $first: "$callLog" },
+        priority:      { $first: "$priority" },
+        sentAt:        { $first: "$sentAt" },
+      }},
+      { $sort: { interviewDate: 1 } }
+    ]);
 
-    // Deduplicate by company+hrEmail
-    const seen = new Set();
-    const unique = interviews.filter(i => {
-      const key = i.company + i.hrEmail;
-      if (seen.has(key)) return false;
-      seen.add(key); return true;
-    });
+    // Rename docId → _id for frontend
+    const result = interviews.map(i => ({ ...i, _id: i.docId || i._id }));
 
-    res.json({ success: true, interviews: unique });
+    res.json({ success: true, interviews: result });
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
