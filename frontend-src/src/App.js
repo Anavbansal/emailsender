@@ -3066,6 +3066,104 @@ function ManualUpdateModal({ contact, onClose, onSaved, addToast }) {
 }
 
 // ─── Inbox Page ───────────────────────────────────────────────────────────────
+// ─── Interview Schedule Modal ─────────────────────────────────────────────────
+function InterviewScheduleModal({ contact, onClose, onSaved, addToast }) {
+  const ROUNDS = ["R1 Technical","R2 Technical","HR Round","Managerial","System Design","Final Round","Offer Discussion"];
+  const [form, setForm] = useState({
+    stage: "Interview",
+    interviewRound: "",
+    interviewDate: "",
+    priority: "Normal",
+    callLog: "",
+  });
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!form.interviewDate) { addToast && addToast("❌ Please select interview date & time", "error"); return; }
+    setSaving(true);
+    try {
+      // Update contact stage + interview details
+      await axios.patch(`${API}/api/contact/update`, {
+        hrEmail: contact.hrEmail,
+        stage: "Interview",
+        interviewRound: form.interviewRound,
+        interviewDate: form.interviewDate,
+        priority: form.priority,
+        callLog: form.callLog,
+      });
+      addToast && addToast("✅ Interview scheduled! Added to Interview Tracker.");
+      onSaved && onSaved();
+      onClose();
+    } catch(e) {
+      addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error");
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box-form" onClick={e => e.stopPropagation()} style={{ maxWidth:460 }}>
+        <div className="modal-header">
+          <div className="modal-title-row">
+            <span>🗓</span>
+            <h3 className="modal-title">Schedule Interview</h3>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="modal-scroll">
+          {/* Contact info */}
+          <div style={{ background:"linear-gradient(135deg,#eff6ff,#f0fdf4)", border:"1px solid #bfdbfe", borderRadius:10, padding:"10px 14px", marginBottom:16 }}>
+            <div style={{ fontWeight:700, fontSize:13 }}>{contact.company || "Company"}</div>
+            <div style={{ fontSize:12, color:"var(--text-muted)", marginTop:2 }}>{contact.hrEmail} {contact.hrName ? `· ${contact.hrName}` : ""}</div>
+            {contact.role && <div style={{ fontSize:12, color:"var(--blue)", marginTop:2 }}>📌 {contact.role}</div>}
+          </div>
+
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <label className="form-label" style={{ fontSize:11 }}>Interview Round</label>
+              <select className="form-select" style={{ fontSize:13 }}
+                value={form.interviewRound} onChange={e => setForm(p=>({...p, interviewRound:e.target.value}))}>
+                <option value="">Select round…</option>
+                {ROUNDS.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <label className="form-label" style={{ fontSize:11 }}>Priority</label>
+              <select className="form-select" style={{ fontSize:13 }}
+                value={form.priority} onChange={e => setForm(p=>({...p, priority:e.target.value}))}>
+                {["Low","Normal","High","Dream Company"].map(p => <option key={p}>{p}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="form-group" style={{ marginTop:12 }}>
+            <label className="form-label" style={{ fontSize:11 }}>Interview Date & Time <span style={{color:"#dc2626"}}>*</span></label>
+            <input type="datetime-local" className="form-input" style={{ fontSize:13 }}
+              value={form.interviewDate}
+              onChange={e => setForm(p=>({...p, interviewDate:e.target.value}))} />
+          </div>
+
+          <div className="form-group" style={{ marginBottom:0 }}>
+            <label className="form-label" style={{ fontSize:11 }}>Notes <span style={{ fontWeight:400, color:"var(--text-muted)" }}>(optional)</span></label>
+            <textarea className="form-textarea" rows={3} style={{ fontSize:13 }}
+              placeholder="Topics to prepare, contact details, dress code…"
+              value={form.callLog} onChange={e => setForm(p=>({...p, callLog:e.target.value}))} />
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={save} disabled={saving}
+            style={{ background:"linear-gradient(135deg,#d97706,#f59e0b)" }}>
+            {saving ? "Saving…" : "🗓 Schedule Interview"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 function InboxPage({ contacts = [], onFollowUp, addToast }) {
   const [activeTab,       setActiveTab]       = useState("inbox"); // "inbox" | "sent"
   const [messages,        setMessages]        = useState([]);
@@ -3075,6 +3173,7 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
   const [nextPageToken,   setNextPage]         = useState(null);
   const [activeThread,    setActiveThread]     = useState(null);
   const [screeningModal,  setScreeningModal]   = useState(null); // message to auto-reply
+  const [interviewModal,  setInterviewModal]   = useState(null); // contact for interview scheduling
 
   const baseQ = (tab) => tab === "sent" ? "in:sent" : "in:inbox";
 
@@ -3117,6 +3216,13 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
     const email    = extractEmail(emailStr);
     const matched  = contacts.find(c => c.hrEmail.toLowerCase() === email.toLowerCase());
     onFollowUp(matched || { hrEmail: email, hrName: displayName(emailStr), company: "", role: "" });
+  };
+
+  const handleInterview = (m) => {
+    const emailStr = activeTab === "sent" ? m.to : m.from;
+    const email    = extractEmail(emailStr);
+    const matched  = contacts.find(c => c.hrEmail.toLowerCase() === email.toLowerCase());
+    setInterviewModal(matched || { hrEmail: email, hrName: displayName(emailStr), company: "", role: "" });
   };
 
   // Screening reply modal
@@ -3228,6 +3334,14 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
                         🔁 Follow Up
                       </button>
                     )}
+                    <button
+                      className="btn-ghost btn-sm"
+                      title="Schedule Interview"
+                      style={{ fontSize:11, color:"#d97706", borderColor:"#d97706", whiteSpace:"nowrap" }}
+                      onClick={e => { e.stopPropagation(); handleInterview(m); }}
+                    >
+                      🗓 Interview
+                    </button>
                   </div>
                   {!m.isRead && !isSent && <span className="inbox-unread-dot" />}
                   {!isSent && isScreeningEmail(m.subject, m.snippet) && (
@@ -6577,49 +6691,114 @@ function PipelinePage({ addToast, onNavigate }) {
 
   if (loading) return <div className="page"><div style={{textAlign:"center",padding:60,color:"var(--text-muted)"}}>Loading pipeline...</div></div>;
 
+  const STAGE_ICONS = { Applied:"📤", Opened:"👁", Replied:"↩", Interview:"🗓", Offer:"🎉", Rejected:"❌" };
+
   return (
-    <div className="page" style={{ overflowX:"auto" }}>
-      <div style={{ display:"flex", gap:12, minWidth: stages.length * 220 }}>
+    <div className="page" style={{ overflowX:"auto", paddingBottom:20 }}>
+      {/* Summary bar */}
+      <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
+        {stages.map(stage => {
+          const count = (pipeline[stage]||[]).length;
+          const color = STAGE_COLORS[stage] || "#6b7280";
+          return (
+            <div key={stage} style={{
+              background:`${color}12`, border:`1px solid ${color}33`,
+              borderRadius:99, padding:"5px 14px", fontSize:12, fontWeight:600, color,
+              display:"flex", alignItems:"center", gap:6
+            }}>
+              {STAGE_ICONS[stage]} {stage} <span style={{ background:`${color}25`, borderRadius:99, padding:"1px 7px", fontSize:11 }}>{count}</span>
+            </div>
+          );
+        })}
+        <div style={{ marginLeft:"auto", fontSize:12, color:"var(--text-muted)", alignSelf:"center" }}>
+          {stages.reduce((s,st)=>s+(pipeline[st]||[]).length,0)} total contacts
+        </div>
+      </div>
+
+      {/* Kanban columns */}
+      <div style={{ display:"flex", gap:14, minWidth: stages.length * 230 }}>
         {stages.map(stage => {
           const cards = pipeline[stage] || [];
           const color = STAGE_COLORS[stage] || "#6b7280";
           return (
-            <div key={stage} style={{ width:210, flexShrink:0 }}>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-                <div style={{ fontWeight:700, fontSize:13, color }}>
-                  {stage}
-                </div>
-                <span style={{ background:`${color}22`, color, fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:99 }}>
+            <div key={stage} style={{ width:220, flexShrink:0 }}>
+              {/* Column header */}
+              <div style={{
+                display:"flex", alignItems:"center", justifyContent:"space-between",
+                marginBottom:10, padding:"8px 12px",
+                background:`${color}10`, borderRadius:8, border:`1px solid ${color}25`
+              }}>
+                <span style={{ fontWeight:700, fontSize:12, color }}>
+                  {STAGE_ICONS[stage]} {stage}
+                </span>
+                <span style={{ background:`${color}22`, color, fontSize:11, fontWeight:800, padding:"2px 8px", borderRadius:99 }}>
                   {cards.length}
                 </span>
               </div>
-              <div style={{ display:"flex", flexDirection:"column", gap:8, minHeight:100 }}>
+
+              {/* Cards */}
+              <div style={{ display:"flex", flexDirection:"column", gap:8, minHeight:80 }}>
                 {cards.map(card => (
                   <div key={card._id} style={{
-                    background:"var(--surface)", border:`1px solid ${color}44`,
+                    background:"var(--surface)", border:`1px solid var(--border)`,
                     borderLeft:`3px solid ${color}`,
-                    borderRadius:8, padding:"10px 12px",
-                    opacity: moving===card._id ? 0.5 : 1,
+                    borderRadius:10, padding:"11px 13px",
+                    opacity: moving===card.hrEmail ? 0.5 : 1,
+                    transition:"opacity 0.15s",
                   }}>
-                    <div style={{ fontWeight:700, fontSize:12, marginBottom:2 }}>{card.company || "Unknown"}</div>
-                    <div style={{ fontSize:11, color:"var(--text-muted)", marginBottom:6 }}>{card.role || card.hrEmail}</div>
-                    {card.interviewDate && (
-                      <div style={{ fontSize:10, color:"#d97706", marginBottom:4 }}>
-                        📅 {new Date(card.interviewDate).toLocaleDateString("en-IN")}
+                    {/* Company + role */}
+                    <div style={{ fontWeight:700, fontSize:12, marginBottom:1, color:"var(--text-700,#111827)" }}>
+                      {card.company || "Unknown"}
+                    </div>
+                    {card.role && (
+                      <div style={{ fontSize:10, color:"var(--blue)", marginBottom:4, fontWeight:500 }}>
+                        {card.role}
                       </div>
                     )}
-                    <select style={{
-                      width:"100%", fontSize:10, padding:"3px 6px", borderRadius:6,
-                      border:"1px solid var(--border)", background:"var(--surface)",
-                      color:"var(--text-700,#374151)", cursor:"pointer"
-                    }} value={stage} onChange={e => moveCard(card._id || card.hrEmail, e.target.value)}>
-                      {stages.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    <div style={{ fontSize:10, color:"var(--text-muted)", marginBottom:6 }}>
+                      {(card.hrEmail||"").slice(0,28)}{(card.hrEmail||"").length>28?"…":""}
+                    </div>
+
+                    {/* Interview date if exists */}
+                    {card.interviewDate && (
+                      <div style={{ fontSize:10, color:"#d97706", fontWeight:600, marginBottom:6, display:"flex", alignItems:"center", gap:4 }}>
+                        📅 {new Date(card.interviewDate).toLocaleString("en-IN",{dateStyle:"short",timeStyle:"short"})}
+                      </div>
+                    )}
+
+                    {/* Days since applied */}
+                    {card.sentAt && (
+                      <div style={{ fontSize:10, color:"var(--text-muted)", marginBottom:8 }}>
+                        🕒 {Math.floor((Date.now()-new Date(card.sentAt))/(86400000))}d ago
+                      </div>
+                    )}
+
+                    {/* Move stage dropdown */}
+                    <div style={{ position:"relative" }}>
+                      <select
+                        style={{
+                          appearance:"none", WebkitAppearance:"none",
+                          width:"100%", fontSize:11, padding:"5px 24px 5px 8px",
+                          borderRadius:6, border:`1px solid ${color}44`,
+                          background:`${color}08`, color, fontWeight:600,
+                          cursor:"pointer", outline:"none"
+                        }}
+                        value={stage}
+                        onChange={e => moveCard(card.hrEmail, e.target.value)}
+                      >
+                        {stages.map(s => <option key={s} value={s}>{STAGE_ICONS[s]} {s}</option>)}
+                      </select>
+                      <span style={{ position:"absolute", right:7, top:"50%", transform:"translateY(-50%)", pointerEvents:"none", fontSize:8, color }}>▼</span>
+                    </div>
                   </div>
                 ))}
                 {cards.length === 0 && (
-                  <div style={{ border:"1.5px dashed var(--border)", borderRadius:8, padding:"20px 12px", textAlign:"center", fontSize:11, color:"var(--text-muted)" }}>
-                    Drop here
+                  <div style={{
+                    border:`1.5px dashed ${color}33`, borderRadius:10,
+                    padding:"24px 12px", textAlign:"center",
+                    fontSize:11, color:"var(--text-muted)"
+                  }}>
+                    No contacts
                   </div>
                 )}
               </div>
@@ -6659,8 +6838,9 @@ function InterviewsPage({ addToast }) {
     } catch(e) { addToast && addToast("❌ Failed", "error"); }
   };
 
-  const upcoming = interviews.filter(i => i.interviewDate && new Date(i.interviewDate) >= new Date()).sort((a,b) => new Date(a.interviewDate)-new Date(b.interviewDate));
-  const past = interviews.filter(i => !i.interviewDate || new Date(i.interviewDate) < new Date());
+  const upcoming = interviews.filter(i => i.interviewDate && new Date(i.interviewDate) >= new Date())
+    .sort((a,b) => new Date(a.interviewDate)-new Date(b.interviewDate));
+  const noDate   = interviews.filter(i => !i.interviewDate);
 
   return (
     <div className="page">
@@ -6679,7 +6859,11 @@ function InterviewsPage({ addToast }) {
       : interviews.length === 0 ? (
         <div className="empty-state">
           <span className="empty-icon">🗓</span>
-          <p>No interviews tracked yet. Move contacts to "Interview" stage in Pipeline.</p>
+          <p style={{ marginBottom:8 }}>No interviews scheduled yet.</p>
+          <p style={{ fontSize:12, color:"var(--text-muted)" }}>
+            Go to <strong>Inbox</strong> → click <strong>🗓 Interview</strong> button on any message<br/>
+            or go to <strong>Pipeline</strong> → move a contact to Interview stage.
+          </p>
         </div>
       ) : (
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
