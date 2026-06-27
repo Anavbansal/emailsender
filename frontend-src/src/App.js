@@ -6657,25 +6657,30 @@ function AnalyticsPage() {
 }
 
 // ─── Pipeline / Kanban Board ──────────────────────────────────────────────────
-function PipelinePage({ addToast, onNavigate }) {
-  const [pipeline, setPipeline] = useState({});
-  const [stages,   setStages]   = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [moving,   setMoving]   = useState(null);
+function PipelinePage({ addToast }) {
+  const [pipeline,  setPipeline]  = useState({});
+  const [stages,    setStages]    = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [moving,    setMoving]    = useState(null);
+  const [pipePage,  setPipePage]  = useState({});  // page per stage
+  const PER_COL = 10;
 
   const STAGE_COLORS = {
     Applied:"#2563eb", Opened:"#7c3aed", Replied:"#059669",
     Interview:"#d97706", Offer:"#16a34a", Rejected:"#dc2626"
+  };
+  const STAGE_ICONS = {
+    Applied:"📤", Opened:"👁", Replied:"↩",
+    Interview:"🗓", Offer:"🎉", Rejected:"❌"
   };
 
   const fetchPipeline = () => {
     setLoading(true);
     axios.get(`${API}/api/pipeline`)
       .then(r => { if (r.data.success) { setPipeline(r.data.pipeline); setStages(r.data.stages); } })
-      .catch(e => { console.error("Pipeline fetch error:", e.message); })
+      .catch(e => console.error("Pipeline:", e.message))
       .finally(() => setLoading(false));
   };
-
   useEffect(() => { fetchPipeline(); }, []);
 
   const moveCard = async (hrEmail, newStage) => {
@@ -6685,137 +6690,157 @@ function PipelinePage({ addToast, onNavigate }) {
       addToast && addToast(`✅ Moved to ${newStage}`);
       fetchPipeline();
     } catch(e) {
-      addToast && addToast("❌ Failed", "error");
+      addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error");
     } finally { setMoving(null); }
   };
 
-  if (loading) return <div className="page"><div style={{textAlign:"center",padding:60,color:"var(--text-muted)"}}>Loading pipeline...</div></div>;
+  if (loading) return (
+    <div className="page">
+      <div style={{ textAlign:"center", padding:60, color:"var(--text-muted)" }}>
+        <div style={{ fontSize:32, marginBottom:12 }}>🎯</div>
+        Loading pipeline…
+      </div>
+    </div>
+  );
 
-  const STAGE_ICONS = { Applied:"📤", Opened:"👁", Replied:"↩", Interview:"🗓", Offer:"🎉", Rejected:"❌" };
+  const total = stages.reduce((s,st) => s+(pipeline[st]||[]).length, 0);
 
   return (
-    <div className="page" style={{ overflowX:"auto", paddingBottom:20 }}>
-      {/* Summary bar */}
-      <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
+    <div className="page" style={{ paddingBottom:20 }}>
+      {/* Summary pills */}
+      <div style={{ display:"flex", gap:8, marginBottom:18, flexWrap:"wrap", alignItems:"center" }}>
         {stages.map(stage => {
           const count = (pipeline[stage]||[]).length;
           const color = STAGE_COLORS[stage] || "#6b7280";
           return (
             <div key={stage} style={{
-              background:`${color}12`, border:`1px solid ${color}33`,
-              borderRadius:99, padding:"5px 14px", fontSize:12, fontWeight:600, color,
-              display:"flex", alignItems:"center", gap:6
+              display:"flex", alignItems:"center", gap:6,
+              background:`${color}14`, border:`1.5px solid ${color}33`,
+              borderRadius:99, padding:"4px 14px", fontSize:12, fontWeight:600, color
             }}>
-              {STAGE_ICONS[stage]} {stage} <span style={{ background:`${color}25`, borderRadius:99, padding:"1px 7px", fontSize:11 }}>{count}</span>
+              {STAGE_ICONS[stage]} {stage}
+              <span style={{ background:`${color}28`, borderRadius:99, padding:"1px 7px", fontSize:11 }}>{count}</span>
             </div>
           );
         })}
-        <div style={{ marginLeft:"auto", fontSize:12, color:"var(--text-muted)", alignSelf:"center" }}>
-          {stages.reduce((s,st)=>s+(pipeline[st]||[]).length,0)} total contacts
-        </div>
+        <span style={{ marginLeft:"auto", fontSize:12, color:"var(--text-muted)" }}>{total} contacts</span>
       </div>
 
-      {/* Kanban columns */}
-      <div style={{ display:"flex", gap:14, minWidth: stages.length * 230 }}>
-        {stages.map(stage => {
-          const cards = pipeline[stage] || [];
-          const color = STAGE_COLORS[stage] || "#6b7280";
-          return (
-            <div key={stage} style={{ width:220, flexShrink:0 }}>
-              {/* Column header */}
-              <div style={{
-                display:"flex", alignItems:"center", justifyContent:"space-between",
-                marginBottom:10, padding:"8px 12px",
-                background:`${color}10`, borderRadius:8, border:`1px solid ${color}25`
-              }}>
-                <span style={{ fontWeight:700, fontSize:12, color }}>
-                  {STAGE_ICONS[stage]} {stage}
-                </span>
-                <span style={{ background:`${color}22`, color, fontSize:11, fontWeight:800, padding:"2px 8px", borderRadius:99 }}>
-                  {cards.length}
-                </span>
+      {/* Kanban board - horizontal scroll */}
+      <div style={{ overflowX:"auto", paddingBottom:8 }}>
+        <div style={{ display:"flex", gap:14, minWidth: stages.length * 235 }}>
+          {stages.map(stage => {
+            const allCards = pipeline[stage] || [];
+            const color    = STAGE_COLORS[stage] || "#6b7280";
+            const pg       = pipePage[stage] || 1;
+            const totalPg  = Math.ceil(allCards.length / PER_COL);
+            const cards    = allCards.slice((pg-1)*PER_COL, pg*PER_COL);
+
+            return (
+              <div key={stage} style={{ width:225, flexShrink:0 }}>
+                {/* Column header */}
+                <div style={{
+                  display:"flex", alignItems:"center", justifyContent:"space-between",
+                  padding:"8px 12px", borderRadius:8, marginBottom:10,
+                  background:`${color}12`, border:`1.5px solid ${color}30`
+                }}>
+                  <span style={{ fontWeight:700, fontSize:12, color }}>
+                    {STAGE_ICONS[stage]} {stage}
+                  </span>
+                  <span style={{ background:`${color}25`, color, fontSize:11, fontWeight:800, padding:"1px 8px", borderRadius:99 }}>
+                    {allCards.length}
+                  </span>
+                </div>
+
+                {/* Cards */}
+                <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+                  {cards.map(card => (
+                    <div key={card.hrEmail} style={{
+                      background:"var(--surface)", borderRadius:10, padding:"11px 13px",
+                      border:`1px solid var(--border)`, borderLeft:`3px solid ${color}`,
+                      opacity: moving===card.hrEmail ? 0.5 : 1, transition:"all 0.15s"
+                    }}>
+                      {/* Company */}
+                      <div style={{ fontWeight:700, fontSize:12, color:"var(--text-700,#111)", marginBottom:2 }}>
+                        {card.company || "Unknown"}
+                      </div>
+                      {/* Role */}
+                      {card.role && (
+                        <div style={{ fontSize:10, color:"var(--blue)", fontWeight:500, marginBottom:3 }}>
+                          {card.role}
+                        </div>
+                      )}
+                      {/* Email */}
+                      <div style={{ fontSize:10, color:"var(--text-muted)", marginBottom:6 }}>
+                        {(card.hrEmail||"").length > 26 ? card.hrEmail.slice(0,26)+"…" : card.hrEmail}
+                      </div>
+                      {/* Interview date */}
+                      {card.interviewDate && (
+                        <div style={{ fontSize:10, color:"#d97706", fontWeight:600, marginBottom:6, display:"flex", alignItems:"center", gap:4 }}>
+                          📅 {new Date(card.interviewDate).toLocaleString("en-IN",{dateStyle:"short",timeStyle:"short"})}
+                        </div>
+                      )}
+                      {/* Days ago */}
+                      {card.sentAt && (
+                        <div style={{ fontSize:10, color:"var(--text-muted)", marginBottom:8 }}>
+                          🕒 {Math.floor((Date.now()-new Date(card.sentAt))/86400000)}d ago
+                        </div>
+                      )}
+                      {/* Move dropdown */}
+                      <div style={{ position:"relative" }}>
+                        <select
+                          value={stage}
+                          onChange={e => moveCard(card.hrEmail, e.target.value)}
+                          style={{
+                            appearance:"none", WebkitAppearance:"none",
+                            width:"100%", fontSize:11, padding:"5px 24px 5px 8px",
+                            borderRadius:6, border:`1.5px solid ${color}55`,
+                            background:`${color}0d`, color, fontWeight:600,
+                            cursor:"pointer", outline:"none"
+                          }}>
+                          {stages.map(s => (
+                            <option key={s} value={s}>{STAGE_ICONS[s]} {s}</option>
+                          ))}
+                        </select>
+                        <span style={{ position:"absolute", right:7, top:"50%", transform:"translateY(-50%)", pointerEvents:"none", fontSize:8, color }}>▼</span>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Column pagination */}
+                  {totalPg > 1 && (
+                    <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:4, paddingTop:4 }}>
+                      <button onClick={()=>setPipePage(p=>({...p,[stage]:Math.max(1,pg-1)}))} disabled={pg===1}
+                        style={{ width:24, height:24, borderRadius:6, border:"1px solid var(--border)", background:"var(--surface)", color:"var(--text-muted)", cursor:pg===1?"not-allowed":"pointer", fontSize:11 }}>‹</button>
+                      <span style={{ fontSize:10, color:"var(--text-muted)" }}>{pg}/{totalPg}</span>
+                      <button onClick={()=>setPipePage(p=>({...p,[stage]:Math.min(totalPg,pg+1)}))} disabled={pg===totalPg}
+                        style={{ width:24, height:24, borderRadius:6, border:"1px solid var(--border)", background:"var(--surface)", color:"var(--text-muted)", cursor:pg===totalPg?"not-allowed":"pointer", fontSize:11 }}>›</button>
+                    </div>
+                  )}
+
+                  {allCards.length === 0 && (
+                    <div style={{ border:`1.5px dashed ${color}33`, borderRadius:10, padding:"22px 10px", textAlign:"center", fontSize:11, color:"var(--text-muted)" }}>
+                      No contacts
+                    </div>
+                  )}
+                </div>
               </div>
-
-              {/* Cards */}
-              <div style={{ display:"flex", flexDirection:"column", gap:8, minHeight:80 }}>
-                {cards.map(card => (
-                  <div key={card._id} style={{
-                    background:"var(--surface)", border:`1px solid var(--border)`,
-                    borderLeft:`3px solid ${color}`,
-                    borderRadius:10, padding:"11px 13px",
-                    opacity: moving===card.hrEmail ? 0.5 : 1,
-                    transition:"opacity 0.15s",
-                  }}>
-                    {/* Company + role */}
-                    <div style={{ fontWeight:700, fontSize:12, marginBottom:1, color:"var(--text-700,#111827)" }}>
-                      {card.company || "Unknown"}
-                    </div>
-                    {card.role && (
-                      <div style={{ fontSize:10, color:"var(--blue)", marginBottom:4, fontWeight:500 }}>
-                        {card.role}
-                      </div>
-                    )}
-                    <div style={{ fontSize:10, color:"var(--text-muted)", marginBottom:6 }}>
-                      {(card.hrEmail||"").slice(0,28)}{(card.hrEmail||"").length>28?"…":""}
-                    </div>
-
-                    {/* Interview date if exists */}
-                    {card.interviewDate && (
-                      <div style={{ fontSize:10, color:"#d97706", fontWeight:600, marginBottom:6, display:"flex", alignItems:"center", gap:4 }}>
-                        📅 {new Date(card.interviewDate).toLocaleString("en-IN",{dateStyle:"short",timeStyle:"short"})}
-                      </div>
-                    )}
-
-                    {/* Days since applied */}
-                    {card.sentAt && (
-                      <div style={{ fontSize:10, color:"var(--text-muted)", marginBottom:8 }}>
-                        🕒 {Math.floor((Date.now()-new Date(card.sentAt))/(86400000))}d ago
-                      </div>
-                    )}
-
-                    {/* Move stage dropdown */}
-                    <div style={{ position:"relative" }}>
-                      <select
-                        style={{
-                          appearance:"none", WebkitAppearance:"none",
-                          width:"100%", fontSize:11, padding:"5px 24px 5px 8px",
-                          borderRadius:6, border:`1px solid ${color}44`,
-                          background:`${color}08`, color, fontWeight:600,
-                          cursor:"pointer", outline:"none"
-                        }}
-                        value={stage}
-                        onChange={e => moveCard(card.hrEmail, e.target.value)}
-                      >
-                        {stages.map(s => <option key={s} value={s}>{STAGE_ICONS[s]} {s}</option>)}
-                      </select>
-                      <span style={{ position:"absolute", right:7, top:"50%", transform:"translateY(-50%)", pointerEvents:"none", fontSize:8, color }}>▼</span>
-                    </div>
-                  </div>
-                ))}
-                {cards.length === 0 && (
-                  <div style={{
-                    border:`1.5px dashed ${color}33`, borderRadius:10,
-                    padding:"24px 12px", textAlign:"center",
-                    fontSize:11, color:"var(--text-muted)"
-                  }}>
-                    No contacts
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── Interviews Page ──────────────────────────────────────────────────────────
 function InterviewsPage({ addToast }) {
   const [interviews, setInterviews] = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [editing,    setEditing]    = useState(null);
   const [form,       setForm]       = useState({});
+  const [ivPage,     setIvPage]     = useState(1);
+  const [ivSearch,   setIvSearch]   = useState("");
+  const PER_PAGE = 10;
 
   const ROUNDS = ["R1 Technical","R2 Technical","HR Round","Managerial","System Design","Final Round","Offer Discussion"];
   const STAGES = ["Interview","Interview Scheduled","Offer","Selected","Rejected","On Hold"];
@@ -6824,7 +6849,7 @@ function InterviewsPage({ addToast }) {
     setLoading(true);
     axios.get(`${API}/api/interviews`)
       .then(r => { if (r.data.success) setInterviews(r.data.interviews); })
-      .catch(e => { console.error("Interviews error:", e.message); })
+      .catch(e => console.error("Interviews error:", e.message))
       .finally(() => setLoading(false));
   };
   useEffect(() => { fetch2(); }, []);
@@ -6833,111 +6858,209 @@ function InterviewsPage({ addToast }) {
     try {
       await axios.patch(`${API}/api/interviews/${editing}`, form);
       addToast && addToast("✅ Saved!");
-      setEditing(null);
+      setEditing(null); setForm({});
       fetch2();
     } catch(e) { addToast && addToast("❌ Failed", "error"); }
   };
 
-  const upcoming = interviews.filter(i => i.interviewDate && new Date(i.interviewDate) >= new Date())
+  const now = new Date();
+  const filtered  = interviews.filter(i => {
+    const q = ivSearch.toLowerCase();
+    return !q || i.company?.toLowerCase().includes(q)
+      || i.hrEmail?.toLowerCase().includes(q)
+      || i.interviewRound?.toLowerCase().includes(q);
+  });
+  const upcoming  = filtered.filter(i => i.interviewDate && new Date(i.interviewDate) >= now)
     .sort((a,b) => new Date(a.interviewDate)-new Date(b.interviewDate));
-  const noDate   = interviews.filter(i => !i.interviewDate);
+  const past      = filtered.filter(i => !i.interviewDate || new Date(i.interviewDate) < now);
+  const all       = [...upcoming, ...past];
+  const paginated = all.slice((ivPage-1)*PER_PAGE, ivPage*PER_PAGE);
+
+  const STAGE_COLORS = { Interview:"#d97706", "Interview Scheduled":"#2563eb", Offer:"#16a34a", Selected:"#059669", Rejected:"#dc2626", "On Hold":"#6b7280" };
+  const PRIORITY_COLORS = { "Dream Company":"#7c3aed", High:"#dc2626", Normal:"#6b7280", Low:"#9ca3af" };
+
+  if (loading) return (
+    <div className="page">
+      <div style={{ textAlign:"center", padding:60, color:"var(--text-muted)" }}>
+        <div style={{ fontSize:32, marginBottom:12 }}>🗓</div>
+        Loading interviews…
+      </div>
+    </div>
+  );
 
   return (
     <div className="page">
+      {/* Upcoming banner */}
       {upcoming.length > 0 && (
-        <div style={{ background:"linear-gradient(135deg,#fef3c7,#fef9c3)", border:"1px solid #fde047", borderRadius:12, padding:"14px 18px", marginBottom:16 }}>
-          <div style={{ fontWeight:700, fontSize:13, color:"#713f12", marginBottom:8 }}>🗓 Upcoming Interviews</div>
-          {upcoming.map((i,idx) => (
-            <div key={idx} style={{ fontSize:13, color:"#713f12", marginBottom:4 }}>
-              <strong>{i.company}</strong> — {i.interviewRound || "Interview"} — {new Date(i.interviewDate).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})}
+        <div style={{
+          background:"linear-gradient(135deg,#fef3c7,#fef9c3)",
+          border:"1.5px solid #fde047", borderRadius:12,
+          padding:"12px 18px", marginBottom:16
+        }}>
+          <div style={{ fontWeight:700, fontSize:13, color:"#713f12", marginBottom:8 }}>
+            🔔 Upcoming Interviews ({upcoming.length})
+          </div>
+          {upcoming.slice(0,3).map((i,idx) => (
+            <div key={idx} style={{ fontSize:13, color:"#713f12", marginBottom:4, display:"flex", gap:10, alignItems:"center" }}>
+              <span style={{ fontSize:11, background:"#fde047", borderRadius:6, padding:"1px 8px", fontWeight:700 }}>
+                {new Date(i.interviewDate).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})}
+              </span>
+              <strong>{i.company}</strong>
+              {i.interviewRound && <span style={{ fontSize:11, color:"#92400e" }}> — {i.interviewRound}</span>}
             </div>
           ))}
+          {upcoming.length > 3 && <div style={{ fontSize:11, color:"#92400e", marginTop:4 }}>+{upcoming.length-3} more…</div>}
         </div>
       )}
 
-      {loading ? <div style={{textAlign:"center",padding:40,color:"var(--text-muted)"}}>Loading...</div>
-      : interviews.length === 0 ? (
+      {interviews.length === 0 ? (
         <div className="empty-state">
           <span className="empty-icon">🗓</span>
-          <p style={{ marginBottom:8 }}>No interviews scheduled yet.</p>
-          <p style={{ fontSize:12, color:"var(--text-muted)" }}>
-            Go to <strong>Inbox</strong> → click <strong>🗓 Interview</strong> button on any message<br/>
-            or go to <strong>Pipeline</strong> → move a contact to Interview stage.
+          <p style={{ marginBottom:8, fontWeight:600 }}>No interviews scheduled yet</p>
+          <p style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.8 }}>
+            Go to <strong>Inbox</strong> → click <strong>🗓 Interview</strong> on any message<br/>
+            or go to <strong>Pipeline</strong> → move a contact to Interview stage
           </p>
         </div>
-      ) : (
+      ) : (<>
+        {/* Search + count */}
+        <div style={{ display:"flex", gap:8, marginBottom:14, alignItems:"center" }}>
+          <div style={{ flex:1 }}>
+            <SearchBar value={ivSearch} onChange={v=>{setIvSearch(v);setIvPage(1);}} placeholder="Search company, email, round…" />
+          </div>
+          <span style={{ fontSize:12, color:"var(--text-muted)", flexShrink:0 }}>
+            {filtered.length} interview{filtered.length!==1?"s":""}
+          </span>
+        </div>
+
+        {/* Interview cards */}
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          {interviews.map(iv => (
-            <div key={iv._id} style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"14px 18px" }}>
+          {paginated.map(iv => (
+            <div key={iv._id} style={{
+              background:"var(--surface)", border:"1px solid var(--border)",
+              borderRadius:12, padding:"14px 18px", transition:"box-shadow 0.15s"
+            }}>
               {editing === String(iv._id) ? (
+                /* ── Edit mode ── */
                 <div>
-                  <div style={{ fontWeight:700, fontSize:13, marginBottom:12 }}>{iv.company} — {iv.hrEmail}</div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
+                  <div style={{ fontWeight:700, fontSize:13, marginBottom:12, color:"var(--blue)" }}>
+                    ✏️ {iv.company} — {iv.hrEmail}
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
                     <div className="form-group" style={{ marginBottom:0 }}>
                       <label className="form-label" style={{ fontSize:11 }}>Stage</label>
-                      <select className="form-select" style={{ fontSize:13 }} value={form.stage||iv.stage||"Interview"} onChange={e => setForm(p=>({...p,stage:e.target.value}))}>
-                        {STAGES.map(s => <option key={s}>{s}</option>)}
-                      </select>
+                      <DropdownSelect value={form.stage||iv.stage||"Interview"}
+                        onChange={v=>setForm(p=>({...p,stage:v}))}
+                        options={STAGES.map(s=>({value:s,label:s}))} width="100%" />
                     </div>
                     <div className="form-group" style={{ marginBottom:0 }}>
                       <label className="form-label" style={{ fontSize:11 }}>Round</label>
-                      <select className="form-select" style={{ fontSize:13 }} value={form.interviewRound||iv.interviewRound||""} onChange={e => setForm(p=>({...p,interviewRound:e.target.value}))}>
-                        <option value="">Select round...</option>
-                        {ROUNDS.map(r => <option key={r}>{r}</option>)}
-                      </select>
+                      <DropdownSelect value={form.interviewRound||iv.interviewRound||""}
+                        onChange={v=>setForm(p=>({...p,interviewRound:v}))}
+                        placeholder="Select round…"
+                        options={ROUNDS.map(r=>({value:r,label:r}))} width="100%" />
                     </div>
                     <div className="form-group" style={{ marginBottom:0 }}>
                       <label className="form-label" style={{ fontSize:11 }}>Interview Date & Time</label>
                       <input type="datetime-local" className="form-input" style={{ fontSize:13 }}
                         value={form.interviewDate ? new Date(form.interviewDate).toISOString().slice(0,16) : iv.interviewDate ? new Date(iv.interviewDate).toISOString().slice(0,16) : ""}
-                        onChange={e => setForm(p=>({...p,interviewDate:e.target.value}))} />
+                        onChange={e=>setForm(p=>({...p,interviewDate:e.target.value}))} />
                     </div>
                     <div className="form-group" style={{ marginBottom:0 }}>
                       <label className="form-label" style={{ fontSize:11 }}>Priority</label>
-                      <select className="form-select" style={{ fontSize:13 }} value={form.priority||iv.priority||"Normal"} onChange={e => setForm(p=>({...p,priority:e.target.value}))}>
-                        {["Low","Normal","High","Dream Company"].map(p => <option key={p}>{p}</option>)}
-                      </select>
+                      <DropdownSelect value={form.priority||iv.priority||"Normal"}
+                        onChange={v=>setForm(p=>({...p,priority:v}))}
+                        options={["Low","Normal","High","Dream Company"].map(p=>({value:p,label:p}))} width="100%" />
                     </div>
                   </div>
-                  <div className="form-group" style={{ marginBottom:12 }}>
+                  <div className="form-group" style={{ marginBottom:10 }}>
                     <label className="form-label" style={{ fontSize:11 }}>Notes / Feedback</label>
                     <textarea className="form-textarea" rows={3} style={{ fontSize:13 }}
-                      placeholder="Interview notes, feedback, questions asked..."
-                      value={form.callLog||iv.callLog||""}
-                      onChange={e => setForm(p=>({...p,callLog:e.target.value}))} />
+                      placeholder="Topics covered, feedback, next steps…"
+                      value={form.callLog!==undefined?form.callLog:(iv.callLog||"")}
+                      onChange={e=>setForm(p=>({...p,callLog:e.target.value}))} />
                   </div>
                   <div style={{ display:"flex", gap:8 }}>
                     <button className="btn-primary btn-sm" onClick={save}>💾 Save</button>
-                    <button className="btn-ghost btn-sm" onClick={() => setEditing(null)}>Cancel</button>
+                    <button className="btn-ghost btn-sm" onClick={()=>{setEditing(null);setForm({});}}>Cancel</button>
                   </div>
                 </div>
               ) : (
-                <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
-                  <div style={{ width:36, height:36, borderRadius:"50%", background:"linear-gradient(135deg,#2563eb,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:700, fontSize:13, flexShrink:0 }}>
+                /* ── View mode ── */
+                <div style={{ display:"flex", alignItems:"center", gap:14, flexWrap:"wrap" }}>
+                  {/* Avatar */}
+                  <div style={{
+                    width:40, height:40, borderRadius:10, flexShrink:0,
+                    background:`linear-gradient(135deg,${STAGE_COLORS[iv.stage]||"#2563eb"},${STAGE_COLORS[iv.stage]||"#7c3aed"}88)`,
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    color:"#fff", fontWeight:800, fontSize:14
+                  }}>
                     {(iv.company||"?").slice(0,2).toUpperCase()}
                   </div>
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontWeight:700, fontSize:13 }}>{iv.company} <span style={{ fontSize:11, color:"var(--text-muted)", fontWeight:400 }}>— {iv.role || iv.hrEmail}</span></div>
-                    <div style={{ fontSize:12, color:"var(--text-muted)", marginTop:3, display:"flex", gap:12, flexWrap:"wrap" }}>
-                      {iv.stage && <span style={{ color: iv.stage==="Offer"?"#16a34a":iv.stage==="Rejected"?"#dc2626":"#d97706", fontWeight:600 }}>{iv.stage}</span>}
-                      {iv.interviewRound && <span>{iv.interviewRound}</span>}
-                      {iv.interviewDate && <span>📅 {new Date(iv.interviewDate).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})}</span>}
-                      {iv.priority && iv.priority !== "Normal" && <span style={{ color:"#d97706" }}>⭐ {iv.priority}</span>}
+
+                  {/* Info */}
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:3 }}>
+                      <span style={{ fontWeight:700, fontSize:14 }}>{iv.company}</span>
+                      {iv.stage && (
+                        <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:99,
+                          background:`${STAGE_COLORS[iv.stage]||"#6b7280"}20`, color:STAGE_COLORS[iv.stage]||"#6b7280" }}>
+                          {iv.stage}
+                        </span>
+                      )}
+                      {iv.priority && iv.priority !== "Normal" && (
+                        <span style={{ fontSize:10, fontWeight:700, color:PRIORITY_COLORS[iv.priority]||"#6b7280" }}>
+                          {iv.priority==="Dream Company"?"⭐ Dream":"🔥 "+iv.priority}
+                        </span>
+                      )}
                     </div>
-                    {iv.callLog && <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:4, fontStyle:"italic" }}>{iv.callLog.slice(0,80)}{iv.callLog.length>80?"...":""}</div>}
+
+                    <div style={{ fontSize:12, color:"var(--text-muted)", marginBottom:4 }}>
+                      {iv.hrEmail}
+                      {iv.role && <span style={{ color:"var(--blue)", marginLeft:8 }}>· {iv.role}</span>}
+                    </div>
+
+                    <div style={{ display:"flex", gap:12, flexWrap:"wrap", fontSize:12 }}>
+                      {iv.interviewRound && (
+                        <span style={{ color:"#7c3aed", fontWeight:600 }}>🎯 {iv.interviewRound}</span>
+                      )}
+                      {iv.interviewDate ? (
+                        <span style={{ color: new Date(iv.interviewDate) >= now ? "#d97706" : "var(--text-muted)", fontWeight: new Date(iv.interviewDate) >= now ? 600 : 400 }}>
+                          📅 {new Date(iv.interviewDate).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})}
+                          {new Date(iv.interviewDate) >= now && ` (in ${Math.floor((new Date(iv.interviewDate)-now)/86400000)}d)`}
+                        </span>
+                      ) : (
+                        <span style={{ color:"var(--text-muted)", fontSize:11 }}>📅 Date not set</span>
+                      )}
+                    </div>
+
+                    {iv.callLog && (
+                      <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:4, fontStyle:"italic",
+                        overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:400 }}>
+                        📝 {iv.callLog}
+                      </div>
+                    )}
                   </div>
-                  <button className="btn-ghost btn-sm" onClick={() => { setEditing(String(iv._id)); setForm({}); }}>✏️ Edit</button>
+
+                  {/* Edit button */}
+                  <button className="btn-ghost btn-sm"
+                    style={{ flexShrink:0 }}
+                    onClick={()=>{setEditing(String(iv._id)); setForm({});}}>
+                    ✏️ Edit
+                  </button>
                 </div>
               )}
             </div>
           ))}
         </div>
-      )}
+
+        {/* Pagination */}
+        <Pagination page={ivPage} total={filtered.length} perPage={PER_PAGE} onChange={setIvPage} />
+      </>)}
     </div>
   );
 }
 
-// ─── Bulk Send Page ───────────────────────────────────────────────────────────
 function BulkSendPage({ addToast, contacts }) {
   const templates    = getEmailTemplates();
   const [selected,   setSelected]   = useState(new Set());
