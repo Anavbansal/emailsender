@@ -2628,6 +2628,22 @@ app.patch("/api/contact/update", requireAuth, async (req, res) => {
       );
     }
 
+    // If no records found (contact not in sent log) but interview data given — create a record
+    if (result.modifiedCount === 0 && (updates.stage || updates.interviewDate)) {
+      const newLog = new SentEmailLog({
+        userId:        String(req.user._id),
+        hrEmail:       hrEmail,
+        hrName:        req.body.hrName || "",
+        company:       req.body.company || "",
+        role:          req.body.role    || "",
+        subject:       req.body.subject || "Interview Scheduled",
+        type:          "manual",
+        sentAt:        new Date(),
+        ...updates,
+      });
+      await newLog.save().catch(() => {});
+    }
+
     res.json({
       success: true,
       message: `Updated ${result.modifiedCount} record(s) for ${hrEmail}`,
