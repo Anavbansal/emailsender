@@ -4383,7 +4383,7 @@ function LinkedInConnectionsPage({ onFillApply, addToast }) {
           <span className="empty-icon">🔗</span>
           <p>{loading ? "Loading connections…" : "No connections found. Try a different search or filter."}</p>
         </div>
-      ) : (
+      ) : (<>
         <div className="li-grid">
           {[...connections].sort((a,b)=>liSort==="name"?(a.name||"").localeCompare(b.name||""):liSort==="company"?(a.company||"").localeCompare(b.company||""):0).slice((liPage-1)*liPer,liPage*liPer).map((c, i) => (
             <div key={i} className={`li-card ${c.sent ? "li-card-sent" : ""} ${c.replied ? "li-card-replied" : ""}`}>
@@ -4449,7 +4449,7 @@ function LinkedInConnectionsPage({ onFillApply, addToast }) {
           ))}
         </div>
         <Pagination page={liPage} total={connections.length} perPage={liPer} onChange={setLiPage} />
-      )}
+      </>)}
     </div>
 
     {/* Modals */}
