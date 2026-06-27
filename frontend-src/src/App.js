@@ -1634,7 +1634,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
   const totalFiltered = filtered.length;
   const paginated = filtered.slice((contactPage-1)*perPage, contactPage*perPage);
 
-  const reminders = searchFiltered.filter(c => c.needsFollowUp);
+  const reminders = contacts.filter(c => c.needsFollowUp);
 
   const clearOpened = async (trackingId) => {
     if (!trackingId) return;
@@ -3287,7 +3287,7 @@ function MessagesPage({ contacts }) {
   useEffect(() => setEditedMsg(buildMsg(tab)), [tab, buildMsg]);
 
   const copy = () => {
-    navigator.clipboard.writeText(editedMsg).then(() => {
+    navigator.clipboard.writeText(editedMsg).then(().catch(()=>{}) => {
       setCopied(true); setTimeout(() => setCopied(false), 2000);
     });
   };
@@ -3619,7 +3619,7 @@ function ProspectPage({ onFillApply }) {
   };
 
   const copyEmail = (email, idx) => {
-    navigator.clipboard.writeText(email).then(() => {
+    navigator.clipboard.writeText(email).then(().catch(()=>{}) => {
       setCopied(idx); setTimeout(() => setCopied(null), 2000);
     });
   };
@@ -3826,7 +3826,7 @@ Bahut helpful hoga agar refer kar sako! 😊`;
   useEffect(() => setEditedMsg(currentMsg), [tab, name, company, role, relation]);
 
   const copy = () => {
-    navigator.clipboard.writeText(editedMsg).then(() => {
+    navigator.clipboard.writeText(editedMsg).then(().catch(()=>{}) => {
       setCopied(true); setTimeout(() => setCopied(false), 2000);
       addToast && addToast("Message copied!");
     });
@@ -6437,7 +6437,7 @@ function AnalyticsPage() {
     setLoading(true);
     axios.get(`${API}/api/analytics/dashboard`)
       .then(r => { if (r.data.success) setData(r.data.data); })
-      .catch(() => {})
+      .catch(e => { console.error("Analytics error:", e.message); })
       .finally(() => setLoading(false));
   }, [period]);
 
@@ -6645,7 +6645,7 @@ function InterviewsPage({ addToast }) {
     setLoading(true);
     axios.get(`${API}/api/interviews`)
       .then(r => { if (r.data.success) setInterviews(r.data.interviews); })
-      .catch(() => {})
+      .catch(e => { console.error("Interviews error:", e.message); })
       .finally(() => setLoading(false));
   };
   useEffect(() => { fetch2(); }, []);
