@@ -3084,12 +3084,15 @@ function InterviewScheduleModal({ contact, onClose, onSaved, addToast }) {
     try {
       // Update contact stage + interview details
       await axios.patch(`${API}/api/contact/update`, {
-        hrEmail: contact.hrEmail,
-        stage: "Interview",
+        hrEmail:       contact.hrEmail,
+        hrName:        contact.hrName  || "",
+        company:       contact.company || "",
+        role:          contact.role    || "",
+        stage:         "Interview",
         interviewRound: form.interviewRound,
-        interviewDate: form.interviewDate,
-        priority: form.priority,
-        callLog: form.callLog,
+        interviewDate:  form.interviewDate,
+        priority:       form.priority,
+        callLog:        form.callLog,
       });
       addToast && addToast("✅ Interview scheduled! Added to Interview Tracker.");
       onSaved && onSaved();
