@@ -3931,9 +3931,8 @@ app.get("/api/interviews", requireAuth, async (req, res) => {
     const interviews = await SentEmailLog.find({
       ...userFilter,
       $or: [
-        { stage: { $in: ["Interview", "Interview Scheduled", "Offer", "Rejected", "Selected"] } },
+        { stage: { $in: ["Interview", "Interview Scheduled", "Offer", "Selected"] } },
         { interviewDate: { $ne: null } },
-        { interviewRound: { $ne: "" } }
       ]
     }, {
       hrEmail:1, hrName:1, company:1, role:1, stage:1,
