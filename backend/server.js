@@ -883,54 +883,102 @@ function buildMohitHTML({ hrName, company, role, customNote, trackUrl = "", temp
   const noteBlock = customNote ? `<p style="color:#374151;line-height:1.8;margin:16px 0;">${customNote}</p>` : "";
   const pixel     = trackUrl  ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
 
-  const intros = {
-    crm:     `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}. With <strong>4.8+ years</strong> specializing in <strong>CRM & CTI integrations</strong> — including MS Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse — I have delivered 7+ enterprise-grade solutions for Fortune 500 clients, resolved critical P1/P2 incidents, and led end-to-end projects from requirement gathering to production support.`,
-    backend: `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}. With <strong>4.8+ years</strong> as a Senior Software Developer, I specialize in <strong>Java, Spring Boot, Node.js, REST APIs, and Webhook-driven architectures</strong> — delivering scalable backend solutions for enterprise CRM/CTI ecosystems across banking and contact center domains.`,
-    java:    `I am applying${roleText} at <strong>${company||"your organization"}</strong>. As a Senior Java Developer with <strong>4.8+ years</strong> in Spring Boot, Microservices, REST APIs, SQL, and Apache Tomcat/HTTP Server, I have independently owned end-to-end projects — including high-availability deployments for Bank Albilad and J&K Bank using clustering and reverse proxy configurations.`,
-    formal:  `I am respectfully submitting my application${roleText} at <strong>${company||"your organization"}</strong>. With 4.8+ years of enterprise CRM and CTI integration experience across banking and contact center domains, I am confident my background aligns strongly with your requirements.`,
+  // Template-specific content (intro + highlights — no repetition)
+  const templates = {
+    crm: {
+      intro: `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}. With <b>4.8+ years</b> specializing in <b>CRM & CTI integrations</b> across MS Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse, I have delivered 7+ enterprise solutions for Fortune 500 clients — resolving critical P1/P2 incidents and leading end-to-end projects from requirement gathering to production support.`,
+      highlights: [
+        "7+ Enterprise CRM Integrations — MS Dynamics 365, ServiceNow, Salesforce, HubSpot, Zoho CRM, Cisco Finesse",
+        "Key Clients: Bank Albilad, J&K Bank (Salesforce + Cisco Finesse), Misr Digital Innovation, Deliverect",
+        "P1/P2 Incident Management · Root Cause Analysis · Technical Mentoring · Client Stakeholder Management",
+        "8 'Pat on the Back' Awards + Performance of the Year — NovelVox PVT Ltd",
+        "Cloud & Infra: AWS S3, CloudFront, Apache Reverse Proxy, Tomcat Clustering, CI/CD, Git",
+      ]
+    },
+    backend: {
+      intro: `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}. With <b>4.8+ years</b> as a Senior Backend Developer, I specialize in <b>Java, Spring Boot, Node.js, Microservices, REST APIs, and Webhook-driven architectures</b> — delivering scalable, high-availability backend solutions across banking and enterprise contact center domains.`,
+      highlights: [
+        "Backend Stack: Java, Spring Boot, Node.js, Express.js, REST APIs, Webhook Architecture, Microservices",
+        "Databases: MySQL, SQL, Hibernate JPA, Query Optimization, Cisco UCCE Data Integration",
+        "High-Availability Deployments: Apache Reverse Proxy + Tomcat Clustering for Bank Albilad (banking ops)",
+        "Cloud: AWS S3, CloudFront, Azure — serverless and containerized architectures",
+        "8 'Pat on the Back' Awards + Performance of the Year — NovelVox PVT Ltd",
+      ]
+    },
+    java: {
+      intro: `I am applying${roleText} at <strong>${company||"your organization"}</strong>. As a Senior Java Developer with <b>4.8+ years</b> in <b>Spring Boot, Microservices, REST APIs, SQL, Apache Tomcat</b>, and Apache HTTP Server, I have owned full project lifecycles — including high-availability deployments for Bank Albilad and J&K Bank using clustering and reverse proxy configurations.`,
+      highlights: [
+        "Java · Spring Boot · Microservices · REST APIs · Hibernate JPA · SQL · Apache Tomcat",
+        "Delivered Bank Albilad CTI-CRM (MS Dynamics 365 + ServiceNow) — 15 months, production-grade",
+        "Delivered Misr Digital Innovation CTI-CRM (MS Dynamics 365) — 14 months, Java/Spring Boot stack",
+        "High-Availability Architecture: Apache Reverse Proxy + Tomcat Clustering for banking operations",
+        "8 'Pat on the Back' Awards + Performance of the Year — NovelVox PVT Ltd",
+      ]
+    },
+    formal: {
+      intro: `I am respectfully submitting my application${roleText} at <strong>${company||"your organization"}</strong>. With 4.8+ years of enterprise software development experience — spanning CRM integrations, backend engineering, and contact center solutions across banking and Fortune 500 clients — I am confident my background aligns strongly with your requirements.`,
+      highlights: [
+        "4.8+ Years · Senior Software Developer · CRM & CTI Integration Specialist",
+        "7+ Enterprise Integrations: MS Dynamics 365, ServiceNow, Salesforce, HubSpot, Zoho CRM",
+        "Key Clients: Bank Albilad, J&K Bank, Misr Digital Innovation, Deliverect, iLearna",
+        "8 'Pat on the Back' Awards + Performance of the Year — NovelVox PVT Ltd",
+        "Languages & Tools: Java, Spring Boot, Node.js, REST APIs, MySQL, Git, CI/CD, Agile",
+      ]
+    },
   };
 
-  const intro = intros[templateType] || intros.crm;
-
-  const highlights = [
-    "4.8+ Years · CRM & CTI Integration Specialist · Senior Software Developer",
-    "7+ Enterprise Integrations — MS Dynamics 365, ServiceNow, Salesforce, HubSpot, Zoho CRM, Cisco Finesse",
-    "8 'Pat on the Back' Awards + Performance of the Year — NovelVox PVT Ltd",
-    "P1/P2 Incident Management · Root Cause Analysis · Client Management · Technical Mentoring",
-    "Key Projects: Bank Albilad, J&K Bank (Salesforce+Cisco Finesse), Misr Digital Innovation, Deliverect",
-    "Cloud & Infra: AWS S3, CloudFront, Apache Reverse Proxy, Tomcat Clustering, CI/CD, Git",
-  ].map(h => `<li>${h}</li>`).join("");
+  const tpl = templates[templateType] || templates.crm;
+  const highlights = tpl.highlights.map(h => `<li>${h}</li>`).join("");
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',sans-serif;">
 <div style="max-width:620px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+
+  <!-- Header -->
   <div style="background:linear-gradient(135deg,#1e3a5f,#1d4ed8);padding:36px 40px;">
-    <p style="margin:0 0 6px;color:#93c5fd;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Senior Software Developer · CRM & CTI Integration Specialist</p>
-    <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Mohit Singh</h1>
-    <p style="margin:6px 0 0;color:#93c5fd;font-size:13px;">Java · Spring Boot · Node.js · ServiceNow · MS Dynamics 365 · Salesforce · HubSpot · Cisco Finesse</p>
+    <p style="margin:0 0 4px;color:#93c5fd;font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;">Senior Software Developer · CRM & CTI Integration Specialist</p>
+    <h1 style="margin:0 0 6px;color:#fff;font-size:22px;font-weight:700;letter-spacing:-0.3px;">Mohit Singh</h1>
+    <p style="margin:0;color:#bfdbfe;font-size:12.5px;line-height:1.6;">Java · Spring Boot · Node.js · ServiceNow · MS Dynamics 365 · Salesforce · HubSpot · Cisco Finesse</p>
   </div>
-  <div style="padding:36px 40px;">
-    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
-    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${intro}</p>
+
+  <!-- Body -->
+  <div style="padding:32px 40px;">
+
+    <p style="color:#374151;line-height:1.8;margin:0 0 14px;font-size:14px;">${greeting}</p>
+    <p style="color:#374151;line-height:1.8;margin:0 0 18px;font-size:14px;">${tpl.intro}</p>
+
     ${noteBlock}
-    <div style="background:#eff6ff;border-left:4px solid #1d4ed8;border-radius:0 8px 8px 0;padding:20px 24px;margin-bottom:24px;">
-      <p style="margin:0 0 12px;font-weight:600;color:#1e3a5f;font-size:14px;">🏆 Key Highlights</p>
-      <ul style="margin:0;padding-left:20px;color:#374151;font-size:13.5px;line-height:2;">${highlights}</ul>
+
+    <!-- Highlights -->
+    <div style="background:#f0f6ff;border-left:4px solid #1d4ed8;border-radius:0 10px 10px 0;padding:18px 24px;margin-bottom:22px;">
+      <p style="margin:0 0 10px;font-weight:700;color:#1e3a5f;font-size:13px;letter-spacing:0.3px;">🏆 KEY HIGHLIGHTS</p>
+      <ul style="margin:0;padding-left:18px;color:#1e293b;font-size:13.5px;line-height:1.9;">${highlights}</ul>
     </div>
-    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:16px 20px;margin:20px 0;">
-      <p style="margin:0 0 4px;font-weight:700;color:#0c4a6e;font-size:14px;">📎 Resume Attached</p>
-      <p style="margin:0;font-size:12px;color:#0369a1;">Mohit_Singh_CRMExpert.pdf</p>
+
+    <!-- Resume attached -->
+    <div style="background:#f8faff;border:1px solid #c7d7f9;border-radius:10px;padding:14px 20px;margin-bottom:22px;display:flex;align-items:center;gap:14px;">
+      <span style="font-size:22px;">📎</span>
+      <div>
+        <p style="margin:0 0 2px;font-weight:700;color:#1e3a5f;font-size:13px;">Resume Attached</p>
+        <p style="margin:0;font-size:12px;color:#2563eb;">Mohit_Singh_CRMExpert_v3.pdf</p>
+      </div>
     </div>
-    <p style="color:#374151;line-height:1.8;margin:0;">Thank you for your time and consideration. I would welcome the opportunity to discuss how my experience can contribute to your team's goals.</p>
+
+    <p style="color:#374151;line-height:1.8;margin:0;font-size:14px;">Thank you for your time. I would welcome the opportunity to discuss how my background can contribute to <strong>${company||"your team"}</strong>'s goals.</p>
+
   </div>
-  <div style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;text-align:center;">
-    <p style="margin:0;font-size:12px;color:#64748b;">
-      Mohit Singh &nbsp;·&nbsp; <a href="mailto:mohit310ggn@gmail.com" style="color:#1d4ed8;">mohit310ggn@gmail.com</a> &nbsp;·&nbsp;
-      <a href="tel:+917982092042" style="color:#1d4ed8;">+91 7982092042</a> &nbsp;·&nbsp;
+
+  <!-- Footer -->
+  <div style="background:#f1f5f9;padding:16px 40px;border-top:1px solid #e2e8f0;text-align:center;">
+    <p style="margin:0;font-size:12px;color:#64748b;line-height:1.8;">
+      <strong style="color:#1e3a5f;">Mohit Singh</strong> &nbsp;·&nbsp;
+      <a href="mailto:mohit310ggn@gmail.com" style="color:#1d4ed8;text-decoration:none;">mohit310ggn@gmail.com</a> &nbsp;·&nbsp;
+      <a href="tel:+917982092042" style="color:#1d4ed8;text-decoration:none;">+91 7982092042</a> &nbsp;·&nbsp;
       Gurugram, Haryana
     </p>
   </div>
-</div></body></html>`;
+
+</div>${pixel}</body></html>`;
 }
 
 // ─── HTML: Priyal Finance/Credit Template ─────────────────────────────────────
