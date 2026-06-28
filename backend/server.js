@@ -26,7 +26,7 @@ app.use(gmailAuthRoutes);
 const RESUME_PATH      = path.join(__dirname, "ANAV_BANSAL_FullStackDeveloper.pdf");
 const CRM_RESUME_PATH  = path.join(__dirname, "ANAV_BANSAL_CRMExpert.pdf");
 const CTI_RESUME_PATH  = path.join(__dirname, "Anav_Bansal_TelephonyExpert.pdf");
-const MOHIT_RESUME_PATH = path.join(__dirname, "Mohit_Singh_CV.pdf");
+const MOHIT_RESUME_PATH = path.join(__dirname, "Mohit_Singh_CRMExpert_v3.pdf");
 const RESUME_DRIVE_LINK = "https://drive.google.com/file/d/1LKc-w9Ggd5I1eZ3t7Wvm9psU-4ITxHxr/view?usp=sharing";
 const THREE_DAYS_MS    = 3 * 24 * 60 * 60 * 1000;
 
@@ -291,7 +291,7 @@ async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references
   let resumeFile, resumeName;
   if (isMohitGmail && fs.existsSync(MOHIT_RESUME_PATH)) {
     resumeFile = MOHIT_RESUME_PATH;
-    resumeName = "Mohit_Singh_CV.pdf";
+    resumeName = "Mohit_Singh_CRMExpert_v3.pdf";
   } else if (isPriyalGmail && user?.resumePath && fs.existsSync(user.resumePath)) {
     resumeFile = user.resumePath;
     resumeName = user.resumeFileName || "Priyal_Goyal_Resume.pdf";
@@ -745,7 +745,7 @@ async function sendApplicationEmail({
     // (URL-based resumes are linked in email body, not attached)
     resolvedResume = null; // handled in HTML
   } else if (isMohitUser && fs.existsSync(MOHIT_RESUME_PATH)) {
-    resolvedResume = { filename: "Mohit_Singh_CV.pdf", path: MOHIT_RESUME_PATH, contentType: "application/pdf" };
+    resolvedResume = { filename: "Mohit_Singh_CRMExpert_v3.pdf", path: MOHIT_RESUME_PATH, contentType: "application/pdf" };
   } else if (isPriyalUser && user?.resumePath && fs.existsSync(user.resumePath)) {
     resolvedResume = { filename: user.resumeFileName || "Priyal_Goyal_Resume.pdf", path: user.resumePath, contentType: "application/pdf" };
   } else if (!isPriyalUser && !isMohitUser && templateType === "cti" && fs.existsSync(CTI_RESUME_PATH)) {
@@ -2873,8 +2873,8 @@ app.post("/api/auth/init-mohit", async (req, res) => {
         preferredLocation:"PAN India",
         currentCTC:       "",
         expectedCTC:      "",
-        resumePath:       require("path").join(__dirname, "Mohit_Singh_CV.pdf"),
-        resumeFileName:   "Mohit_Singh_CV.pdf",
+        resumePath:       require("path").join(__dirname, "Mohit_Singh_CRMExpert_v3.pdf"),
+        resumeFileName:   "Mohit_Singh_CRMExpert_v3.pdf",
       }}
     );
     res.json({ success: true, message: "Mohit profile initialized", modified: result.modifiedCount });
