@@ -877,55 +877,56 @@ function buildDynamicHTML({ hrName, company, role, customNote, trackUrl = "", db
 }
 
 // ─── HTML: Mohit Singh — Backend/CRM Template ────────────────────────────────
-function buildMohitHTML({ hrName, company, role, customNote, trackUrl = "", templateType = "backend" }) {
+function buildMohitHTML({ hrName, company, role, customNote, trackUrl = "", templateType = "crm" }) {
   const greeting  = hrName ? `Dear ${hrName},` : "Dear Hiring Manager,";
   const roleText  = role   ? ` for the <strong>${role}</strong> position` : "";
   const noteBlock = customNote ? `<p style="color:#374151;line-height:1.8;margin:16px 0;">${customNote}</p>` : "";
   const pixel     = trackUrl  ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
 
   const intros = {
-    backend:  `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}. With <strong>4.8+ years of experience</strong> as a Senior Software Backend Engineer, I specialize in Java, Spring Boot, Microservices, REST APIs, and enterprise CRM/CTI integrations across Microsoft Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse.`,
-    crm:      `I am reaching out regarding${roleText} at <strong>${company||"your organization"}</strong>. My 4.8+ years specializing in CRM/CTI integrations — including MS Dynamics 365, ServiceNow, Salesforce, and Cisco Finesse — have enabled me to deliver enterprise-grade solutions, resolve critical P1/P2 incidents, and mentor junior developers.`,
-    java:     `I am applying${roleText} at <strong>${company||"your organization"}</strong>. As a Senior Java Developer with 4.8+ years in Spring Boot, Microservices, REST APIs, and SQL, I have independently owned end-to-end projects from design to production — delivering high-performance, scalable solutions in Agile environments.`,
-    formal:   `I am respectfully submitting my application${roleText} at <strong>${company||"your organization"}</strong>. With 4.8+ years of enterprise software development experience, I am confident my background aligns with your requirements.`,
+    crm:     `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}. With <strong>4.8+ years</strong> specializing in <strong>CRM & CTI integrations</strong> — including MS Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse — I have delivered 7+ enterprise-grade solutions for Fortune 500 clients, resolved critical P1/P2 incidents, and led end-to-end projects from requirement gathering to production support.`,
+    backend: `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}. With <strong>4.8+ years</strong> as a Senior Software Developer, I specialize in <strong>Java, Spring Boot, Node.js, REST APIs, and Webhook-driven architectures</strong> — delivering scalable backend solutions for enterprise CRM/CTI ecosystems across banking and contact center domains.`,
+    java:    `I am applying${roleText} at <strong>${company||"your organization"}</strong>. As a Senior Java Developer with <strong>4.8+ years</strong> in Spring Boot, Microservices, REST APIs, SQL, and Apache Tomcat/HTTP Server, I have independently owned end-to-end projects — including high-availability deployments for Bank Albilad and J&K Bank using clustering and reverse proxy configurations.`,
+    formal:  `I am respectfully submitting my application${roleText} at <strong>${company||"your organization"}</strong>. With 4.8+ years of enterprise CRM and CTI integration experience across banking and contact center domains, I am confident my background aligns strongly with your requirements.`,
   };
 
-  const intro = intros[templateType] || intros.backend;
+  const intro = intros[templateType] || intros.crm;
 
   const highlights = [
-    "4.7+ Years · Java, Spring Boot, Microservices, REST APIs",
-    "CRM/CTI: MS Dynamics 365, ServiceNow, Salesforce, HubSpot, Cisco Finesse",
-    "8 'Pat on the Back' Awards + Performance of the Year — NovelVox",
-    "P1/P2 Incident Management · Root Cause Analysis · Client Management",
-    "Enterprise integrations: Bank Albilad, J&K Bank, Misr Digital Innovation",
+    "4.8+ Years · CRM & CTI Integration Specialist · Senior Software Developer",
+    "7+ Enterprise Integrations — MS Dynamics 365, ServiceNow, Salesforce, HubSpot, Zoho CRM, Cisco Finesse",
+    "8 'Pat on the Back' Awards + Performance of the Year — NovelVox PVT Ltd",
+    "P1/P2 Incident Management · Root Cause Analysis · Client Management · Technical Mentoring",
+    "Key Projects: Bank Albilad, J&K Bank (Salesforce+Cisco Finesse), Misr Digital Innovation, Deliverect",
+    "Cloud & Infra: AWS S3, CloudFront, Apache Reverse Proxy, Tomcat Clustering, CI/CD, Git",
   ].map(h => `<li>${h}</li>`).join("");
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',sans-serif;">
 <div style="max-width:620px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-  <div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:36px 40px;">
-    <p style="margin:0 0 6px;color:#93c5fd;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Senior Software Developer · CRM & CTI Specialist</p>
+  <div style="background:linear-gradient(135deg,#1e3a5f,#1d4ed8);padding:36px 40px;">
+    <p style="margin:0 0 6px;color:#93c5fd;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Senior Software Developer · CRM & CTI Integration Specialist</p>
     <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Mohit Singh</h1>
-    <p style="margin:6px 0 0;color:#93c5fd;font-size:14px;">Java · Spring Boot · Microservices · MS Dynamics 365 · ServiceNow · Salesforce</p>
+    <p style="margin:6px 0 0;color:#93c5fd;font-size:13px;">Java · Spring Boot · Node.js · ServiceNow · MS Dynamics 365 · Salesforce · HubSpot · Cisco Finesse</p>
   </div>
   <div style="padding:36px 40px;">
     <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
     <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${intro}</p>
     ${noteBlock}
-    <div style="background:#eff6ff;border-left:4px solid #2563eb;border-radius:0 8px 8px 0;padding:20px 24px;margin-bottom:24px;">
+    <div style="background:#eff6ff;border-left:4px solid #1d4ed8;border-radius:0 8px 8px 0;padding:20px 24px;margin-bottom:24px;">
       <p style="margin:0 0 12px;font-weight:600;color:#1e3a5f;font-size:14px;">🏆 Key Highlights</p>
-      <ul style="margin:0;padding-left:20px;color:#374151;font-size:14px;line-height:2;">${highlights}</ul>
+      <ul style="margin:0;padding-left:20px;color:#374151;font-size:13.5px;line-height:2;">${highlights}</ul>
     </div>
     <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:16px 20px;margin:20px 0;">
       <p style="margin:0 0 4px;font-weight:700;color:#0c4a6e;font-size:14px;">📎 Resume Attached</p>
-      <p style="margin:0;font-size:12px;color:#0369a1;">Mohit_Singh_CV.pdf</p>
+      <p style="margin:0;font-size:12px;color:#0369a1;">Mohit_Singh_CRMExpert.pdf</p>
     </div>
-    <p style="color:#374151;line-height:1.8;margin:0;">Thank you for your time and consideration. I would welcome the opportunity to discuss how my experience can contribute to your team.</p>
+    <p style="color:#374151;line-height:1.8;margin:0;">Thank you for your time and consideration. I would welcome the opportunity to discuss how my experience can contribute to your team's goals.</p>
   </div>
   <div style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;text-align:center;">
     <p style="margin:0;font-size:12px;color:#64748b;">
-      Mohit Singh · <a href="mailto:mohit310ggn@gmail.com" style="color:#2563eb;">mohit310ggn@gmail.com</a> ·
-      <a href="tel:+917982092042" style="color:#2563eb;">+91 7982092042</a> ·
+      Mohit Singh &nbsp;·&nbsp; <a href="mailto:mohit310ggn@gmail.com" style="color:#1d4ed8;">mohit310ggn@gmail.com</a> &nbsp;·&nbsp;
+      <a href="tel:+917982092042" style="color:#1d4ed8;">+91 7982092042</a> &nbsp;·&nbsp;
       Gurugram, Haryana
     </p>
   </div>
@@ -2979,23 +2980,6 @@ app.get("/api/templates/:templateId", requireAuth, async (req, res) => {
 
 
 // ─── GET /api/templates — get user's templates ───────────────────────────────
-app.get("/api/templates", requireAuth, async (req, res) => {
-  try {
-    const user = await User.findById(req.userId).lean();
-    res.json({ success: true, templates: user.userTemplates || [] });
-  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
-});
-
-// ─── POST /api/templates — save all templates ─────────────────────────────────
-app.post("/api/templates", requireAuth, async (req, res) => {
-  try {
-    const { templates } = req.body;
-    if (!Array.isArray(templates) || templates.length > 4)
-      return res.status(400).json({ success: false, message: "Max 4 templates allowed" });
-    await User.updateOne({ _id: req.userId }, { $set: { userTemplates: templates } });
-    res.json({ success: true, message: "Templates saved" });
-  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
-});
 
 // ─── POST /api/templates/upload-resume — upload resume for a template ─────────
 app.post("/api/templates/upload-resume", requireAuth, async (req, res) => {
