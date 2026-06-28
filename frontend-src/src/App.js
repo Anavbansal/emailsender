@@ -5,6 +5,14 @@ import "./App.css";
 
 const API = "https://emailsender-v8a4.onrender.com";
 
+// Global error handler — prevent white screen on unhandled promise rejections
+if (typeof window !== "undefined") {
+  window.addEventListener("unhandledrejection", e => {
+    console.error("Unhandled promise rejection:", e.reason);
+    e.preventDefault();
+  });
+}
+
 // ── Auth helpers ───────────────────────────────────────────────────────────────
 function getToken()       { return localStorage.getItem("em_token"); }
 function setToken(t)      { localStorage.setItem("em_token", t); }
@@ -6015,9 +6023,11 @@ function TemplateManagerPage({ addToast }) {
 
   const del = async (templateId) => {
     if (!window.confirm("Delete this template?")) return;
-    await axios.delete(`${API}/api/templates/${templateId}`);
-    setTemplates(prev => prev.filter(t => t.templateId !== templateId));
-    addToast && addToast("🗑 Deleted");
+    try {
+      await axios.delete(`${API}/api/templates/${templateId}`);
+      setTemplates(prev => prev.filter(t => t.templateId !== templateId));
+      addToast && addToast("🗑 Deleted");
+    } catch(e) { addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error"); }
   };
 
   const h = (k, v) => setEditing(p => ({ ...p, [k]: v }));
