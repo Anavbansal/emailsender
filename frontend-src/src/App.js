@@ -55,8 +55,8 @@ const getHRProfile = () => {
   if (user?.username === "priyal") return HR_PROFILE_PRIYAL;
   if (user?.username === "mohit") return {
     keySkills:        "Java, Spring Boot, Microservices, REST APIs, SQL, MySQL, CRM Integration, CTI Integration, Cisco Finesse, Salesforce, MS Dynamics 365, ServiceNow, HubSpot, Git, CI/CD",
-    totalExp:         "4.7+ Years",
-    relevantExp:      "4.7+ Years",
+    totalExp:         "4.8+ Years",
+    relevantExp:      "4.8+ Years",
     currentCompany:   "NovelVox Pvt Ltd",
     reasonForChange:  "Personal and professional growth",
     noticePeriod:     "30 Days",
@@ -156,14 +156,14 @@ const EMAIL_TEMPLATES_PRIYAL = [
 ];
 
 const EMAIL_TEMPLATES_MOHIT = [
-  { id: "backend", name: "Backend Dev",   icon: "☕", accent: "#1e3a5f",
-    customNote: "With 4.7+ years in Java, Spring Boot, Microservices and REST APIs, I specialize in building scalable backend applications and enterprise CRM/CTI integrations. I have independently owned end-to-end projects and resolved critical P1/P2 production incidents." },
-  { id: "crm",     name: "CRM Specialist", icon: "🔗", accent: "#2563eb",
-    customNote: "With 4.7+ years in enterprise CRM/CTI integrations — MS Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse — I deliver high-performance integration solutions and have received 8 Pat on the Back awards at NovelVox." },
-  { id: "java",    name: "Java Expert",   icon: "🚀", accent: "#0369a1",
-    customNote: "As a Senior Java Developer with Spring Boot and Microservices expertise, I have delivered enterprise-grade solutions for banking clients including Bank Albilad, J&K Bank, and Misr Digital Innovation." },
-  { id: "formal",  name: "Formal",        icon: "🎯", accent: "#1d4ed8",
-    customNote: "I am respectfully submitting my application. With 4.7+ years of enterprise software development, I am confident my background aligns with your requirements." },
+  { id: "crm",     name: "CRM Specialist", icon: "🔗", accent: "#1d4ed8",
+    customNote: "With 4.8+ years specializing in CRM & CTI integrations — MS Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse — I have delivered 7+ enterprise solutions for Fortune 500 clients, resolved critical P1/P2 incidents, and earned 8 'Pat on the Back' awards at NovelVox PVT Ltd." },
+  { id: "backend", name: "Backend Dev",    icon: "☕", accent: "#1e3a5f",
+    customNote: "With 4.8+ years in Java, Spring Boot, Node.js, Microservices, and REST APIs, I specialize in scalable backend architectures and webhook-driven CRM/CTI integrations. I have independently delivered high-availability deployments for banking clients including Bank Albilad and J&K Bank." },
+  { id: "java",    name: "Java Expert",    icon: "🚀", accent: "#0369a1",
+    customNote: "As a Senior Java Developer with 4.8+ years in Spring Boot, Microservices, Apache Tomcat, and SQL, I have delivered enterprise-grade CTI solutions for Bank Albilad (MS Dynamics 365 + ServiceNow), J&K Bank (Salesforce + Cisco Finesse), and Misr Digital Innovation — including Apache Reverse Proxy and Tomcat Clustering deployments." },
+  { id: "formal",  name: "Formal",         icon: "🎯", accent: "#1e40af",
+    customNote: "With 4.8+ years of enterprise CRM and CTI integration experience across banking and contact center domains, I am confident my background aligns strongly with your requirements. I have earned 8 'Pat on the Back' awards and the Performance of the Year Award at NovelVox PVT Ltd." },
 ];
 
 const getEmailTemplates = () => {
@@ -394,7 +394,7 @@ const MSG_TEMPLATES_MOHIT = [
     build: (name, company) => {
       const n = (name||"there").split(" ")[0];
       const c = company || "your organization";
-      return `Hi ${n},\n\nI hope this message finds you well!\n\nI am Mohit Singh, a Senior Software Developer at NovelVox with 4.7+ years specializing in CRM/CTI integrations — MS Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse. I have received 8 Pat on the Back awards and the Performance of the Year Award.\n\nI am exploring new opportunities and ${c} caught my attention. I would be grateful if you could refer me or connect me with the right person.\n\nBest regards,\nMohit Singh\n📞 +91 7982092042 | ✉ mohit310ggn@gmail.com`;
+      return `Hi ${n},\n\nI hope this message finds you well!\n\nI am Mohit Singh, a Senior Software Developer at NovelVox with 4.8+ years specializing in CRM/CTI integrations — MS Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse. I have received 8 Pat on the Back awards and the Performance of the Year Award.\n\nI am exploring new opportunities and ${c} caught my attention. I would be grateful if you could refer me or connect me with the right person.\n\nBest regards,\nMohit Singh\n📞 +91 7982092042 | ✉ mohit310ggn@gmail.com`;
     }
   },
   {
@@ -402,7 +402,7 @@ const MSG_TEMPLATES_MOHIT = [
     build: (name, company) => {
       const n = (name||"there").split(" ")[0];
       const c = company || "your organization";
-      return `Hi ${n},\n\nI am Mohit Singh — a Senior Java Developer with 4.7+ years in Spring Boot, Microservices, REST APIs, SQL, and enterprise integrations. I have delivered end-to-end projects for banking clients like Bank Albilad, J&K Bank, and Misr Digital Innovation.\n\nI am exploring opportunities at ${c} and would love to connect. Happy to share my resume!\n\nBest regards,\nMohit Singh\n📞 +91 7982092042 | ✉ mohit310ggn@gmail.com`;
+      return `Hi ${n},\n\nI am Mohit Singh — a Senior Java Developer with 4.8+ years in Spring Boot, Microservices, REST APIs, SQL, and enterprise integrations. I have delivered end-to-end projects for banking clients like Bank Albilad, J&K Bank, and Misr Digital Innovation.\n\nI am exploring opportunities at ${c} and would love to connect. Happy to share my resume!\n\nBest regards,\nMohit Singh\n📞 +91 7982092042 | ✉ mohit310ggn@gmail.com`;
     }
   },
 ];
