@@ -5560,20 +5560,42 @@ function SettingsPage({ addToast }) {
   const [editIdx,   setEditIdx]     = useState(null); // which template is being edited
   const [uploading, setUploading]   = useState(false);
 
-  // Load user's saved templates on mount
+  // Load user's saved templates on mount — merge DB with defaults
   useEffect(() => {
     axios.get(`${API}/api/templates`)
       .then(r => {
-        if (r.data.templates?.length > 0) setTemplates(r.data.templates);
+        if (r.data.templates?.length > 0) {
+          // Merge saved templates back — map by templateId/id
+          const dbMap = {};
+          r.data.templates.forEach(t => { dbMap[t.templateId || t.id] = t; });
+          setTemplates(prev => prev.map(tpl => {
+            const key = tpl.id || tpl.templateId;
+            return dbMap[key] ? { ...tpl, ...dbMap[key], id: tpl.id } : tpl;
+          }));
+        }
       }).catch(() => {});
   }, []);
 
   const saveTemplates = async () => {
     setTplSaving(true);
     try {
-      await axios.post(`${API}/api/templates`, { templates });
+      // Save each template individually to match backend schema
+      for (const tpl of templates) {
+        await axios.post(`${API}/api/templates`, {
+          templateId:    tpl.id || tpl.templateId,
+          name:          tpl.name,
+          icon:          tpl.icon        || "⚡",
+          accent:        tpl.accent      || "#2563eb",
+          subject:       tpl.subject     || "",
+          customNote:    tpl.customNote  || "",
+          intro:         tpl.intro       || "",
+          highlights:    tpl.highlights  || [],
+          resumeUrl:     tpl.resumeUrl   || "",
+          resumeFileName:tpl.resumeFileName || "",
+        });
+      }
       addToast && addToast("✅ Templates saved!");
-    } catch(e) { addToast && addToast("❌ Failed", "error"); }
+    } catch(e) { addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error"); }
     finally { setTplSaving(false); }
   };
 
