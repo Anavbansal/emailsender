@@ -3002,9 +3002,38 @@ app.get("/api/templates", requireAuth, async (req, res) => {
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// ─── POST /api/templates — create/update template ────────────────────────────
+// ─── POST /api/templates — create/update template(s) ─────────────────────────
 app.post("/api/templates", requireAuth, async (req, res) => {
   try {
+    // Accept BOTH: single template object OR { templates: [...] } array (from Save All)
+    if (Array.isArray(req.body.templates)) {
+      // Bulk save from Settings page
+      const saved = [];
+      for (const tpl of req.body.templates) {
+        if (!tpl.id && !tpl.templateId) continue;
+        const tid = tpl.templateId || tpl.id;
+        const doc = await EmailTemplate.findOneAndUpdate(
+          { userId: req.userId, templateId: tid },
+          { $set: {
+            name:           tpl.name          || tid,
+            icon:           tpl.icon          || "⚡",
+            accent:         tpl.accent        || "#2563eb",
+            headerTheme:    tpl.headerTheme   || "blue",
+            subject:        tpl.subject       || "",
+            customNote:     tpl.customNote    || "",
+            intro:          tpl.intro         || "",
+            highlights:     Array.isArray(tpl.highlights) ? tpl.highlights.filter(Boolean) : [],
+            resumeUrl:      tpl.resumeUrl     || "",
+            resumeFileName: tpl.resumeFileName|| "",
+          }},
+          { upsert: true, new: true }
+        );
+        saved.push(doc);
+      }
+      return res.json({ success: true, templates: saved });
+    }
+
+    // Single template save (from TemplatesPage edit modal)
     const { templateId, name, icon, accent, headerTheme, resumeUrl, resumeFileName,
             subject, customNote, intro, highlights, isDefault } = req.body;
     if (!templateId) return res.status(400).json({ success: false, message: "templateId required" });
@@ -3512,80 +3541,8 @@ async function groqChat(messages, maxTokens = 800, temperature = 0.8, model = "l
 }
 
 // ─── 1. AI Email Writer ───────────────────────────────────────────────────────
-app.post("/api/ai/write-email", requireAuth, async (req, res) => {
-  try {
-    const { hrName, company, role, templateType, tone = "professional", keyPoints = "" } = req.body;
-    const cfg      = getUserConfig(req.user);
-    const userName = cfg.profileName    || req.user.displayName || "Anav Bansal";
-    const exp      = cfg.totalExp       || req.user.totalExp    || "4+ years";
-    const skills   = cfg.keySkills      || req.user.keySkills   || "";
-    const currCo   = cfg.currentCompany || req.user.currentCompany || "";
-    const title    = cfg.profileTitle   || req.user.profileTitle || "Software Developer";
-    const summary  = cfg.profileSummary || req.user.profileSummary || "";
-
-    const toneMap = {
-      professional: "formal and professional — impressive yet humble",
-      confident:    "confident and assertive — like a top performer",
-      friendly:     "warm and conversational — like talking to a colleague",
-      concise:      "very brief and direct — max 2 short paragraphs, no fluff",
-      creative:     "creative and memorable — stand out from 100 other applicants",
-    };
-
-    const text = await groqChat([{ role: "user", content:
-`You are an expert job application email writer. Write a HIGHLY personalized email body.
-
-CANDIDATE PROFILE:
-- Name: ${userName}
-- Title: ${title}
-- Experience: ${exp}
-- Current Company: ${currCo}
-- Key Skills: ${skills}
-- Summary: ${summary}
-${keyPoints ? "- MUST highlight: " + keyPoints : ""}
-
-TARGET:
-- HR Name: ${hrName || "Hiring Manager"}
-- Company: ${company || "the company"}
-- Role: ${role || "this position"}
-- Template: ${templateType}
-- Tone: ${toneMap[tone] || toneMap.professional}
-
-RULES:
-- Write ONLY the email body paragraphs (no subject, no Dear/salutation, no signature)
-- 2-3 focused paragraphs
-- Reference specific skills matching the role
-- Make it feel human and genuine — NOT a template
-- Each word must earn its place — no fluff
-- End with a strong call to action
-- Output: just the email body, nothing else` }], 600, 0.85);
-
-    res.json({ success: true, emailBody: text });
-  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
-});
 
 // ─── 2. AI Subject Line Generator ────────────────────────────────────────────
-app.post("/api/ai/write-subject", requireAuth, async (req, res) => {
-  try {
-    const { company, role, templateType } = req.body;
-    const cfg      = getUserConfig(req.user);
-    const userName = cfg.profileName || req.user.displayName || "Anav Bansal";
-    const exp      = cfg.totalExp    || req.user.totalExp    || "4+ years";
-
-    const text = await groqChat([{ role: "user", content:
-`Generate 5 unique email subject lines for a job application.
-Candidate: ${userName} (${exp} exp)
-Role: ${role || "Software Developer"}
-Company: ${company || "the company"}
-Type: ${templateType}
-
-Rules: Max 65 chars each. No emojis. Human sounding. Varied styles (direct/intriguing/value-prop/urgent/creative).
-Output ONLY 5 lines numbered 1-5. Nothing else.` }], 200, 0.95);
-
-    const subjects = text.split("\n").filter(l => /^\d+[.)]/.test(l)).map(l => l.replace(/^\d+[.)]+\s*/, "").trim())
-      .filter(Boolean);
-    res.json({ success: true, subjects });
-  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
-});
 
 // ─── 3. AI Follow-up Writer ───────────────────────────────────────────────────
 app.post("/api/ai/write-followup", requireAuth, async (req, res) => {
@@ -3618,54 +3575,6 @@ Rules:
 });
 
 // ─── 4. AI Screening Reply ────────────────────────────────────────────────────
-app.post("/api/ai/screening-reply", requireAuth, async (req, res) => {
-  try {
-    const { hrMessage = "" } = req.body;
-    const cfg = getUserConfig(req.user);
-    const u   = req.user;
-    const profile = {
-      name:      cfg.profileName     || u.displayName  || "Anav Bansal",
-      skills:    cfg.keySkills       || u.keySkills    || "",
-      exp:       cfg.totalExp        || u.totalExp     || "",
-      currCo:    cfg.currentCompany  || u.currentCompany || "",
-      currCTC:   cfg.currentCTC      || u.currentCTC   || "",
-      expCTC:    cfg.expectedCTC     || u.expectedCTC  || "",
-      notice:    cfg.noticePeriod    || u.noticePeriod || "30 Days",
-      location:  cfg.currentLocation || u.currentLocation || "",
-      prefLoc:   cfg.preferredLocation || u.preferredLocation || "PAN India",
-      reason:    cfg.reasonForChange || u.reasonForChange || "Better growth opportunity",
-      offer:     cfg.offerInHand     || u.offerInHand  || "No",
-      title:     cfg.profileTitle    || u.profileTitle || "Software Developer",
-    };
-
-    const text = await groqChat([{ role: "user", content:
-`You are ${profile.name}, a ${profile.title} with ${profile.exp} experience.
-HR has sent you a screening message. Reply professionally and concisely.
-
-YOUR PROFILE:
-Skills: ${profile.skills}
-Current Company: ${profile.currCo}
-Current CTC: ${profile.currCTC}
-Expected CTC: ${profile.expCTC}
-Notice Period: ${profile.notice}
-Current Location: ${profile.location}
-Preferred Location: ${profile.prefLoc}
-Reason for Change: ${profile.reason}
-Offer in Hand: ${profile.offer}
-
-HR's message: "${hrMessage}"
-
-Rules:
-- Answer ONLY what was asked
-- Be direct and confident
-- Keep under 120 words
-- Sound natural — not like a template
-- If they ask for profile, give a crisp summary
-Output: just the reply, nothing else` }], 300, 0.7);
-
-    res.json({ success: true, reply: text });
-  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
-});
 
 // ─── 5. AI LinkedIn Connection Message ────────────────────────────────────────
 app.post("/api/ai/linkedin-msg", requireAuth, async (req, res) => {
