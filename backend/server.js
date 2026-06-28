@@ -1867,13 +1867,22 @@ app.post("/api/schedule-email", requireAuth, async (req, res) => {
 });
 
 app.get("/api/scheduled-emails", requireAuth, async (req, res) => {
-  const allJobs = await loadScheduled();
   const isOwner = req.user.username === (process.env.OWNER_USERNAME || "anav");
-  const jobs = allJobs.filter(j =>
-    isOwner
-      ? (!j.userId || j.userId === req.userId || j.userId === "default")  // owner sees legacy too
-      : (j.userId === req.userId)  // others see only their own
-  );
+  let jobs;
+  if (mongoose.connection.readyState === 1) {
+    // Query DB directly with userId filter — much more efficient
+    const query = isOwner
+      ? { $or: [{ userId: req.userId }, { userId: "default" }, { userId: { $exists: false } }] }
+      : { userId: req.userId };
+    jobs = await ScheduledEmail.find(query).sort({ scheduledTime: 1 }).lean();
+  } else {
+    const allJobs = await loadScheduled();
+    jobs = allJobs.filter(j =>
+      isOwner
+        ? (!j.userId || j.userId === req.userId || j.userId === "default")
+        : (j.userId === req.userId)
+    );
+  }
   res.json({ success: true, jobs });
 });
 
