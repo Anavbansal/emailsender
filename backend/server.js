@@ -1403,6 +1403,7 @@ app.get("/api/track/:trackingId", (req, res) => {
 
 // ─── GET /api/contacts ────────────────────────────────────────────────────────
 app.get("/api/contacts", requireAuth, async (req, res) => {
+  try {
   const isOwner = req.user.username === (process.env.OWNER_USERNAME || "anav");
 
   // Non-owner with no sheet: return only their MongoDB data
@@ -1636,6 +1637,7 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
 
   contacts.sort((a, b) => b.lastSentAt - a.lastSentAt);
   res.json({ success: true, contacts, fetchedAt: Date.now(), sheetError, sheetTab: SHEET_TAB });
+  } catch(e) { console.error("contacts error:", e.message); res.status(500).json({ success:false, message:e.message }); }
 });
 
 function stripTrackingPixel(html) {
@@ -1854,16 +1856,18 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
 
 // ─── POST /api/schedule-email ─────────────────────────────────────────────────
 app.post("/api/schedule-email", requireAuth, async (req, res) => {
-  const { hrEmail, company, scheduledTime, ...rest } = req.body;
-  if (!hrEmail || !company || !scheduledTime)
-    return res.status(400).json({ success: false, message: "hrEmail, company, scheduledTime required." });
-  const jobId = Date.now().toString();
-  await addScheduledJob({
-    jobId, scheduledTime, status: "pending",
-    userId: req.userId || "default",          // ← save userId
-    emailData: { hrEmail, company, ...rest }
-  });
-  return res.json({ success: true, message: `Scheduled for ${new Date(scheduledTime).toLocaleString("en-IN")}`, jobId });
+  try {
+    const { hrEmail, company, scheduledTime, ...rest } = req.body;
+    if (!hrEmail || !company || !scheduledTime)
+      return res.status(400).json({ success: false, message: "hrEmail, company, scheduledTime required." });
+    const jobId = Date.now().toString();
+    await addScheduledJob({
+      jobId, scheduledTime, status: "pending",
+      userId: req.userId || "default",
+      emailData: { hrEmail, company, ...rest }
+    });
+    return res.json({ success: true, message: `Scheduled for ${new Date(scheduledTime).toLocaleString("en-IN")}`, jobId });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
 app.get("/api/scheduled-emails", requireAuth, async (req, res) => {
