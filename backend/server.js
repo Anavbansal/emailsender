@@ -60,6 +60,7 @@ const SentEmailLogSchema = new mongoose.Schema({
   threadId:   { type: String },           // Gmail thread ID (for reply threading)
   trackingId: { type: String },
   type:       { type: String, enum: ["application", "followup", "scheduled", "referral"], default: "application" },
+  templateType: { type: String, default: "" },  // tracks which template (crm/cti/fullstack/formal) was used
   hrEmail:    { type: String, required: true },
   hrName:     { type: String, default: "" },
   company:    { type: String, default: "" },
@@ -783,7 +784,7 @@ async function sendApplicationEmail({
   await saveSentEmail({
     messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
     type: "application", hrEmail, hrName: hrName||"", company: company||"", role: role||"",
-    subject: trackRecord.subject, sentAt: new Date(),
+    subject: trackRecord.subject, sentAt: new Date(), templateType: templateType || "fullstack",
   });
   return { info, trackRecord };
 }
@@ -1177,7 +1178,7 @@ function buildFormalHTML({ hrName, company, role, customNote, trackUrl = "", cus
 }
 
 // ─── HTML: Follow-up ──────────────────────────────────────────────────────────
-function buildFollowUpHTML({ hrName, company, role, originalDate, customNote, trackUrl = "", userCfg = null }) {
+function buildFollowUpHTML({ hrName, company, role, originalDate, customNote, trackUrl = "", userCfg = null, templateType = "fullstack" }) {
   const greeting  = hrName ? `Dear ${hrName},` : "Dear Hiring Manager,";
   const roleText  = role   ? ` for the <strong>${role}</strong> role` : "";
   const dateText  = originalDate ? ` on <strong>${originalDate}</strong>` : " recently";
@@ -1185,21 +1186,41 @@ function buildFollowUpHTML({ hrName, company, role, originalDate, customNote, tr
   const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
 
   const isPriyal  = userCfg?.profileName?.toLowerCase().includes("priyal");
+  const isMohit   = userCfg?.profileName?.toLowerCase().includes("mohit");
   const senderName  = userCfg?.profileName  || "Anav Bansal";
-  const senderTitle = isPriyal
-    ? "Finance Professional · Credit Manager · Digital Lending"
-    : "Senior Full Stack Developer · Node.js · Angular · AWS";
-  const bodyText = isPriyal
-    ? `I remain very enthusiastic and confident that my <strong>2+ years of experience</strong> in digital lending, credit risk assessment, and GenAI automation at Tata Capital would be a strong fit for your team.`
-    : `I remain very enthusiastic and confident that my <strong>4.8+ years of experience</strong> in full-stack development, Node.js, AWS serverless architectures, and enterprise CTI/Telephony integrations would be a strong fit for your team. I am currently in my notice period and available to join by late August 2026.`;
+
+  // Theme + title + resume note vary by templateType — matches the original application
+  const THEMES = {
+    crm:       { gradient: "#0d4f3c 0%,#0d9488 100%",  accent: "#0d9488", title: "Senior CRM & ServiceNow Expert · Follow-Up",      resumeName: "Anav_Bansal_CRMExpert.pdf" },
+    cti:       { gradient: "#3b0764 0%,#7c3aed 100%",  accent: "#7c3aed", title: "CTI/Telephony Integration Specialist · Follow-Up", resumeName: "Anav_Bansal_TelephonyExpert.pdf" },
+    formal:    { gradient: "#1e3a8a 0%,#1d4ed8 100%",  accent: "#1d4ed8", title: "Senior Software Developer · Follow-Up",           resumeName: "Anav_Bansal_Resume.pdf" },
+    fullstack: { gradient: "#064e3b 0%,#059669 100%",  accent: "#059669", title: "Senior Full Stack Developer · Follow-Up",         resumeName: "Anav_Bansal_Resume.pdf" },
+  };
+
+  let theme = THEMES[templateType] || THEMES.fullstack;
+  let senderTitle = theme.title;
+  let bodyText = `I remain very enthusiastic and confident that my <strong>4.8+ years of experience</strong> in full-stack development, Node.js, AWS serverless architectures, and enterprise CTI/Telephony integrations would be a strong fit for your team. I am currently in my notice period and available to join by late August 2026.`;
+  let resumeNote = theme.resumeName;
+
+  if (isMohit) {
+    theme = { gradient: "#1e3a5f 0%,#1d4ed8 100%", accent: "#1d4ed8" };
+    senderTitle = "Senior Software Developer · CRM & CTI Integration Specialist · Follow-Up";
+    bodyText = `I remain very enthusiastic about this opportunity and confident that my <strong>4.8+ years</strong> in CRM & CTI integrations across MS Dynamics 365, ServiceNow, Salesforce, and Cisco Finesse would be a strong fit for your team.`;
+    resumeNote = "Mohit_Singh_CRMExpert_v3.pdf";
+  } else if (isPriyal) {
+    theme = { gradient: "#7c2d12 0%,#ea580c 100%", accent: "#ea580c" };
+    senderTitle = "Finance Professional · Credit Manager · Digital Lending · Follow-Up";
+    bodyText = `I remain very enthusiastic and confident that my <strong>2+ years of experience</strong> in digital lending, credit risk assessment, and GenAI automation at Tata Capital would be a strong fit for your team.`;
+    resumeNote = "Priyal_Goyal_Resume.pdf";
+  }
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',sans-serif;">
 <div style="max-width:620px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-  <div style="background:linear-gradient(135deg,#064e3b 0%,#059669 100%);padding:36px 40px;">
-    <p style="margin:0 0 6px;color:#a7f3d0;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Follow-Up</p>
+  <div style="background:linear-gradient(135deg,${theme.gradient});padding:36px 40px;">
+    <p style="margin:0 0 6px;color:rgba(255,255,255,0.75);font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Follow-Up</p>
     <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">${senderName}</h1>
-    <p style="margin:6px 0 0;color:#a7f3d0;font-size:14px;">${senderTitle}</p>
+    <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">${senderTitle}</p>
   </div>
   <div style="padding:36px 40px;">
     <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
@@ -1209,12 +1230,12 @@ function buildFollowUpHTML({ hrName, company, role, originalDate, customNote, tr
     </p>
     ${noteBlock}
     <p style="color:#374151;line-height:1.8;margin:0 0 24px;">${bodyText}</p>
-    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:18px 24px;margin-bottom:24px;">
-      <p style="margin:0 0 10px;font-weight:600;color:#065f46;font-size:14px;">📎 Resume (Re-attached)</p>
+    <div style="background:${theme.accent}0d;border:1px solid ${theme.accent}33;border-radius:8px;padding:18px 24px;margin-bottom:24px;">
+      <p style="margin:0;font-weight:600;color:${theme.accent};font-size:14px;">📎 Resume (Re-attached): ${resumeNote}</p>
     </div>
     <p style="color:#374151;line-height:1.8;margin:0;">Thank you again for your time and consideration.</p>
   </div>
-  ${footer("#059669")}
+  ${footer(theme.accent)}
 </div>${pixel}</body></html>`;
 }
 
@@ -1355,39 +1376,27 @@ app.get("/api/track/:trackingId", (req, res) => {
   const ua = (req.headers["user-agent"] || "").toLowerCase();
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
 
-  // ── Filter out known bots & email clients that auto-prefetch ──────────────
-  // Gmail proxy: GoogleImageProxy, Google Image Proxy
-  // Outlook safe links, Apple Mail proxy, email scanners
+  // ── Bot detection — ONLY filter clearly automated scanners/crawlers ────────
+  // NOTE: Gmail/Outlook/Yahoo route ALL images (including real human opens)
+  // through their own proxy servers (e.g. ggpht.com, outlook proxy). This is
+  // NORMAL and does NOT mean it's a bot — it's how every modern webmail works.
+  // We only filter out things that are clearly non-human: security scanners,
+  // social media link-preview crawlers, and SEO bots — NOT email image proxies.
   const BOT_PATTERNS = [
-    "googleimageproxy",
-    "google image proxy",
-    "yahoo pipes",
-    "msnbot",
-    "bingbot",
-    "facebookexternalhit",
-    "twitterbot",
-    "linkedinbot",
-    "applebot",
-    "imapfilter",
-    "imapproxy",
-    "mailchimp",
-    "sendgrid",
-    "preview",
-    "prefetch",
-    "outlook-ios",
-    "microsoft office",
+    "msnbot", "bingbot", "facebookexternalhit", "twitterbot", "linkedinbot",
+    "applebot", "slackbot", "discordbot", "telegrambot", "whatsapp",
+    "googlebot", "ahrefsbot", "semrushbot", "mj12bot", "petalbot",
+    "barkrowler", "dataforseo", "curl/", "wget/", "python-requests",
+    "headlesschrome", "phantomjs", "puppeteer",
   ];
-
   const isBot = BOT_PATTERNS.some(p => ua.includes(p));
 
-  // Also filter by IP: Google proxy ranges start with 66.102 or 74.125 or 209.85
-  const isGoogleProxy = /^(66\.102\.|74\.125\.|209\.85\.|172\.217\.|142\.250\.)/.test(ip);
-
-  if (!isBot && !isGoogleProxy) {
-    // Real human open — mark it (only if not already opened)
+  // Track ALL non-bot pixel fetches (including Gmail/Outlook image proxies —
+  // these represent REAL opens since the proxy only fires when a human
+  // actually views/renders the email, not on delivery).
+  if (!isBot) {
     const record = markTrackingOpened(req.params.trackingId, ip, ua);
     if (record) {
-      // Also update MongoDB SentEmailLog
       if (mongoose.connection.readyState === 1) {
         SentEmailLog.updateOne(
           { trackingId: req.params.trackingId, opened: { $ne: true } },
@@ -1396,10 +1405,10 @@ app.get("/api/track/:trackingId", (req, res) => {
       }
       logToSheets([record.trackingId, record.hrEmail, record.company||"", record.role||"",
         new Date(record.sentAt).toISOString(), record.trackingId, "Opened", new Date(record.openedAt).toISOString()]);
-      console.log(`👁 Real Open: ${record.company} | ${record.hrEmail} | UA: ${ua.slice(0,60)}`);
+      console.log(`👁 Open tracked: ${record.company} | ${record.hrEmail} | UA: ${ua.slice(0,60)}`);
     }
   } else {
-    console.log(`🤖 Bot/Proxy ignored: ${ua.slice(0,80)} | IP: ${ip}`);
+    console.log(`🤖 Bot ignored: ${ua.slice(0,80)} | IP: ${ip}`);
   }
 
   const pixel = getPixelBuffer();
@@ -1815,10 +1824,26 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
 
   // If originalThreadId not supplied, look it up from DB so old entries also work
   let resolvedThreadId = originalThreadId || null;
-  if (!resolvedThreadId && originalMessageId && mongoose.connection.readyState === 1) {
-    const prev = await SentEmailLog.findOne({ messageId: originalMessageId }).lean();
-    if (prev && prev.threadId) resolvedThreadId = prev.threadId;
+  let resolvedTemplateType = req.body.templateType || null;
+  if (mongoose.connection.readyState === 1) {
+    if (!resolvedThreadId && originalMessageId) {
+      const prev = await SentEmailLog.findOne({ messageId: originalMessageId }).lean();
+      if (prev && prev.threadId) resolvedThreadId = prev.threadId;
+      if (!resolvedTemplateType && prev?.templateType) resolvedTemplateType = prev.templateType;
+    }
+    // If still no templateType, look up the original APPLICATION email sent to this hrEmail
+    if (!resolvedTemplateType) {
+      const escaped = hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const originalApp = await SentEmailLog.findOne({
+        hrEmail: { $regex: new RegExp("^" + escaped + "$", "i") },
+        userId: String(req.user._id),
+        type: "application",
+        templateType: { $exists: true, $ne: "" },
+      }).sort({ sentAt: -1 }).lean();
+      if (originalApp?.templateType) resolvedTemplateType = originalApp.templateType;
+    }
   }
+  const fuTplType = resolvedTemplateType || "fullstack";
 
   const fuUserName  = getUserConfig(req.user).profileName || "Anav Bansal";
   const baseSubject = originalSubject ||
@@ -1826,13 +1851,13 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
   const subject     = `Re: ${baseSubject}`;
   const trackRecord = createTrackingRecord({ hrEmail, hrName, company, role, subject, type: "followup" });
   const trackUrl    = `${BASE_URL}/api/track/${trackRecord.trackingId}`;
-  const html        = buildFollowUpHTML({ hrName, company, role, originalDate, customNote, trackUrl, userCfg: getUserConfig(req.user) });
+  // Use the SAME branded template as the original application (theme color + resume match)
+  const html        = buildFollowUpHTML({ hrName, company, role, originalDate, customNote, trackUrl, userCfg: getUserConfig(req.user), templateType: fuTplType });
 
   storeEmailHtml(trackRecord.trackingId, html);
 
   try {
     const fuCfg  = getUserConfig(req.user);
-    const fuTplType = req.body.templateType || "fullstack";
     const info = await sendViaGmailAPI({
       to: hrEmail, subject, html,
       inReplyTo:    originalMessageId || null,
@@ -1846,7 +1871,7 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
     await saveSentEmail({
       messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
       type: "followup", hrEmail, hrName: hrName||"", company: company||"", role: role||"",
-      subject, sentAt: new Date(), inReplyTo: originalMessageId || null,
+      subject, sentAt: new Date(), inReplyTo: originalMessageId || null, templateType: fuTplType,
     });
     // Mark followupSent, clear needsFollowUp and followupScheduled
     if (mongoose.connection.readyState === 1) {
