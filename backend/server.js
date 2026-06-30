@@ -706,19 +706,31 @@ async function sendApplicationEmail({
   const isPriyal = !!(userCfg?.profileName?.toLowerCase().includes("priyal") || user?.profileName?.toLowerCase().includes("priyal"));
   const isMohit  = !!(userCfg?.profileName?.toLowerCase().includes("mohit")  || user?.profileName?.toLowerCase().includes("mohit"));
 
-  // Check if user has a custom DB template
+  // Built-in hardcoded templates ALWAYS take priority for Anav/Mohit/Priyal —
+  // their professional templates are curated and should not be overridden by
+  // half-edited DB templates from the Settings page editor.
+  const isBuiltInUser = isMohit || isPriyal ||
+    (userCfg?.profileName?.toLowerCase().includes("anav") || user?.profileName?.toLowerCase().includes("anav"));
+
+  // Check if user has a custom DB template (only applies to NON built-in users)
   let dbTemplate = null;
-  if (mongoose.connection.readyState === 1 && user?._id) {
+  if (!isBuiltInUser && mongoose.connection.readyState === 1 && user?._id) {
     dbTemplate = await EmailTemplate.findOne({ userId: String(user._id), templateId: templateType }).lean();
   }
 
-  if (dbTemplate) {
-    // Use dynamic DB template
-    html = buildDynamicHTML({ ...tplOpts, dbTemplate, userName: userCfg?.profileName || "Anav Bansal" });
-  } else if (isMohit) {
+  if (isMohit) {
     html = buildMohitHTML({ ...tplOpts, templateType });
   } else if (isPriyal) {
     html = buildPriyalHTML({ ...tplOpts, templateType });
+  } else if (isBuiltInUser) {
+    // Anav — built-in templates
+    if (templateType === "cti")    html = buildCTIHTML(tplOpts);
+    else if (templateType === "formal")   html = buildFormalHTML(tplOpts);
+    else if (templateType === "crm")      html = buildCRMHTML(tplOpts);
+    else                                  html = buildFullstackHTML(tplOpts);
+  } else if (dbTemplate) {
+    // Custom users (newly added team members) — use their DB-configured template
+    html = buildDynamicHTML({ ...tplOpts, dbTemplate, userName: userCfg?.profileName || user?.displayName || "Candidate" });
   } else if (templateType === "cti")    html = buildCTIHTML(tplOpts);
   else if (templateType === "formal")   html = buildFormalHTML(tplOpts);
   else if (templateType === "crm")      html = buildCRMHTML(tplOpts);
@@ -3356,6 +3368,55 @@ app.post("/api/admin/init", async (req, res) => {
 
 
 // ─── POST /api/ai/write-email — AI powered email writer ──────────────────────
+
+// ─── POST /api/ai/chat — unified smart assistant (extracts fields itself) ────
+app.post("/api/ai/chat", requireAuth, async (req, res) => {
+  try {
+    const { tool, message, history = [] } = req.body;
+    if (!message?.trim()) return res.status(400).json({ success: false, message: "Message required" });
+
+    const userCfg = getUserConfig(req.user);
+    const profile = `Candidate: ${userCfg?.profileName || req.user.displayName}, ${userCfg?.totalExp || "4+"} years experience. Skills: ${userCfg?.keySkills || "Full Stack, CRM, CTI"}.`;
+
+    const SYSTEM_PROMPTS = {
+      email: `You are an expert career email writer helping a candidate apply for jobs. ${profile}
+Given the conversation, write a warm, professional job application email body (NOT subject line) addressed to the HR/recruiter mentioned. If HR name/company/role aren't given, write generically but ask user to clarify after. Keep it 3-5 sentences, no fluff, highlight relevant skills from the profile. Output ONLY the email body text, no preamble, no markdown.`,
+      followup: `You are writing a polite follow-up email for a job application that hasn't received a response. ${profile}
+Keep it short (3-4 sentences), professional, and re-affirm interest. Output ONLY the email body text.`,
+      screening: `You are replying to an HR's screening/initial message. ${profile}
+Write a professional, enthusiastic reply addressing their message directly. Output ONLY the reply text.`,
+      linkedin: `You are writing a LinkedIn connection/outreach message. ${profile}
+Keep it under 300 characters, personalized, professional. Output ONLY the message text.`,
+      referral: `You are writing a referral request message to a contact (for WhatsApp/Email/LinkedIn). ${profile}
+Be polite, concise, and clear about what you're asking. Output ONLY the message text.`,
+      interview: `You are an interview coach. ${profile}
+Based on the company/role mentioned, give: 1) 3-5 likely interview questions with brief hints on how to answer, 2) 2-3 tips specific to that round. Format with clear headers using **bold** markdown.`,
+      salary: `You are a salary negotiation coach. ${profile}
+Based on the offer/company mentioned, suggest a negotiation strategy, a reasonable counter-offer range, and a short script they could use. Format with **bold** headers.`,
+      analyzejd: `You are a job description analyzer. Extract and summarize: required skills, experience level, key responsibilities, and any red flags. Format with **bold** headers and bullet points.`,
+      ats: `You are an ATS resume matcher. ${profile}
+Given the job description, estimate a match score (0-100%), list matched skills, missing skills, and 2-3 tips to improve the application. Format with **bold** headers.`,
+    };
+
+    const sys = SYSTEM_PROMPTS[tool] || SYSTEM_PROMPTS.email;
+
+    const messages = [
+      { role: "system", content: sys },
+      ...history.slice(-6).map(h => ({ role: h.role === "user" ? "user" : "assistant", content: h.text })),
+      { role: "user", content: message },
+    ];
+
+    const model = ["interview", "salary", "ats", "analyzejd"].includes(tool)
+      ? "llama-3.3-70b-versatile" : "llama-3.1-8b-instant";
+
+    const reply = await groqChat(messages, 700, 0.8, model);
+
+    res.json({ success: true, reply: reply.trim() });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message || "AI request failed" });
+  }
+});
+
 app.post("/api/ai/write-email", requireAuth, async (req, res) => {
   try {
     const { hrName, company, role, templateType, tone = "professional", keyPoints = "" } = req.body;
