@@ -46,9 +46,11 @@ if (process.env.MONGODB_URI) {
 const ScheduledEmailSchema = new mongoose.Schema({
   jobId:         { type: String, required: true, unique: true },
   scheduledTime: { type: String, required: true },
-  status:        { type: String, default: "pending" },
+  status:        { type: String, default: "pending" },  // pending | held | failed
   emailData:     { type: mongoose.Schema.Types.Mixed },
   error:         { type: String },
+  reminderSent:  { type: Boolean, default: false },     // for "held" jobs — reminder email already sent
+  userId:        { type: String, default: "default" },
 }, { timestamps: true });
 
 const ScheduledEmail = mongoose.models.ScheduledEmail ||
@@ -114,6 +116,23 @@ const UserSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const User = mongoose.models.User || mongoose.model("User", UserSchema);
+
+// ─── Interview Model (dedicated — not mixed into SentEmailLog) ───────────────
+const InterviewSchema = new mongoose.Schema({
+  userId:         { type: String, required: true },
+  hrEmail:        { type: String, required: true },
+  hrName:         { type: String, default: "" },
+  company:        { type: String, default: "" },
+  role:           { type: String, default: "" },
+  stage:          { type: String, default: "Interview" },
+  interviewRound: { type: String, default: "" },
+  interviewDate:  { type: Date,   default: null },
+  priority:       { type: String, default: "Normal" },
+  callLog:        { type: String, default: "" },
+  calendarEventId:{ type: String, default: "" },  // Google Calendar event ID once synced
+}, { timestamps: true });
+InterviewSchema.index({ userId: 1, hrEmail: 1 }, { unique: true });
+const Interview = mongoose.model("Interview", InterviewSchema);
 
 // ─── EmailTemplate Model ─────────────────────────────────────────────────────
 const emailTemplateSchema = new mongoose.Schema({
@@ -206,6 +225,43 @@ function getUserGmailAuth(user) {
   if (accessToken)  creds.access_token  = accessToken;
   oauth2Client.setCredentials(creds);
   return oauth2Client;
+}
+
+// ── Sync interview to Google Calendar (best-effort, never blocks the response) ─
+async function syncInterviewToCalendar(user, interview) {
+  try {
+    if (!interview.interviewDate) return null;
+    const auth = getUserGmailAuth(user);
+    const calendar = google.calendar({ version: "v3", auth });
+
+    const start = new Date(interview.interviewDate);
+    const end   = new Date(start.getTime() + 60 * 60000); // 1 hour default
+    const summary = `Interview: ${interview.company || "Company"}${interview.interviewRound ? " — " + interview.interviewRound : ""}`;
+    const description = [
+      interview.role ? `Role: ${interview.role}` : "",
+      interview.hrEmail ? `Contact: ${interview.hrEmail}` : "",
+      interview.callLog ? `Notes: ${interview.callLog}` : "",
+    ].filter(Boolean).join("\n");
+
+    const event = {
+      summary, description,
+      start: { dateTime: start.toISOString(), timeZone: "Asia/Kolkata" },
+      end:   { dateTime: end.toISOString(),   timeZone: "Asia/Kolkata" },
+      reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 30 }, { method: "popup", minutes: 1440 }] },
+    };
+
+    if (interview.calendarEventId) {
+      // Update existing event
+      const res = await calendar.events.update({ calendarId: "primary", eventId: interview.calendarEventId, requestBody: event });
+      return res.data.id;
+    } else {
+      const res = await calendar.events.insert({ calendarId: "primary", requestBody: event });
+      return res.data.id;
+    }
+  } catch (e) {
+    console.warn("⚠️ Calendar sync failed (non-critical):", e.message);
+    return null;
+  }
 }
 
 // ── Get Sheets client for a specific user ────────────────────────────────────
@@ -388,6 +444,17 @@ async function updateJobStatus(jobId, status, error) {
   }
 }
 
+async function markJobReminderSent(jobId) {
+  if (mongoose.connection.readyState === 1) {
+    await ScheduledEmail.updateOne({ jobId }, { reminderSent: true });
+  } else {
+    const jobs = await loadScheduled();
+    const j = jobs.find(x => x.jobId === jobId);
+    if (j) j.reminderSent = true;
+    fs.writeFileSync(SCHEDULED_FILE, JSON.stringify(jobs, null, 2), "utf8");
+  }
+}
+
 async function deleteJob(jobId) {
   if (mongoose.connection.readyState === 1) {
     await ScheduledEmail.deleteOne({ jobId });
@@ -499,20 +566,99 @@ async function clearGmailAlert(username) {
   }
 }
 
+// ── Notify user by email when a scheduled job fires (success or failure) ──────
+// ── Notify user that a HELD job's time has arrived — they need to send manually ──
+async function notifyHeldReminder(jobUser, jobUserCfg, job) {
+  try {
+    if (!jobUser) return;
+    const auth = getUserGmailAuth(jobUser);
+    const gmail = google.gmail({ version: "v1", auth });
+    const senderEmail = jobUserCfg?.gmailUser || jobUser.gmailUser || "";
+    const subject = `🔔 Reminder — send application to ${job.emailData.company || job.emailData.hrEmail}`;
+    const encodedSubject = `=?UTF-8?B?${Buffer.from(subject).toString("base64")}?=`;
+    const html = `<div style="font-family:Segoe UI,sans-serif;max-width:480px;margin:20px auto;border:1px solid #fde047;border-radius:12px;overflow:hidden;">
+      <div style="background:#d97706;color:#fff;padding:16px 24px;font-weight:700;font-size:15px;">🔔 Time to send this application</div>
+      <div style="padding:20px 24px;color:#374151;font-size:14px;line-height:1.7;">
+        <p><strong>Company:</strong> ${job.emailData.company || "—"}</p>
+        <p><strong>To:</strong> ${job.emailData.hrEmail}</p>
+        <p><strong>Role:</strong> ${job.emailData.role || "—"}</p>
+        <p>You set this as a manual reminder — it has <strong>not</strong> been sent automatically. Open the app's Scheduled page and tap <strong>Send Now</strong> when you're ready.</p>
+      </div>
+    </div>`;
+    const raw = [
+      `From: "Job Mailer" <${senderEmail}>`, `To: ${senderEmail}`,
+      `Subject: ${encodedSubject}`, `MIME-Version: 1.0`,
+      `Content-Type: text/html; charset="UTF-8"`, ``, html,
+    ].join("\r\n");
+    await gmail.users.messages.send({ userId: "me", requestBody: { raw: Buffer.from(raw).toString("base64url") } });
+  } catch (e) {
+    console.warn("⚠️ Held reminder email failed (non-critical):", e.message);
+  }
+}
+
+async function notifyScheduledResult(jobUser, jobUserCfg, job, status, detail) {
+  try {
+    if (!jobUser) return;
+    const auth = getUserGmailAuth(jobUser);
+    const gmail = google.gmail({ version: "v1", auth });
+    const senderEmail = jobUserCfg?.gmailUser || jobUser.gmailUser || "";
+    const isSuccess = status === "sent";
+    const subject = isSuccess
+      ? `✅ Scheduled email sent — ${job.emailData.company || job.emailData.hrEmail}`
+      : `⚠️ Scheduled email failed — ${job.emailData.company || job.emailData.hrEmail}`;
+    const encodedSubject = `=?UTF-8?B?${Buffer.from(subject).toString("base64")}?=`;
+    const html = `<div style="font-family:Segoe UI,sans-serif;max-width:480px;margin:20px auto;border:1px solid ${isSuccess?"#bbf7d0":"#fecaca"};border-radius:12px;overflow:hidden;">
+      <div style="background:${isSuccess?"#059669":"#dc2626"};color:#fff;padding:16px 24px;font-weight:700;font-size:15px;">
+        ${isSuccess ? "✅ Scheduled Email Sent" : "⚠️ Scheduled Email Failed"}
+      </div>
+      <div style="padding:20px 24px;color:#374151;font-size:14px;line-height:1.7;">
+        <p><strong>Company:</strong> ${job.emailData.company || "—"}</p>
+        <p><strong>To:</strong> ${job.emailData.hrEmail}</p>
+        <p><strong>Scheduled for:</strong> ${new Date(job.scheduledTime).toLocaleString("en-IN")}</p>
+        ${isSuccess
+          ? `<p style="color:#059669;">Email was sent automatically as scheduled.</p>`
+          : `<p style="color:#dc2626;"><strong>Error:</strong> ${detail}</p><p>Go to the Scheduled page in the app to retry manually.</p>`
+        }
+      </div>
+    </div>`;
+    const raw = [
+      `From: "Job Mailer" <${senderEmail}>`, `To: ${senderEmail}`,
+      `Subject: ${encodedSubject}`, `MIME-Version: 1.0`,
+      `Content-Type: text/html; charset="UTF-8"`, ``, html,
+    ].join("\r\n");
+    await gmail.users.messages.send({ userId: "me", requestBody: { raw: Buffer.from(raw).toString("base64url") } });
+  } catch (e) {
+    console.warn("⚠️ Scheduled notification email failed (non-critical):", e.message);
+  }
+}
+
 cron.schedule("* * * * *", async () => {
   const jobs = await loadScheduled();
   const now  = Date.now();
   for (const job of jobs) {
+    if (job.status === "held" && parseScheduledTime(job.scheduledTime) <= now && !job.reminderSent) {
+      // Held jobs: just send a reminder email — don't auto-send
+      let holdUser = null, holdCfg = null;
+      try {
+        if (job.userId && job.userId !== "default" && mongoose.connection.readyState === 1) {
+          holdUser = await User.findById(job.userId).lean().catch(() => null);
+          if (holdUser) holdCfg = getUserConfig(holdUser);
+        }
+        if (!holdUser) holdUser = await User.findOne({ username: process.env.OWNER_USERNAME || "anav" }).lean().catch(() => null);
+        await notifyHeldReminder(holdUser, holdCfg, job);
+        await markJobReminderSent(job.jobId);
+      } catch(e) { console.warn("Held reminder failed:", e.message); }
+      continue;
+    }
     if (job.status === "pending" && parseScheduledTime(job.scheduledTime) <= now) {
+      let jobUser = null, jobUserCfg = null;
       try {
         // Fetch the user who scheduled this email — so we use THEIR Gmail
-        let jobUser = null, jobUserCfg = null;
         if (job.userId && job.userId !== "default" && mongoose.connection.readyState === 1) {
           jobUser = await User.findById(job.userId).lean().catch(() => null);
           if (jobUser) jobUserCfg = getUserConfig(jobUser);
         }
         if (!jobUser) {
-          // Fallback to owner (anav) if no user found
           jobUser = await User.findOne({ username: process.env.OWNER_USERNAME || "anav" }).lean().catch(() => null);
           if (jobUser) jobUserCfg = getUserConfig(jobUser);
         }
@@ -521,14 +667,8 @@ cron.schedule("* * * * *", async () => {
           ...job.emailData, user: jobUser, userCfg: jobUserCfg,
         });
         logToSheets([
-          info.id,
-          job.emailData.hrEmail,
-          job.emailData.company || "",
-          job.emailData.role    || "",
-          new Date().toISOString(),
-          trackRecord.trackingId,
-          "Scheduled-Sent",
-          "",
+          info.id, job.emailData.hrEmail, job.emailData.company || "", job.emailData.role || "",
+          new Date().toISOString(), trackRecord.trackingId, "Scheduled-Sent", "",
         ]);
         await saveSentEmail({
           messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
@@ -537,10 +677,15 @@ cron.schedule("* * * * *", async () => {
           subject: trackRecord.subject, sentAt: new Date(),
         });
         await deleteJob(job.jobId);
+
+        // Notify user it was sent
+        notifyScheduledResult(jobUser, jobUserCfg, job, "sent", null).catch(() => {});
       } catch (e) {
         await updateJobStatus(job.jobId, "failed", e.message);
         const failedUsername = jobUser?.username || "unknown";
         await recordGmailFailure(failedUsername, e.message);
+        // Notify user it failed — they can retry manually
+        notifyScheduledResult(jobUser, jobUserCfg, job, "failed", e.message).catch(() => {});
       }
     }
   }
@@ -1791,13 +1936,27 @@ app.post("/api/send-application", requireAuth, async (req, res) => {
     return res.status(400).json({ success: false, message: "hrEmail is required." });
 
   if (!force) {
-    const prev = getTrackingRecords()
-      .filter(r => r.hrEmail.toLowerCase() === hrEmail.toLowerCase())
-      .sort((a, b) => b.sentAt - a.sentAt)[0];
+    // MongoDB-backed duplicate check — persistent + per-user, survives restarts
+    let prev = null;
+    if (mongoose.connection.readyState === 1) {
+      const escaped = hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      prev = await SentEmailLog.findOne({
+        hrEmail: new RegExp("^" + escaped + "$", "i"),
+        userId: req.userId,
+        type: "application",
+      }).sort({ sentAt: -1 }).lean();
+    }
+    // Fallback to in-memory tracking (covers same-session sends before DB write completes)
+    if (!prev) {
+      const fallback = getTrackingRecords()
+        .filter(r => r.hrEmail.toLowerCase() === hrEmail.toLowerCase())
+        .sort((a, b) => b.sentAt - a.sentAt)[0];
+      if (fallback) prev = { sentAt: fallback.sentAt, company: fallback.company };
+    }
     if (prev) return res.status(200).json({
       isDuplicate: true, success: false,
       lastSentAt: prev.sentAt, lastCompany: prev.company,
-      message: `Already contacted on ${new Date(prev.sentAt).toLocaleString("en-IN")}`,
+      message: `Already applied to ${prev.company || company || "this contact"} on ${new Date(prev.sentAt).toLocaleString("en-IN")}`,
     });
   }
 
@@ -1894,16 +2053,47 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
 // ─── POST /api/schedule-email ─────────────────────────────────────────────────
 app.post("/api/schedule-email", requireAuth, async (req, res) => {
   try {
-    const { hrEmail, company, scheduledTime, ...rest } = req.body;
+    const { hrEmail, company, scheduledTime, autoSend = true, ...rest } = req.body;
     if (!hrEmail || !company || !scheduledTime)
       return res.status(400).json({ success: false, message: "hrEmail, company, scheduledTime required." });
     const jobId = Date.now().toString();
+    // autoSend=false → status "held": cron skips it, user gets reminder email and sends manually
     await addScheduledJob({
-      jobId, scheduledTime, status: "pending",
+      jobId, scheduledTime, status: autoSend ? "pending" : "held",
       userId: req.userId || "default",
       emailData: { hrEmail, company, ...rest }
     });
-    return res.json({ success: true, message: `Scheduled for ${new Date(scheduledTime).toLocaleString("en-IN")}`, jobId });
+    return res.json({
+      success: true,
+      message: autoSend
+        ? `Scheduled for ${new Date(scheduledTime).toLocaleString("en-IN")} — will send automatically`
+        : `Reminder set for ${new Date(scheduledTime).toLocaleString("en-IN")} — you'll get an email, send manually`,
+      jobId,
+    });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── POST /api/scheduled-emails/:jobId/send-now — manually trigger a held job ─
+app.post("/api/scheduled-emails/:jobId/send-now", requireAuth, async (req, res) => {
+  try {
+    const jobs = await loadScheduled();
+    const job = jobs.find(j => j.jobId === req.params.jobId);
+    if (!job) return res.status(404).json({ success: false, message: "Job not found" });
+    if (job.userId && job.userId !== req.userId && job.userId !== "default")
+      return res.status(403).json({ success: false, message: "Not your job" });
+
+    const userCfg = getUserConfig(req.user);
+    const { info, trackRecord } = await sendApplicationEmail({
+      ...job.emailData, user: req.user, userCfg,
+    });
+    await saveSentEmail({
+      messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
+      type: "scheduled", hrEmail: job.emailData.hrEmail, hrName: job.emailData.hrName||"",
+      company: job.emailData.company||"", role: job.emailData.role||"",
+      subject: trackRecord.subject, sentAt: new Date(),
+    });
+    await deleteJob(job.jobId);
+    res.json({ success: true, message: `Sent to ${job.emailData.hrEmail}!` });
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
@@ -3979,65 +4169,98 @@ app.get("/api/analytics/dashboard", requireAuth, async (req, res) => {
 // ─── GET /api/interviews ─────────────────────────────────────────────────────
 app.get("/api/interviews", requireAuth, async (req, res) => {
   try {
-    const isOwner = req.user.username === (process.env.OWNER_USERNAME || "anav");
-    const userFilter = isOwner
-      ? { $or: [{ userId: req.userId }, { userId: "default" }] }
-      : { userId: req.userId };
+    const interviews = await Interview.find({ userId: req.userId }).sort({ interviewDate: 1 }).lean();
+    res.json({ success: true, interviews });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
 
-    // Aggregate — group by hrEmail, pick the record with interviewDate set
-    const interviews = await SentEmailLog.aggregate([
-      { $match: {
-        ...( isOwner
-          ? { $or: [{ userId: req.userId }, { userId: "default" }] }
-          : { userId: req.userId }
-        ),
-        $or: [
-          { stage: { $in: ["Interview", "Interview Scheduled", "Offer", "Selected"] } },
-          { interviewDate: { $ne: null } },
-        ]
+// ─── POST /api/interviews — create/schedule a new interview ──────────────────
+app.post("/api/interviews", requireAuth, async (req, res) => {
+  try {
+    const { hrEmail, hrName, company, role, stage, interviewRound, interviewDate, priority, callLog } = req.body;
+    if (!hrEmail) return res.status(400).json({ success: false, message: "hrEmail required" });
+
+    let doc = await Interview.findOneAndUpdate(
+      { userId: req.userId, hrEmail: hrEmail.toLowerCase() },
+      { $set: {
+        hrEmail: hrEmail.toLowerCase(), hrName: hrName || "", company: company || "", role: role || "",
+        stage: stage || "Interview", interviewRound: interviewRound || "",
+        interviewDate: interviewDate ? new Date(interviewDate) : null,
+        priority: priority || "Normal", callLog: callLog || "",
       }},
-      { $sort: { interviewDate: 1, sentAt: -1 } },
-      // Group by hrEmail — prefer record with interviewDate
-      { $group: {
-        _id:           "$hrEmail",
-        docId:         { $first: "$_id" },
-        hrEmail:       { $first: "$hrEmail" },
-        hrName:        { $first: "$hrName" },
-        company:       { $first: "$company" },
-        role:          { $first: "$role" },
-        stage:         { $first: "$stage" },
-        interviewRound:{ $first: "$interviewRound" },
-        interviewDate: { $max:   "$interviewDate" },   // latest date wins
-        callLog:       { $first: "$callLog" },
-        priority:      { $first: "$priority" },
-        sentAt:        { $first: "$sentAt" },
-      }},
-      { $sort: { interviewDate: 1 } }
-    ]);
+      { upsert: true, new: true }
+    );
 
-    // Rename docId → _id for frontend
-    const result = interviews.map(i => ({ ...i, _id: i.docId || i._id }));
+    // Also reflect stage on the contact record so HR Contacts stays in sync
+    if (mongoose.connection.readyState === 1) {
+      const escaped = hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      await SentEmailLog.updateMany(
+        { hrEmail: new RegExp("^" + escaped + "$", "i"), userId: req.userId },
+        { $set: { stage: stage || "Interview" } }
+      ).catch(() => {});
+    }
 
-    res.json({ success: true, interviews: result });
+    // Sync to Google Calendar (best-effort)
+    const eventId = await syncInterviewToCalendar(req.user, doc);
+    if (eventId && eventId !== doc.calendarEventId) {
+      doc = await Interview.findByIdAndUpdate(doc._id, { $set: { calendarEventId: eventId } }, { new: true });
+    }
+
+    res.json({ success: true, interview: doc, calendarSynced: !!eventId });
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
 // ─── PATCH /api/interviews/:id ───────────────────────────────────────────────
 app.patch("/api/interviews/:id", requireAuth, async (req, res) => {
   try {
-    const { stage, interviewRound, interviewDate, callLog, notes, priority } = req.body;
+    const { stage, interviewRound, interviewDate, callLog, priority } = req.body;
     const updates = {};
-    if (stage         !== undefined) updates.stage         = stage;
+    if (stage          !== undefined) updates.stage          = stage;
     if (interviewRound !== undefined) updates.interviewRound = interviewRound;
-    if (interviewDate !== undefined) updates.interviewDate  = interviewDate ? new Date(interviewDate) : null;
-    if (callLog       !== undefined) updates.callLog        = callLog;
-    if (notes         !== undefined) updates.notes          = notes;
-    if (priority      !== undefined) updates.priority       = priority;
+    if (interviewDate  !== undefined) updates.interviewDate  = interviewDate ? new Date(interviewDate) : null;
+    if (callLog        !== undefined) updates.callLog        = callLog;
+    if (priority       !== undefined) updates.priority       = priority;
 
-    await SentEmailLog.updateMany(
-      { _id: req.params.id },
-      { $set: updates }
+    let doc = await Interview.findOneAndUpdate(
+      { _id: req.params.id, userId: req.userId },
+      { $set: updates },
+      { new: true }
     );
+    if (!doc) return res.status(404).json({ success: false, message: "Interview not found" });
+
+    // Keep contact stage in sync
+    if (stage && mongoose.connection.readyState === 1) {
+      const escaped = doc.hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      await SentEmailLog.updateMany(
+        { hrEmail: new RegExp("^" + escaped + "$", "i"), userId: req.userId },
+        { $set: { stage } }
+      ).catch(() => {});
+    }
+
+    // Re-sync calendar if date/round/stage changed
+    if (interviewDate !== undefined || stage !== undefined || interviewRound !== undefined) {
+      const eventId = await syncInterviewToCalendar(req.user, doc);
+      if (eventId && eventId !== doc.calendarEventId) {
+        doc = await Interview.findByIdAndUpdate(doc._id, { $set: { calendarEventId: eventId } }, { new: true });
+      }
+    }
+
+    res.json({ success: true, interview: doc });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── DELETE /api/interviews/:id ───────────────────────────────────────────────
+app.delete("/api/interviews/:id", requireAuth, async (req, res) => {
+  try {
+    const doc = await Interview.findOne({ _id: req.params.id, userId: req.userId });
+    if (doc?.calendarEventId) {
+      try {
+        const auth = getUserGmailAuth(req.user);
+        const calendar = google.calendar({ version: "v3", auth });
+        await calendar.events.delete({ calendarId: "primary", eventId: doc.calendarEventId });
+      } catch(e) { console.warn("Calendar delete failed (non-critical):", e.message); }
+    }
+    await Interview.deleteOne({ _id: req.params.id, userId: req.userId });
     res.json({ success: true });
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -4112,15 +4335,28 @@ app.patch("/api/pipeline/move", requireAuth, async (req, res) => {
 // ─── POST /api/bulk-send — send personalized emails to multiple HRs ──────────
 app.post("/api/bulk-send", requireAuth, async (req, res) => {
   try {
-    const { contacts, templateType = "fullstack", customNote = "", useAI = false } = req.body;
+    const { contacts, templateType = "fullstack", customNote = "", useAI = false, skipDuplicates = true } = req.body;
     if (!contacts?.length) return res.status(400).json({ success: false, message: "No contacts" });
     if (contacts.length > 100) return res.status(400).json({ success: false, message: "Max 100 at a time" });
 
-    const results = { sent: 0, failed: 0, errors: [] };
+    const results = { sent: 0, failed: 0, skipped: 0, errors: [], skippedContacts: [] };
     const userCfg = getUserConfig(req.user);
 
     for (const contact of contacts) {
       try {
+        // Skip if already applied (duplicate guard)
+        if (skipDuplicates && mongoose.connection.readyState === 1) {
+          const escaped = contact.hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const existing = await SentEmailLog.findOne({
+            hrEmail: new RegExp("^" + escaped + "$", "i"),
+            userId: req.userId, type: "application",
+          }).lean();
+          if (existing) {
+            results.skipped++;
+            results.skippedContacts.push({ email: contact.hrEmail, company: contact.company, lastSentAt: existing.sentAt });
+            continue;
+          }
+        }
         let personalNote = customNote;
 
         // AI personalization if enabled
@@ -4156,7 +4392,7 @@ Output: just the 2 sentences, nothing else`;
       }
     }
 
-    res.json({ success: true, message: `Sent ${results.sent}, Failed ${results.failed}`, ...results });
+    res.json({ success: true, message: `Sent ${results.sent}, Skipped ${results.skipped} (duplicates), Failed ${results.failed}`, ...results });
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
