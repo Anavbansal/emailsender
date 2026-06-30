@@ -127,6 +127,7 @@ router.get("/api/gmail/auth", (req, res) => {
         "https://www.googleapis.com/auth/gmail.send",
         "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/calendar.events",
       ],
     });
     res.redirect(url);
