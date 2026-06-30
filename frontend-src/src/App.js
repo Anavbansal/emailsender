@@ -2177,6 +2177,7 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed }) 
   const [templateId, setTemplateId] = useState("fullstack");
   const [mode, setMode]           = useState("now");
   const [scheduledTime, setSched] = useState(() => defaultScheduleTime());
+  const [autoSend, setAutoSend]   = useState(true);  // true = auto-send at time, false = email reminder only
   const [readReceipt, setRR]      = useState(false);
   const [loading, setLoading]     = useState(false);
   const [status, setStatus]       = useState(null);
@@ -2207,7 +2208,7 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed }) 
     try {
       if (mode === "schedule") {
         if (!scheduledTime) throw new Error("Choose a date and time.");
-        const res = await axios.post(`${API}/api/schedule-email`, { ...payload, scheduledTime });
+        const res = await axios.post(`${API}/api/schedule-email`, { ...payload, scheduledTime, autoSend });
         setStatus({ type: "success", text: res.data.message });
       } else {
         const res = await axios.post(`${API}/api/send-application`, payload);
@@ -2309,6 +2310,25 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed }) 
             <label className="form-label" htmlFor="ap-sched"><span className="lbadge">Required</span> Date &amp; Time</label>
             <input id="ap-sched" type="datetime-local" min={toLocalDT(Date.now() + 60000)}
               value={scheduledTime} onChange={e => setSched(e.target.value)} className="form-input" />
+            <div style={{ display:"flex", gap:8, marginTop:10 }}>
+              <button type="button" onClick={() => setAutoSend(true)}
+                style={{ flex:1, padding:"8px 12px", borderRadius:8, fontSize:12, fontWeight:600, cursor:"pointer",
+                  border: autoSend ? "1.5px solid #7c3aed" : "1px solid var(--border)",
+                  background: autoSend ? "#7c3aed18" : "var(--surface)", color: autoSend ? "#7c3aed" : "var(--text-muted)" }}>
+                ⚡ Auto-send at this time
+              </button>
+              <button type="button" onClick={() => setAutoSend(false)}
+                style={{ flex:1, padding:"8px 12px", borderRadius:8, fontSize:12, fontWeight:600, cursor:"pointer",
+                  border: !autoSend ? "1.5px solid #d97706" : "1px solid var(--border)",
+                  background: !autoSend ? "#d9770618" : "var(--surface)", color: !autoSend ? "#d97706" : "var(--text-muted)" }}>
+                ✋ Just remind me, I'll send manually
+              </button>
+            </div>
+            {!autoSend && (
+              <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:6 }}>
+                You'll get an email reminder at the scheduled time — go to Scheduled → Reminders tab and tap Send Now.
+              </p>
+            )}
           </div>
         )}
         <div className="form-row">
@@ -3090,19 +3110,18 @@ function InterviewScheduleModal({ contact, onClose, onSaved, addToast }) {
     if (!form.interviewDate) { addToast && addToast("❌ Please select interview date & time", "error"); return; }
     setSaving(true);
     try {
-      // Update contact stage + interview details
-      await axios.patch(`${API}/api/contact/update`, {
-        hrEmail:       contact.hrEmail,
-        hrName:        contact.hrName  || "",
-        company:       contact.company || "",
-        role:          contact.role    || "",
-        stage:         "Interview",
+      const r = await axios.post(`${API}/api/interviews`, {
+        hrEmail:        contact.hrEmail,
+        hrName:         contact.hrName  || "",
+        company:        contact.company || "",
+        role:           contact.role    || "",
+        stage:          "Interview",
         interviewRound: form.interviewRound,
         interviewDate:  form.interviewDate,
         priority:       form.priority,
         callLog:        form.callLog,
       });
-      addToast && addToast("✅ Interview scheduled! Added to Interview Tracker.");
+      addToast && addToast(r.data.calendarSynced ? "✅ Interview scheduled + added to Google Calendar!" : "✅ Interview scheduled! (Calendar sync skipped — reconnect Gmail to enable)");
       onSaved && onSaved();
       onClose();
     } catch(e) {
@@ -3397,120 +3416,6 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
 }
 
 // ─── Messages Page (LinkedIn + WhatsApp generator, standalone) ───────────────
-function MessagesPage({ contacts }) {
-  const [selectedContact, setSelectedContact] = useState(null);
-  const [manualName,    setManualName]    = useState("");
-  const [manualCompany, setManualCompany] = useState("");
-  const [manualRole,    setManualRole]    = useState("");
-  const [tab, setTab]   = useState("linkedin");
-  const [copied, setCopied] = useState(false);
-
-  const name    = selectedContact ? (selectedContact.hrName || "Hiring Manager") : (manualName || "Hiring Manager");
-  const company = selectedContact ? (selectedContact.company || "your company")   : (manualCompany || "your company");
-  const role    = selectedContact ? (selectedContact.role    || "the open position") : (manualRole || "the open position");
-
-  const buildMsg = useCallback((t) => {
-    const _u   = getUser();
-    const _n   = _u?.displayName || "Anav Bansal";
-    const _p   = _u?.username === "anav" ? "+91 7827855635" : "+91 7665941798";
-    const _e   = _u?.username === "anav" ? "anavbansal06@gmail.com" : "priyalgoyal1702@gmail.com";
-    const _l   = _u?.username === "anav" ? "linkedin.com/in/anavbansal-51b191162" : "linkedin.com/in/priyal--goyal/";
-    const _exp = _u?.username === "anav" ? "4.7+ years as a Full Stack Developer" : "2+ years in Digital Lending & Credit Risk";
-    if (t === "linkedin")
-      return `Hi ${name},\n\nI recently applied for the ${role} position at ${company} and wanted to connect personally.\n\nI'm ${_n} with ${_exp}. I'd love to discuss how I can contribute to ${company}!\n\nBest regards,\n${_n}\n📞 ${_p}\n📧 ${_e}`;
-    return `Hello ${name},\n\nI'm ${_n} with ${_exp}. I've applied for the *${role}* role at *${company}* and wanted to follow up personally.\n\nI'd love to discuss the opportunity at your convenience!\n\n📞 ${_p}\n📧 ${_e}\n🔗 ${_l}`;
-  }, [name, company, role]);
-
-  const [editedMsg, setEditedMsg] = useState(() => buildMsg("linkedin"));
-  useEffect(() => setEditedMsg(buildMsg(tab)), [tab, buildMsg]);
-
-  const copy = () => {
-    navigator.clipboard.writeText(editedMsg).then(() => {
-      setCopied(true); setTimeout(() => setCopied(false), 2000);
-    }).catch(()=>{});
-  };
-
-  return (
-    <div className="page">
-      {/* Contact picker */}
-      <div className="msg-page-picker">
-        <div className="form-group" style={{ flex: 1 }}>
-          <label className="form-label">Pick from HR Contacts</label>
-          <select className="form-input form-select"
-            value={selectedContact ? selectedContact.hrEmail : ""}
-            onChange={e => {
-              const c = contacts.find(x => x.hrEmail === e.target.value) || null;
-              setSelectedContact(c);
-            }}>
-            <option value="">— Enter manually below —</option>
-            {contacts.map((c, i) => (
-              <option key={i} value={c.hrEmail}>{c.company} · {c.hrEmail}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {!selectedContact && (
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">HR Name</label>
-            <input className="form-input" placeholder="Priya Sharma" value={manualName} onChange={e => setManualName(e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Company</label>
-            <input className="form-input" placeholder="Google" value={manualCompany} onChange={e => setManualCompany(e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Role</label>
-            <input className="form-input" placeholder="Senior Full Stack Developer" value={manualRole} onChange={e => setManualRole(e.target.value)} />
-          </div>
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div className="msg-tabs">
-        <button className={`msg-tab ${tab === "linkedin" ? "msg-tab-active" : ""}`} onClick={() => setTab("linkedin")}>🔗 LinkedIn DM</button>
-        <button className={`msg-tab ${tab === "whatsapp" ? "msg-tab-active whatsapp-active" : ""}`} onClick={() => setTab("whatsapp")}>💚 WhatsApp</button>
-      </div>
-
-      <div className="msg-char-count">{editedMsg.length} characters</div>
-      <textarea className="msg-textarea" value={editedMsg} onChange={e => setEditedMsg(e.target.value)} rows={14} spellCheck={false} />
-
-      <div className="msg-actions">
-        <button className={`btn-primary btn-sm ${copied ? "btn-copied" : ""}`} onClick={copy}>
-          {copied ? "✓ Copied!" : "📋 Copy Message"}
-        </button>
-        {tab === "whatsapp" ? (
-          <button className="btn-whatsapp" onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(editedMsg)}`, "_blank")}>
-            💚 Open in WhatsApp
-          </button>
-        ) : (
-          <button className="btn-linkedin" onClick={() => window.open(`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(`${name} ${company}`)}`, "_blank")}>
-            🔗 Find on LinkedIn
-          </button>
-        )}
-        <button className="btn-ghost btn-sm" onClick={() => setEditedMsg(buildMsg(tab))}>↺ Reset</button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Find Jobs Page (with advanced filters) ──────────────────────────────────
-const DATE_OPTIONS = [
-  { label: "Any time", value: "0" },
-  { label: "Today",    value: "1" },
-  { label: "3 Days",   value: "3" },
-  { label: "1 Week",   value: "7" },
-  { label: "1 Month",  value: "30" },
-];
-const JOB_TYPE_OPTIONS = [
-  { label: "Any type",   value: "any" },
-  { label: "Full-time",  value: "Full_Time" },
-  { label: "Part-time",  value: "Part_Time" },
-  { label: "Contract",   value: "Contract" },
-  { label: "Internship", value: "Internship" },
-];
-
 function FindJobsPage({ onFillApply }) {
   const [keywords, setKw]         = useState("Node.js Developer");
   const [location, setLoc]        = useState("India");
@@ -4616,6 +4521,7 @@ function ScheduledPage({ addToast }) {
   const [tab,       setTab]       = useState("pending");
   const [retrying,  setRetrying]  = useState(false);
   const [retryingId, setRetryingId] = useState(null);
+  const [sendingId,  setSendingId]  = useState(null);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
@@ -4624,7 +4530,7 @@ function ScheduledPage({ addToast }) {
 
   const countdown = (scheduledTime) => {
     const diff = new Date(scheduledTime + "+05:30").getTime() - now;
-    if (diff <= 0) return "🔄 Sending soon...";
+    if (diff <= 0) return "🔄 Due now";
     const h = Math.floor(diff / 3600000);
     const m = Math.floor((diff % 3600000) / 60000);
     if (h > 24) return `📅 ${Math.floor(h/24)}d ${h%24}h`;
@@ -4632,7 +4538,7 @@ function ScheduledPage({ addToast }) {
     return `⏰ ${m}m`;
   };
 
-  const fetchJobs = () => axios.get(`${API}/api/scheduled-emails`).then(r => setJobs(r.data.jobs || [])).catch(()=>{}).catch(() => {});
+  const fetchJobs = () => axios.get(`${API}/api/scheduled-emails`).then(r => setJobs(r.data.jobs || [])).catch(() => {});
   useEffect(() => { fetchJobs(); }, []);
 
   const remove = async id => {
@@ -4656,6 +4562,19 @@ function ScheduledPage({ addToast }) {
     } finally { setRetryingId(null); }
   };
 
+  const sendNow = async id => {
+    setSendingId(id);
+    try {
+      const r = await axios.post(`${API}/api/scheduled-emails/${id}/send-now`);
+      if (r.data.success) {
+        addToast && addToast("✅ " + r.data.message);
+        setJobs(p => p.filter(j => j.jobId !== id));
+      }
+    } catch(e) {
+      addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error");
+    } finally { setSendingId(null); }
+  };
+
   const retryAllFailed = async () => {
     setRetrying(true);
     try {
@@ -4670,18 +4589,20 @@ function ScheduledPage({ addToast }) {
   };
 
   const pending = jobs.filter(j => j.status === "pending");
+  const held    = jobs.filter(j => j.status === "held");
   const failed  = jobs.filter(j => j.status === "failed");
 
   const TABS = [
-    { id:"pending", label:`🗓 Pending (${pending.length})` },
+    { id:"pending", label:`🗓 Auto-send (${pending.length})` },
+    { id:"held",    label:`✋ Reminders (${held.length})` },
     { id:"failed",  label:`⚠️ Failed (${failed.length})` },
   ];
 
-  const list = tab === "pending" ? pending : failed;
+  const list = tab === "pending" ? pending : tab === "held" ? held : failed;
 
   return (
     <div className="page">
-      <div style={{ display:"flex", gap:6, marginBottom:16 }}>
+      <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap" }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             style={{
@@ -4704,32 +4625,38 @@ function ScheduledPage({ addToast }) {
         )}
       </div>
 
+      {tab === "held" && held.length > 0 && (
+        <div style={{ background:"#fef9c3", border:"1px solid #fde047", borderRadius:10, padding:"10px 14px", marginBottom:12, fontSize:12, color:"#713f12" }}>
+          ✋ These are reminders only — you'll get an email when they're due, and you send them manually using <strong>Send Now</strong>.
+        </div>
+      )}
+
       {list.length === 0
         ? <div className="empty-state">
-            <span className="empty-icon">{tab==="pending"?"🗓":"✅"}</span>
-            <p>{tab==="pending" ? "No scheduled emails." : "No failed emails — all good!"}</p>
+            <span className="empty-icon">{tab==="pending"?"🗓":tab==="held"?"✋":"✅"}</span>
+            <p>{tab==="pending" ? "No emails set to auto-send." : tab==="held" ? "No manual reminders set." : "No failed emails — all good!"}</p>
           </div>
         : <div className="contacts-list">
             {list.map(job => (
               <div key={job.jobId} className="contact-card">
-                <div className="contact-avatar" style={{ background: tab==="failed" ? "#dc2626" : "#7c3aed" }}>
-                  {tab==="failed" ? "⚠️" : "🗓"}
+                <div className="contact-avatar" style={{ background: tab==="failed" ? "#dc2626" : tab==="held" ? "#d97706" : "#7c3aed" }}>
+                  {tab==="failed" ? "⚠️" : tab==="held" ? "✋" : "🗓"}
                 </div>
                 <div className="contact-body">
                   <div className="contact-top">
                     <span className="contact-company">{job.emailData.company}</span>
-                    <span className={`badge ${tab==="failed"?"badge-failed":"badge-scheduled"}`} style={tab==="failed"?{background:"#fee2e2",color:"#991b1b"}:{}}>
-                      {tab==="failed" ? "Failed" : "Scheduled"}
+                    <span className={`badge ${tab==="failed"?"badge-failed":"badge-scheduled"}`} style={tab==="failed"?{background:"#fee2e2",color:"#991b1b"}: tab==="held"?{background:"#fef3c7",color:"#92400e"}:{}}>
+                      {tab==="failed" ? "Failed" : tab==="held" ? "Manual" : "Auto-send"}
                     </span>
                   </div>
                   <p className="contact-email">{job.emailData.hrEmail}</p>
                   <div className="contact-meta">
-                    {tab==="pending" ? (<>
-                      <span>📅 {new Date(job.scheduledTime + "+05:30").toLocaleString("en-IN", { dateStyle:"medium", timeStyle:"short" })}</span>
-                      <span style={{ color:"var(--blue)", fontWeight:600 }}>{countdown(job.scheduledTime)}</span>
-                    </>) : (
+                    {tab==="failed" ? (
                       <span style={{ color:"#dc2626", fontSize:12 }}>❌ {job.error || "Unknown error"}</span>
-                    )}
+                    ) : (<>
+                      <span>📅 {new Date(job.scheduledTime + "+05:30").toLocaleString("en-IN", { dateStyle:"medium", timeStyle:"short" })}</span>
+                      <span style={{ color: tab==="held" ? "#d97706" : "var(--blue)", fontWeight:600 }}>{countdown(job.scheduledTime)}</span>
+                    </>)}
                   </div>
                 </div>
                 <div className="contact-actions">
@@ -4737,6 +4664,12 @@ function ScheduledPage({ addToast }) {
                     <button className="btn-ghost btn-sm" style={{ color:"#059669", marginRight:6 }}
                       onClick={() => retryOne(job.jobId)} disabled={retryingId===job.jobId}>
                       {retryingId===job.jobId ? "Sending..." : "🔄 Retry"}
+                    </button>
+                  )}
+                  {tab==="held" && (
+                    <button className="btn-primary btn-sm" style={{ marginRight:6, background:"linear-gradient(135deg,#d97706,#f59e0b)" }}
+                      onClick={() => sendNow(job.jobId)} disabled={sendingId===job.jobId}>
+                      {sendingId===job.jobId ? "Sending..." : "📤 Send Now"}
                     </button>
                   )}
                   <button className="btn-ghost btn-sm" onClick={() => remove(job.jobId)}>
@@ -4751,6 +4684,7 @@ function ScheduledPage({ addToast }) {
   );
 }
 
+// ═══════════════════════════════ MAIN APP
 // ═══════════════════════════════ MAIN APP ════════════════════════════════════
 
 // ─── Login / Register Page ────────────────────────────────────────────────────
@@ -4991,7 +4925,6 @@ function App() {
       ]},
       { label: "Pipeline", items: [
         { id: "contacts",    icon: "👥", label: "HR Contacts", badge: reminderCount || null },
-        { id: "pipeline",    icon: "🧭", label: "Pipeline" },
         { id: "interviews",  icon: "🎤", label: "Interviews" },
       ]},
       { label: "Network", items: [
@@ -5001,7 +4934,6 @@ function App() {
       ]},
       { label: "Communication", items: [
         { id: "inbox",       icon: "📥", label: "Inbox",     badge: replyCount || null },
-        { id: "messages",    icon: "💬", label: "Messages" },
         { id: "ai",          icon: "✨", label: "AI Assistant" },
       ]},
       { label: "Account", items: [
@@ -5205,14 +5137,14 @@ function App() {
           {page === "send"      && <SendApplicationPage onContactsRefresh={fetchContacts} prefill={prefillSend} onPrefillConsumed={() => setPrefillSend(null)} addToast={addToast} />}
           {page === "linkedin"  && <LinkedInConnectionsPage onFillApply={goToSendPrefilled} addToast={addToast} />}
           {page === "inbox"     && <InboxPage contacts={contacts} onFollowUp={contact => setModal({ type: "followUp", contact })} addToast={addToast} />}
-          {page === "messages"  && <MessagesPage contacts={contacts} />}
+
           {page === "prospect"  && <ProspectPage onFillApply={goToSendPrefilled} addToast={addToast} />}
           {page === "jobs"      && <FindJobsPage onFillApply={goToSendPrefilled} />}
           {page === "scheduled" && <ScheduledPage onRefresh={fetchScheduled} addToast={addToast} />}
           {page === "settings"   && <SettingsPage addToast={addToast} />}
           {page === "ai"         && <AIAssistantPage addToast={addToast} />}
           {page === "analytics"  && <AnalyticsPage />}
-          {page === "pipeline"   && <PipelinePage addToast={addToast} onNavigate={navigate} />}
+
           {page === "interviews" && <InterviewsPage addToast={addToast} />}
           {page === "bulk"       && <BulkSendPage addToast={addToast} contacts={contacts} />}
           {page === "admin"      && authUser?.isAdmin && <AdminPage addToast={addToast} />}
@@ -6638,182 +6570,6 @@ function AnalyticsPage() {
 }
 
 // ─── Pipeline / Kanban Board ──────────────────────────────────────────────────
-function PipelinePage({ addToast }) {
-  const [pipeline,  setPipeline]  = useState({});
-  const [stages,    setStages]    = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [moving,    setMoving]    = useState(null);
-  const [pipePage,  setPipePage]  = useState({});  // page per stage
-  const PER_COL = 10;
-
-  const STAGE_COLORS = {
-    Applied:"#2563eb", Opened:"#7c3aed", Replied:"#059669",
-    Interview:"#d97706", Offer:"#16a34a", Rejected:"#dc2626"
-  };
-  const STAGE_ICONS = {
-    Applied:"📤", Opened:"👁", Replied:"↩",
-    Interview:"🗓", Offer:"🎉", Rejected:"❌"
-  };
-
-  const fetchPipeline = () => {
-    setLoading(true);
-    axios.get(`${API}/api/pipeline`)
-      .then(r => { if (r.data.success) { setPipeline(r.data.pipeline); setStages(r.data.stages); } })
-      .catch(e => console.error("Pipeline:", e.message))
-      .finally(() => setLoading(false));
-  };
-  useEffect(() => { fetchPipeline(); }, []);
-
-  const moveCard = async (hrEmail, newStage) => {
-    setMoving(hrEmail);
-    try {
-      await axios.patch(`${API}/api/pipeline/move`, { hrEmail, stage: newStage });
-      addToast && addToast(`✅ Moved to ${newStage}`);
-      fetchPipeline();
-    } catch(e) {
-      addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error");
-    } finally { setMoving(null); }
-  };
-
-  if (loading) return (
-    <div className="page">
-      <div style={{ textAlign:"center", padding:60, color:"var(--text-muted)" }}>
-        <div style={{ fontSize:32, marginBottom:12 }}>🎯</div>
-        Loading pipeline…
-      </div>
-    </div>
-  );
-
-  const total = stages.reduce((s,st) => s+(pipeline[st]||[]).length, 0);
-
-  return (
-    <div className="page" style={{ paddingBottom:20 }}>
-      {/* Summary pills */}
-      <div style={{ display:"flex", gap:8, marginBottom:18, flexWrap:"wrap", alignItems:"center" }}>
-        {stages.map(stage => {
-          const count = (pipeline[stage]||[]).length;
-          const color = STAGE_COLORS[stage] || "#6b7280";
-          return (
-            <div key={stage} style={{
-              display:"flex", alignItems:"center", gap:6,
-              background:`${color}14`, border:`1.5px solid ${color}33`,
-              borderRadius:99, padding:"4px 14px", fontSize:12, fontWeight:600, color
-            }}>
-              {STAGE_ICONS[stage]} {stage}
-              <span style={{ background:`${color}28`, borderRadius:99, padding:"1px 7px", fontSize:11 }}>{count}</span>
-            </div>
-          );
-        })}
-        <span style={{ marginLeft:"auto", fontSize:12, color:"var(--text-muted)" }}>{total} contacts</span>
-      </div>
-
-      {/* Kanban board - horizontal scroll */}
-      <div style={{ overflowX:"auto", paddingBottom:8 }}>
-        <div style={{ display:"flex", gap:14, minWidth: stages.length * 235 }}>
-          {stages.map(stage => {
-            const allCards = pipeline[stage] || [];
-            const color    = STAGE_COLORS[stage] || "#6b7280";
-            const pg       = pipePage[stage] || 1;
-            const totalPg  = Math.ceil(allCards.length / PER_COL);
-            const cards    = allCards.slice((pg-1)*PER_COL, pg*PER_COL);
-
-            return (
-              <div key={stage} style={{ width:225, flexShrink:0 }}>
-                {/* Column header */}
-                <div style={{
-                  display:"flex", alignItems:"center", justifyContent:"space-between",
-                  padding:"8px 12px", borderRadius:8, marginBottom:10,
-                  background:`${color}12`, border:`1.5px solid ${color}30`
-                }}>
-                  <span style={{ fontWeight:700, fontSize:12, color }}>
-                    {STAGE_ICONS[stage]} {stage}
-                  </span>
-                  <span style={{ background:`${color}25`, color, fontSize:11, fontWeight:800, padding:"1px 8px", borderRadius:99 }}>
-                    {allCards.length}
-                  </span>
-                </div>
-
-                {/* Cards */}
-                <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
-                  {cards.map(card => (
-                    <div key={card.hrEmail} style={{
-                      background:"var(--surface)", borderRadius:10, padding:"11px 13px",
-                      border:`1px solid var(--border)`, borderLeft:`3px solid ${color}`,
-                      opacity: moving===card.hrEmail ? 0.5 : 1, transition:"all 0.15s"
-                    }}>
-                      {/* Company */}
-                      <div style={{ fontWeight:700, fontSize:12, color:"var(--text-700,#111)", marginBottom:2 }}>
-                        {card.company || "Unknown"}
-                      </div>
-                      {/* Role */}
-                      {card.role && (
-                        <div style={{ fontSize:10, color:"var(--blue)", fontWeight:500, marginBottom:3 }}>
-                          {card.role}
-                        </div>
-                      )}
-                      {/* Email */}
-                      <div style={{ fontSize:10, color:"var(--text-muted)", marginBottom:6 }}>
-                        {(card.hrEmail||"").length > 26 ? card.hrEmail.slice(0,26)+"…" : card.hrEmail}
-                      </div>
-                      {/* Interview date */}
-                      {card.interviewDate && (
-                        <div style={{ fontSize:10, color:"#d97706", fontWeight:600, marginBottom:6, display:"flex", alignItems:"center", gap:4 }}>
-                          📅 {new Date(card.interviewDate).toLocaleString("en-IN",{dateStyle:"short",timeStyle:"short"})}
-                        </div>
-                      )}
-                      {/* Days ago */}
-                      {card.sentAt && (
-                        <div style={{ fontSize:10, color:"var(--text-muted)", marginBottom:8 }}>
-                          🕒 {Math.floor((Date.now()-new Date(card.sentAt))/86400000)}d ago
-                        </div>
-                      )}
-                      {/* Move dropdown */}
-                      <div style={{ position:"relative" }}>
-                        <select
-                          value={stage}
-                          onChange={e => moveCard(card.hrEmail, e.target.value)}
-                          style={{
-                            appearance:"none", WebkitAppearance:"none",
-                            width:"100%", fontSize:11, padding:"5px 24px 5px 8px",
-                            borderRadius:6, border:`1.5px solid ${color}55`,
-                            background:`${color}0d`, color, fontWeight:600,
-                            cursor:"pointer", outline:"none"
-                          }}>
-                          {stages.map(s => (
-                            <option key={s} value={s}>{STAGE_ICONS[s]} {s}</option>
-                          ))}
-                        </select>
-                        <span style={{ position:"absolute", right:7, top:"50%", transform:"translateY(-50%)", pointerEvents:"none", fontSize:8, color }}>▼</span>
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Column pagination */}
-                  {totalPg > 1 && (
-                    <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:4, paddingTop:4 }}>
-                      <button onClick={()=>setPipePage(p=>({...p,[stage]:Math.max(1,pg-1)}))} disabled={pg===1}
-                        style={{ width:24, height:24, borderRadius:6, border:"1px solid var(--border)", background:"var(--surface)", color:"var(--text-muted)", cursor:pg===1?"not-allowed":"pointer", fontSize:11 }}>‹</button>
-                      <span style={{ fontSize:10, color:"var(--text-muted)" }}>{pg}/{totalPg}</span>
-                      <button onClick={()=>setPipePage(p=>({...p,[stage]:Math.min(totalPg,pg+1)}))} disabled={pg===totalPg}
-                        style={{ width:24, height:24, borderRadius:6, border:"1px solid var(--border)", background:"var(--surface)", color:"var(--text-muted)", cursor:pg===totalPg?"not-allowed":"pointer", fontSize:11 }}>›</button>
-                    </div>
-                  )}
-
-                  {allCards.length === 0 && (
-                    <div style={{ border:`1.5px dashed ${color}33`, borderRadius:10, padding:"22px 10px", textAlign:"center", fontSize:11, color:"var(--text-muted)" }}>
-                      No contacts
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function InterviewsPage({ addToast }) {
   const [interviews, setInterviews] = useState([]);
   const [loading,    setLoading]    = useState(true);
@@ -6837,11 +6593,20 @@ function InterviewsPage({ addToast }) {
 
   const save = async () => {
     try {
-      await axios.patch(`${API}/api/interviews/${editing}`, form);
-      addToast && addToast("✅ Saved!");
+      const r = await axios.patch(`${API}/api/interviews/${editing}`, form);
+      addToast && addToast(r.data.interview?.calendarEventId ? "✅ Saved + Calendar updated!" : "✅ Saved!");
       setEditing(null); setForm({});
       fetch2();
-    } catch(e) { addToast && addToast("❌ Failed", "error"); }
+    } catch(e) { addToast && addToast("❌ Failed: " + (e.response?.data?.message || e.message), "error"); }
+  };
+
+  const deleteInterview = async (id, company) => {
+    if (!window.confirm(`Delete interview for ${company}? This also removes it from Google Calendar.`)) return;
+    try {
+      await axios.delete(`${API}/api/interviews/${id}`);
+      addToast && addToast("🗑 Interview deleted");
+      fetch2();
+    } catch(e) { addToast && addToast("❌ Failed to delete", "error"); }
   };
 
   const now = new Date();
@@ -6899,8 +6664,8 @@ function InterviewsPage({ addToast }) {
           <span className="empty-icon">🗓</span>
           <p style={{ marginBottom:8, fontWeight:600 }}>No interviews scheduled yet</p>
           <p style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.8 }}>
-            Go to <strong>Inbox</strong> → click <strong>🗓 Interview</strong> on any message<br/>
-            or go to <strong>Pipeline</strong> → move a contact to Interview stage
+            Go to <strong>Inbox</strong> → click <strong>🗓 Interview</strong> on any message to schedule one.<br/>
+            Scheduled interviews sync automatically to your Google Calendar.
           </p>
         </div>
       ) : (<>
@@ -7023,12 +6788,24 @@ function InterviewsPage({ addToast }) {
                     )}
                   </div>
 
-                  {/* Edit button */}
-                  <button className="btn-ghost btn-sm"
-                    style={{ flexShrink:0 }}
-                    onClick={()=>{setEditing(String(iv._id)); setForm({});}}>
-                    ✏️ Edit
-                  </button>
+                  {/* Edit + Delete */}
+                  <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end", flexShrink:0 }}>
+                    {iv.calendarEventId && (
+                      <span style={{ fontSize:10, color:"#1a73e8", fontWeight:600, display:"flex", alignItems:"center", gap:3 }}>
+                        📅 Synced
+                      </span>
+                    )}
+                    <div style={{ display:"flex", gap:6 }}>
+                      <button className="btn-ghost btn-sm"
+                        onClick={()=>{setEditing(String(iv._id)); setForm({});}}>
+                        ✏️ Edit
+                      </button>
+                      <button className="btn-ghost btn-sm" style={{ color:"#dc2626", borderColor:"#dc2626" }}
+                        onClick={()=>deleteInterview(iv._id, iv.company)}>
+                        🗑
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -7126,7 +6903,9 @@ function BulkSendPage({ addToast, contacts }) {
 
       {result && (
         <div style={{ background:result.failed>0?"#fef3c7":"#d1fae5", border:`1px solid ${result.failed>0?"#fde047":"#6ee7b7"}`, borderRadius:10, padding:"12px 16px", marginBottom:16 }}>
-          ✅ <strong>{result.sent}</strong> sent {result.failed>0 && <span style={{color:"#dc2626"}}>· ❌ {result.failed} failed</span>}
+          ✅ <strong>{result.sent}</strong> sent
+          {result.skipped>0 && <span style={{color:"#92400e"}}> · ⏭ {result.skipped} skipped (already applied)</span>}
+          {result.failed>0 && <span style={{color:"#dc2626"}}> · ❌ {result.failed} failed</span>}
         </div>
       )}
 
