@@ -4956,6 +4956,25 @@ function App() {
 
   const [prefillSend, setPrefillSend] = React.useState(null);
 
+  // ── Chrome extension handoff: read ?company=&role=&hrEmail=&hrName= from URL ──
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("fromExtension") === "1") {
+      const extData = {
+        company: params.get("company")  || "",
+        role:    params.get("role")     || "",
+        hrEmail: params.get("hrEmail")  || "",
+        hrName:  params.get("hrName")   || "",
+      };
+      if (extData.company || extData.hrEmail) {
+        setPrefillSend(extData);
+        setPage("send");
+        // Clean the URL so a refresh doesn't re-trigger this
+        window.history.replaceState({}, "", window.location.pathname + window.location.hash);
+      }
+    }
+  }, []);
+
   const navigate = id => { setPage(id); setSidebarOpen(false); };
   const goToSendPrefilled = (data) => { setPrefillSend(data); setPage("send"); setSidebarOpen(false); };
 
