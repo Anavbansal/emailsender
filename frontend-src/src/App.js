@@ -6343,7 +6343,6 @@ function AIAssistantPage({ addToast }) {
   const [messages, setMessages] = useState([]);
   const [input,    setInput]    = useState("");
   const [loading,  setLoading]  = useState(false);
-  const [tone,     setTone]     = useState("professional");
   const inputRef  = useRef(null);
   const bottomRef = useRef(null);
 
@@ -6360,21 +6359,15 @@ function AIAssistantPage({ addToast }) {
   ];
 
   const PROMPTS = {
-    email:     `✉ Email Writer ready! Tell me: Who to send? (HR Name, Company, Role)\nOr say: Write email to Priya at Google for Senior Developer role`,
-    followup:  `🔁 Follow-up Writer! Tell me: Company name, role, and how many days since you applied?`,
-    screening: `💬 Paste the HR's screening message and I'll write a perfect reply using your profile!`,
-    linkedin:  `🔗 LinkedIn Message! Tell me: Person's name, their role/company, and purpose (job referral/networking)?`,
-    referral:  `🤝 Referral Message! Tell me: Contact name, their company, role you want, and platform (WhatsApp/Email/LinkedIn)?`,
-    ats:       `📊 ATS Score Checker! Paste the job description and I'll tell you how well your profile matches!`,
-    interview: `🎯 Interview Prep! Tell me: Company name, role, and which round? (Technical/HR/Managerial/System Design)`,
-    salary:    `💰 Salary Negotiation! Tell me: Offered CTC (LPA), company name, role, and your years of experience?`,
-    analyzejd: `🔍 JD Analyzer! Paste the job description and I'll extract key info, required skills, red flags, and tips!`,
-  };
-
-  const ENDPOINT_MAP = {
-    email:"write-email", followup:"write-followup", screening:"screening-reply",
-    linkedin:"linkedin-msg", referral:"referral-msg", ats:"ats-score",
-    interview:"interview-prep", salary:"salary-negotiate", analyzejd:"analyze-jd",
+    email:     `✉ Email Writer ready! Tell me who you're applying to — e.g. "Write an email to Priya at Google for a Senior Developer role" — or just paste the job posting.`,
+    followup:  `🔁 Follow-up Writer! Tell me which company, the role, and how many days since you applied.`,
+    screening: `💬 Paste the HR's screening message and I'll write a reply using your profile.`,
+    linkedin:  `🔗 LinkedIn Message! Tell me who you want to reach out to and why (referral, networking, etc).`,
+    referral:  `🤝 Referral Message! Tell me the contact's name, company, role you want, and platform.`,
+    ats:       `📊 ATS Score Checker! Paste the job description and I'll score your match.`,
+    interview: `🎯 Interview Prep! Tell me the company, role, and round type.`,
+    salary:    `💰 Salary Negotiation! Tell me your offer details and I'll help you negotiate.`,
+    analyzejd: `🔍 JD Analyzer! Paste the job description and I'll break it down for you.`,
   };
 
   useEffect(() => {
@@ -6387,123 +6380,11 @@ function AIAssistantPage({ addToast }) {
     bottomRef.current?.scrollIntoView({ behavior:"smooth" });
   }, [messages, loading]);
 
-  const buildPayload = (userText) => {
-    const t = userText.toLowerCase();
-    switch(tool) {
-      case "email":
-        return { hrName: extractAfter(t,["to ","for ","name:"]) || "", company: extractCompany(t), role: extractRole(t), tone, keyPoints: userText, templateType:"fullstack" };
-      case "followup":
-        return { company: extractCompany(t), role: extractRole(t), daysSince: extractNumber(t) || "7", originalDate:"" };
-      case "screening":
-        return { hrMessage: userText };
-      case "linkedin":
-        return { personName: extractName(t), personTitle:"", company: extractCompany(t), purpose:"job", mutualInfo: userText };
-      case "referral":
-        return { personName: extractName(t), company: extractCompany(t), role: extractRole(t), platform: t.includes("email")?"email":t.includes("linkedin")?"linkedin":"whatsapp" };
-      case "ats":
-        return { jobDescription: userText };
-      case "interview":
-        return { company: extractCompany(t), role: extractRole(t), round: t.includes("hr")?"hr":t.includes("system")?"system-design":t.includes("manager")?"managerial":"technical" };
-      case "salary":
-        return { offeredCTC: extractNumber(t) || "", company: extractCompany(t), role: extractRole(t), yearsExp: "" };
-      case "analyzejd":
-        return { jobDescription: userText };
-      default:
-        return { message: userText };
-    }
-  };
-
-  const extractAfter  = (t, keys) => { for(const k of keys){ const i=t.indexOf(k); if(i>=0) return t.slice(i+k.length).split(/[,\n]/)[0]?.trim(); } return ""; };
-  const extractCompany = (t) => { const m=t.match(/(?:at|@|company[:\s]+)\s*([A-Za-z][\w\s&.]{1,30})/i); return m?m[1].trim():""; };
-  const extractRole    = (t) => { const m=t.match(/(?:for|role[:\s]+)\s*([A-Za-z][\w\s]{2,30}?)(?:\s+role|\s+position|\s+at|\s+in|$)/i); return m?m[1].trim():""; };
-  const extractName    = (t) => { const m=t.match(/(?:name[:\s]+|to\s+)([A-Za-z]+(?:\s+[A-Za-z]+)?)/i); return m?m[1].trim():""; };
-  const extractNumber  = (t) => { const m=t.match(/(\d+)/); return m?m[1]:""; };
-
-  const formatResult = (data) => {
-    if (!data) return "";
-    if (data.emailBody) return data.emailBody;
-    if (data.reply)     return data.reply;
-    if (data.message)   return data.message;
-    if (data.subjects)  return "**Subject Line Suggestions:**\n" + data.subjects.map((s,i)=>`${i+1}. ${s}`).join("\n");
-    if (data.result) {
-      const r = data.result;
-      if (r.score !== undefined) {
-        return `**ATS Match Score: ${r.score}%**\n${r.verdict}\n\n✅ Matched: ${(r.matchedSkills||[]).join(", ")}\n❌ Missing: ${(r.missingSkills||[]).join(", ")}\n\n💡 Email Tips: ${r.emailTips||""}`;
-      }
-      if (r.questions) {
-        return `**Company:** ${r.companyInsights||""}\n\n**Questions:**\n${(r.questions||[]).map((q,i)=>`${i+1}. ${q.q}\n   💡 ${q.hint}`).join("\n\n")}\n\n**Tips:**\n${(r.tips||[]).map(t=>`• ${t}`).join("\n")}`;
-      }
-      if (r.counterOffer) {
-        return `**Strategy: ${r.strategy==="accept"?"Accept ✅":"Negotiate 💪"}**\nCounter Offer: ${r.counterOffer} LPA\nMarket Rate: ${r.marketRate||""}\n\n**Email Script:**\n${r.emailScript||""}\n\n**Phone Script:**\n${r.phoneScript||""}`;
-      }
-      if (r.role || r.requiredSkills) {
-        return `**Role:** ${r.role||""}\n**Experience:** ${r.experience||""}\n**Mode:** ${r.workMode||""}\n\n**Required Skills:** ${(r.requiredSkills||[]).join(", ")}\n**Nice to Have:** ${(r.niceToHave||[]).join(", ")}\n\n**Tips:** ${r.applicationTips||""}\n\n**Red Flags:** ${(r.redFlags||[]).join(", ")||"None"}`;
-      }
-    }
-    return JSON.stringify(data, null, 2);
-  };
-
-  const send = async () => {
-    const text = input.trim();
-    if (!text || loading) return;
-
-    const userMsg = { role:"user", text };
-    setMessages(prev => [...prev, userMsg]);
-    setInput("");
-    setLoading(true);
-
-    // Check if user wants correction/refinement
-    const isRefinement = messages.length > 1;
-    const history = messages.filter(m=>m.role==="user").map(m=>m.text).join("\n");
-    const fullContext = isRefinement ? `Previous context: ${history}\n\nNew instruction: ${text}` : text;
-
-    try {
-      const payload = buildPayload(fullContext);
-      const r = await axios.post(`${API}/api/ai/${ENDPOINT_MAP[tool]}`, payload);
-      const resultText = formatResult(r.data);
-
-      // Also get subject lines for email
-      let subjectText = "";
-      if (tool === "email" && r.data.success) {
-        try {
-          const sr = await axios.post(`${API}/api/ai/write-subject`, payload);
-          if (sr.data.subjects?.length > 0) {
-            subjectText = "\n\n📌 **Subject suggestions:**\n" + sr.data.subjects.map((s,i)=>`${i+1}. ${s}`).join("\n");
-          }
-        } catch {}
-      }
-
-      setMessages(prev => [...prev, {
-        role: "ai",
-        text: resultText + subjectText,
-        copyText: r.data.emailBody || r.data.reply || r.data.message || ""
-      }]);
-
-      // Follow-up hint
-      setMessages(prev => [...prev, {
-        role: "ai",
-        text: "✏️ Want changes? Just tell me — *make it shorter*, *more confident*, *add salary info*, etc.",
-        isHint: true
-      }]);
-
-    } catch(e) {
-      setMessages(prev => [...prev, { role:"ai", text:"❌ " + (e.response?.data?.message || e.message), isError:true }]);
-    } finally {
-      setLoading(false);
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
-  };
-
-  const copy = (text) => { navigator.clipboard?.writeText(text); addToast && addToast("✅ Copied!"); };
-
   const renderMsg = (text) => {
     return text.split("\n").map((line, i) => {
-      if (line.startsWith("**") && line.endsWith("**")) {
-        return <div key={i} style={{ fontWeight:700, marginTop:i>0?6:0 }}>{line.slice(2,-2)}</div>;
-      }
       const parts = line.split(/(\*\*[^*]+\*\*)/g);
       return (
-        <div key={i} style={{ lineHeight:1.7, marginTop: i>0 && line===''?6:0 }}>
+        <div key={i} style={{ lineHeight:1.7 }}>
           {parts.map((p,j) => p.startsWith("**") && p.endsWith("**")
             ? <strong key={j}>{p.slice(2,-2)}</strong>
             : p
@@ -6513,6 +6394,36 @@ function AIAssistantPage({ addToast }) {
     });
   };
 
+  const send = async () => {
+    const text = input.trim();
+    if (!text || loading) return;
+
+    const newHistory = [...messages, { role:"user", text }];
+    setMessages(newHistory);
+    setInput("");
+    setLoading(true);
+
+    try {
+      const r = await axios.post(`${API}/api/ai/chat`, {
+        tool, message: text,
+        history: newHistory.slice(-8).map(m => ({ role: m.role, text: m.text })),
+      });
+
+      if (r.data.success) {
+        setMessages(prev => [...prev, { role:"ai", text: r.data.reply, copyText: r.data.reply }]);
+      } else {
+        throw new Error(r.data.message || "AI failed");
+      }
+    } catch(e) {
+      setMessages(prev => [...prev, { role:"ai", text:"❌ " + (e.response?.data?.message || e.message), isError:true }]);
+    } finally {
+      setLoading(false);
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  };
+
+  const copy = (text) => { navigator.clipboard?.writeText(text).catch(()=>{}); addToast && addToast("✅ Copied!"); };
+
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"calc(100vh - 56px)", overflow:"hidden", padding:"0 20px" }}>
       {/* Compact top bar */}
@@ -6520,21 +6431,8 @@ function AIAssistantPage({ addToast }) {
         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
           <span style={{ fontWeight:700, fontSize:15, background:"linear-gradient(135deg,#7c3aed,#2563eb)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>✨ AI Assistant</span>
           <span style={{ fontSize:10, background:"linear-gradient(135deg,#7c3aed,#2563eb)", color:"#fff", padding:"2px 8px", borderRadius:99, fontWeight:700 }}>Groq</span>
-          {tool === "email" && (
-            <div style={{ display:"flex", gap:4, marginLeft:"auto", alignItems:"center" }}>
-              <span style={{ fontSize:10, color:"var(--text-muted)", fontWeight:600 }}>Tone:</span>
-              {["professional","confident","friendly","concise","creative"].map(t => (
-                <button key={t} onClick={() => setTone(t)} style={{
-                  padding:"2px 8px", borderRadius:99, fontSize:10, fontWeight:600, cursor:"pointer", border:"1px solid",
-                  borderColor:tone===t?"#7c3aed":"var(--border)",
-                  background:tone===t?"#7c3aed":"var(--surface)",
-                  color:tone===t?"#fff":"var(--text-muted)"
-                }}>{t}</button>
-              ))}
-            </div>
-          )}
+          <span style={{ fontSize:10, color:"var(--text-muted)", marginLeft:"auto" }}>Tell me naturally — I'll understand the details</span>
         </div>
-        {/* Tools — single scrollable row */}
         <div style={{ display:"flex", gap:5, overflowX:"auto", paddingBottom:4, scrollbarWidth:"none" }}>
           {TOOLS.map(t => (
             <button key={t.id} onClick={() => setTool(t.id)}
@@ -6550,15 +6448,9 @@ function AIAssistantPage({ addToast }) {
       </div>
 
       {/* Chat messages */}
-      <div style={{
-        flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:12,
-        padding:"4px 0 16px", minHeight:0
-      }}>
+      <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:12, padding:"4px 0 16px", minHeight:0 }}>
         {messages.map((m, i) => (
-          <div key={i} style={{
-            display:"flex", justifyContent: m.role==="user" ? "flex-end" : "flex-start",
-            gap:8, alignItems:"flex-start"
-          }}>
+          <div key={i} style={{ display:"flex", justifyContent: m.role==="user" ? "flex-end" : "flex-start", gap:8, alignItems:"flex-start" }}>
             {m.role==="ai" && (
               <div style={{ width:28, height:28, borderRadius:"50%", background:"linear-gradient(135deg,#7c3aed,#2563eb)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, flexShrink:0, marginTop:2 }}>✨</div>
             )}
@@ -6566,23 +6458,17 @@ function AIAssistantPage({ addToast }) {
               maxWidth:"80%", padding:"10px 14px", borderRadius:12,
               borderTopLeftRadius: m.role==="ai"?4:12,
               borderTopRightRadius: m.role==="user"?4:12,
-              background: m.role==="user"
-                ? "linear-gradient(135deg,#7c3aed,#2563eb)"
-                : m.isError ? "#fee2e2"
-                : m.isHint ? "var(--surface-2,#f8fafc)"
-                : "var(--surface)",
-              color: m.role==="user" ? "#fff"
-                : m.isError ? "#991b1b"
-                : "var(--text-700,#374151)",
-              border: m.role==="ai" && !m.isHint ? "1px solid var(--border)" : "none",
+              background: m.role==="user" ? "linear-gradient(135deg,#7c3aed,#2563eb)" : m.isError ? "#fee2e2" : "var(--surface)",
+              color: m.role==="user" ? "#fff" : m.isError ? "#991b1b" : "var(--text-700,#374151)",
+              border: m.role==="ai" ? "1px solid var(--border)" : "none",
               fontSize:13, lineHeight:1.7,
             }}>
               {renderMsg(m.text)}
               {m.copyText && (
                 <button onClick={() => copy(m.copyText)} style={{
                   marginTop:10, padding:"4px 12px", borderRadius:6, fontSize:11, fontWeight:600,
-                  background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.3)",
-                  cursor:"pointer", color:"inherit", display:"block"
+                  background:"rgba(124,58,237,0.1)", border:"1px solid rgba(124,58,237,0.3)",
+                  cursor:"pointer", color:"#7c3aed", display:"block"
                 }}>📋 Copy</button>
               )}
             </div>
@@ -6609,12 +6495,10 @@ function AIAssistantPage({ addToast }) {
             rows={2}
             className="form-textarea"
             style={{ flex:1, fontSize:13, resize:"none", borderRadius:12 }}
-            placeholder={tool==="ats"||tool==="analyzejd" ? "Paste job description here..." : "Type your message... (e.g. Write email to Priya at Google for Senior Developer)"}
+            placeholder={tool==="ats"||tool==="analyzejd" ? "Paste job description here..." : "Type naturally — I'll figure out the details..."}
             value={input}
             onChange={e => setInput(e.target.value)}
-            onKeyDown={e => {
-              if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); send(); }
-            }}
+            onKeyDown={e => { if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
           />
           <button onClick={send} disabled={loading || !input.trim()}
             style={{
@@ -6622,9 +6506,7 @@ function AIAssistantPage({ addToast }) {
               background:"linear-gradient(135deg,#7c3aed,#2563eb)", color:"#fff",
               border:"none", cursor: loading||!input.trim() ? "not-allowed":"pointer",
               opacity: loading||!input.trim() ? 0.6:1, flexShrink:0
-            }}>
-            ➤
-          </button>
+            }}>➤</button>
         </div>
         <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:6, textAlign:"center" }}>
           Enter to send • Shift+Enter for new line • Ask for corrections anytime
@@ -6632,18 +6514,12 @@ function AIAssistantPage({ addToast }) {
       </div>
 
       <style>{`
-        @keyframes bounce {
-          0%,80%,100%{transform:translateY(0)}
-          40%{transform:translateY(-6px)}
-        }
+        @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
       `}</style>
     </div>
   );
 }
 
-
-export default App;
-// ─── Analytics Page ────────────────────────────────────────────────────────────
 function AnalyticsPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -7290,3 +7166,5 @@ function BulkSendPage({ addToast, contacts }) {
     </div>
   );
 }
+
+export default App;
