@@ -3293,11 +3293,14 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
 
       {/* Job keyword shortcuts — inbox only */}
       {!isSent && (
-        <div className="keyword-shortcuts">
-          <span className="keyword-label">Quick filters:</span>
-          {JOB_KEYWORDS.map(kw => (
-            <button key={kw.label} className="keyword-chip" onClick={() => applyKeyword(kw)}>{kw.label}</button>
-          ))}
+        <div style={{ marginBottom:14 }}>
+          <DropdownSelect
+            value=""
+            onChange={v => { const kw = JOB_KEYWORDS.find(k => k.label === v); if (kw) applyKeyword(kw); }}
+            placeholder="🔍 Quick filters..."
+            width="220px"
+            options={JOB_KEYWORDS.map(kw => ({ value: kw.label, label: kw.label }))}
+          />
         </div>
       )}
 
