@@ -50,6 +50,7 @@ const ScheduledEmailSchema = new mongoose.Schema({
   emailData:     { type: mongoose.Schema.Types.Mixed },
   error:         { type: String },
   reminderSent:  { type: Boolean, default: false },     // for "held" jobs — reminder email already sent
+  holdReason:    { type: String, default: "" },         // "manual" | "duplicate" — why a job is held
   userId:        { type: String, default: "default" },
 }, { timestamps: true });
 
@@ -433,24 +434,24 @@ async function addScheduledJob(job) {
   }
 }
 
-async function updateJobStatus(jobId, status, error) {
+async function updateJobStatus(jobId, status, error, holdReason) {
   if (mongoose.connection.readyState === 1) {
-    await ScheduledEmail.updateOne({ jobId }, { status, ...(error && { error }) });
+    await ScheduledEmail.updateOne({ jobId }, { status, ...(error !== undefined && { error }), ...(holdReason !== undefined && { holdReason }) });
   } else {
     const jobs = await loadScheduled();
     const j = jobs.find(x => x.jobId === jobId);
-    if (j) { j.status = status; if (error) j.error = error; }
+    if (j) { j.status = status; if (error !== undefined) j.error = error; if (holdReason !== undefined) j.holdReason = holdReason; }
     fs.writeFileSync(SCHEDULED_FILE, JSON.stringify(jobs, null, 2), "utf8");
   }
 }
 
-async function markJobReminderSent(jobId) {
+async function markJobReminderSent(jobId, value = true) {
   if (mongoose.connection.readyState === 1) {
-    await ScheduledEmail.updateOne({ jobId }, { reminderSent: true });
+    await ScheduledEmail.updateOne({ jobId }, { reminderSent: value });
   } else {
     const jobs = await loadScheduled();
     const j = jobs.find(x => x.jobId === jobId);
-    if (j) j.reminderSent = true;
+    if (j) j.reminderSent = value;
     fs.writeFileSync(SCHEDULED_FILE, JSON.stringify(jobs, null, 2), "utf8");
   }
 }
@@ -568,6 +569,36 @@ async function clearGmailAlert(username) {
 
 // ── Notify user by email when a scheduled job fires (success or failure) ──────
 // ── Notify user that a HELD job's time has arrived — they need to send manually ──
+// ── Notify user that a scheduled job was auto-held due to a detected duplicate ─
+async function notifyDuplicateHold(jobUser, jobUserCfg, job, existing) {
+  try {
+    if (!jobUser) return;
+    const auth = getUserGmailAuth(jobUser);
+    const gmail = google.gmail({ version: "v1", auth });
+    const senderEmail = jobUserCfg?.gmailUser || jobUser.gmailUser || "";
+    const subject = `⏸ Scheduled email paused — already applied to ${job.emailData.company || job.emailData.hrEmail}`;
+    const encodedSubject = `=?UTF-8?B?${Buffer.from(subject).toString("base64")}?=`;
+    const html = `<div style="font-family:Segoe UI,sans-serif;max-width:480px;margin:20px auto;border:1px solid #fde047;border-radius:12px;overflow:hidden;">
+      <div style="background:#d97706;color:#fff;padding:16px 24px;font-weight:700;font-size:15px;">⏸ Scheduled email paused — duplicate detected</div>
+      <div style="padding:20px 24px;color:#374151;font-size:14px;line-height:1.7;">
+        <p>This email was about to be auto-sent, but you already applied to this contact on <strong>${new Date(existing.sentAt).toLocaleString("en-IN")}</strong>, so it was <strong>not sent automatically</strong>.</p>
+        <p><strong>Company:</strong> ${job.emailData.company || "—"}</p>
+        <p><strong>To:</strong> ${job.emailData.hrEmail}</p>
+        <p><strong>Role:</strong> ${job.emailData.role || "—"}</p>
+        <p style="margin-top:16px;">If you still want to send it (e.g. different role, follow-up reason), open the app's <strong>Scheduled → Reminders</strong> tab and tap <strong>Send Now</strong>. Otherwise you can safely delete it.</p>
+      </div>
+    </div>`;
+    const raw = [
+      `From: "Job Mailer" <${senderEmail}>`, `To: ${senderEmail}`,
+      `Subject: ${encodedSubject}`, `MIME-Version: 1.0`,
+      `Content-Type: text/html; charset="UTF-8"`, ``, html,
+    ].join("\r\n");
+    await gmail.users.messages.send({ userId: "me", requestBody: { raw: Buffer.from(raw).toString("base64url") } });
+  } catch (e) {
+    console.warn("⚠️ Duplicate-hold notification failed (non-critical):", e.message);
+  }
+}
+
 async function notifyHeldReminder(jobUser, jobUserCfg, job) {
   try {
     if (!jobUser) return;
@@ -661,6 +692,26 @@ cron.schedule("* * * * *", async () => {
         if (!jobUser) {
           jobUser = await User.findOne({ username: process.env.OWNER_USERNAME || "anav" }).lean().catch(() => null);
           if (jobUser) jobUserCfg = getUserConfig(jobUser);
+        }
+
+        // ── Duplicate check right before auto-sending ──────────────────────
+        // If this hrEmail was already applied to since this job was scheduled,
+        // DON'T auto-send — instead hold the job and notify the user so they
+        // can review and send manually if they still want to.
+        if (mongoose.connection.readyState === 1 && job.emailData?.hrEmail) {
+          const escapedDup = job.emailData.hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const existing = await SentEmailLog.findOne({
+            hrEmail: new RegExp("^" + escapedDup + "$", "i"),
+            userId: job.userId && job.userId !== "default" ? job.userId : (jobUser?._id ? String(jobUser._id) : undefined),
+            type: "application",
+          }).sort({ sentAt: -1 }).lean();
+
+          if (existing) {
+            await updateJobStatus(job.jobId, "held", null, "duplicate");
+            await markJobReminderSent(job.jobId, true); // already notified via notifyDuplicateHold below — don't double-notify
+            await notifyDuplicateHold(jobUser, jobUserCfg, job, existing);
+            continue;
+          }
         }
 
         const { info, trackRecord } = await sendApplicationEmail({
@@ -2060,6 +2111,7 @@ app.post("/api/schedule-email", requireAuth, async (req, res) => {
     // autoSend=false → status "held": cron skips it, user gets reminder email and sends manually
     await addScheduledJob({
       jobId, scheduledTime, status: autoSend ? "pending" : "held",
+      holdReason: autoSend ? "" : "manual",
       userId: req.userId || "default",
       emailData: { hrEmail, company, ...rest }
     });
