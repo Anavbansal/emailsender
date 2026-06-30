@@ -4876,6 +4876,7 @@ function App() {
   const [fetchedAt,     setFetchedAt]     = useState(null);
   const [darkMode,      setDarkMode]      = useState(() => localStorage.getItem("darkMode") === "true");
   const [sidebarOpen,   setSidebarOpen]   = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [modal,         setModal]         = useState(null);
   const [threadModal,       setThreadModal]       = useState(null);
   const [manualUpdateModal, setManualUpdateModal] = useState(null); // { contact }
@@ -4970,29 +4971,43 @@ function App() {
 
   const isAdminView = !!(authUser?.isAdmin);
 
-  const NAV = isAdminView
-    ? [
-        { id: "admin",    icon: "A", label: "Admin Panel", badge: null },
-        { id: "settings", icon: "S", label: "Settings",    badge: null },
-      ]
+  const NAV_GROUPS = isAdminView
+    ? [{ label: null, items: [
+        { id: "admin",    icon: "🛡️", label: "Admin Panel" },
+        { id: "settings", icon: "⚙️", label: "Settings" },
+      ]}]
     : [
-        { id: "dashboard",   icon: "🏠", label: "Dashboard" },
-        { id: "contacts",    icon: "👥", label: "HR Contacts",     badge: reminderCount  || null },
-        { id: "send",        icon: "✉",  label: "Send Application" },
+      { label: "Overview", items: [
+        { id: "dashboard",  icon: "🏠", label: "Dashboard" },
+        { id: "analytics",  icon: "📊", label: "Analytics" },
+      ]},
+      { label: "Outreach", items: [
+        { id: "send",       icon: "✉️", label: "Send Application" },
+        { id: "bulk",        icon: "⚡", label: "Bulk Send" },
+        { id: "scheduled",   icon: "🗓️", label: "Scheduled",  badge: scheduledCount || null },
+      ]},
+      { label: "Pipeline", items: [
+        { id: "contacts",    icon: "👥", label: "HR Contacts", badge: reminderCount || null },
+        { id: "pipeline",    icon: "🧭", label: "Pipeline" },
+        { id: "interviews",  icon: "🎤", label: "Interviews" },
+      ]},
+      { label: "Network", items: [
         { id: "linkedin",    icon: "🔗", label: "Connections" },
-
         { id: "prospect",    icon: "🎯", label: "Find HR Emails" },
-        { id: "inbox",       icon: "📥", label: "Inbox",           badge: replyCount     || null },
-        { id: "messages",    icon: "💬", label: "Messages" },
         { id: "jobs",        icon: "🔍", label: "Find Jobs" },
-        { id: "scheduled",   icon: "🗓", label: "Scheduled",       badge: scheduledCount || null },
-        { id: "settings",    icon: "S",  label: "Settings",         badge: null },
-        { id: "ai",           icon: "✨", label: "AI Assistant",     badge: null },
-        { id: "analytics",   icon: "📊", label: "Analytics",        badge: null },
-        { id: "pipeline",    icon: "🎯", label: "Pipeline",         badge: null },
-        { id: "interviews",  icon: "🗓", label: "Interviews",       badge: null },
-        { id: "bulk",        icon: "⚡", label: "Bulk Send",        badge: null },
-      ];
+      ]},
+      { label: "Communication", items: [
+        { id: "inbox",       icon: "📥", label: "Inbox",     badge: replyCount || null },
+        { id: "messages",    icon: "💬", label: "Messages" },
+        { id: "ai",          icon: "✨", label: "AI Assistant" },
+      ]},
+      { label: "Account", items: [
+        { id: "settings",   icon: "⚙️", label: "Settings" },
+      ]},
+    ];
+
+  // Flat NAV for lookups (page title etc.)
+  const NAV = NAV_GROUPS.flatMap(g => g.items);
 
   const [prefillSend, setPrefillSend] = React.useState(null);
 
@@ -5014,56 +5029,98 @@ function App() {
     }} />;
   }
 
+  const doLogout = () => {
+    clearToken();
+    localStorage.removeItem("em_user");
+    setAuthUser(null);
+    setContacts([]);
+    setReplies([]);
+    setScheduledJobs([]);
+    setPage("dashboard");
+  };
+
+  const roleLabel = authUser?.username === "anav" ? "Senior Dev"
+    : authUser?.username === "priyal" ? "Finance Pro"
+    : (authUser?.displayName?.split(" ")[0] || "User");
+
   return (
     <div className="app-shell">
       <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
-        <div className="sidebar-header">
-          <div className="sidebar-avatar">{(authUser?.displayName||"U").slice(0,2).toUpperCase()}</div>
-          <div className="sidebar-brand">
-            <span className="sidebar-name">{authUser?.displayName || authUser?.username}</span>
-            <span className="sidebar-role">
-              {authUser?.username === "anav" ? "Senior Dev"
-               : authUser?.username === "priyal" ? "Finance Pro"
-               : (authUser?.displayName?.split(" ")[0] || "User")}
-            </span>
-          </div>
+
+        {/* ── Profile dropdown (click name to logout) ── */}
+        <div className="sidebar-header" style={{ position:"relative" }}>
+          <button
+            onClick={() => setProfileMenuOpen(o => !o)}
+            style={{
+              width:"100%", display:"flex", alignItems:"center", gap:10,
+              background:"none", border:"none", cursor:"pointer", padding:0, textAlign:"left"
+            }}>
+            <div className="sidebar-avatar">{(authUser?.displayName||"U").slice(0,2).toUpperCase()}</div>
+            <div className="sidebar-brand" style={{ flex:1, minWidth:0 }}>
+              <span className="sidebar-name" style={{ display:"block", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                {authUser?.displayName || authUser?.username}
+              </span>
+              <span className="sidebar-role">{roleLabel}</span>
+            </div>
+            <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)", transform: profileMenuOpen?"rotate(180deg)":"none", transition:"transform 0.15s" }}>▼</span>
+          </button>
+
+          {profileMenuOpen && (
+            <>
+              <div onClick={() => setProfileMenuOpen(false)} style={{ position:"fixed", inset:0, zIndex:40 }} />
+              <div style={{
+                position:"absolute", top:"calc(100% + 6px)", left:0, right:0, zIndex:50,
+                background:"var(--surface-2,#1e293b)", border:"1px solid rgba(255,255,255,0.1)",
+                borderRadius:10, boxShadow:"0 12px 30px rgba(0,0,0,0.4)", overflow:"hidden",
+                animation:"modalPop 0.15s ease"
+              }}>
+                <button onClick={() => { navigate("settings"); setProfileMenuOpen(false); }}
+                  style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 14px",
+                    background:"none", border:"none", cursor:"pointer", color:"#e2e8f0", fontSize:13, textAlign:"left" }}>
+                  ⚙️ Settings
+                </button>
+                <div style={{ height:1, background:"rgba(255,255,255,0.08)" }} />
+                <button onClick={() => { doLogout(); setProfileMenuOpen(false); }}
+                  style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 14px",
+                    background:"none", border:"none", cursor:"pointer", color:"#f87171", fontSize:13, textAlign:"left" }}>
+                  🚪 Logout
+                </button>
+              </div>
+            </>
+          )}
         </div>
+
+        {/* ── Grouped Nav ── */}
         <nav className="sidebar-nav">
-          {NAV.map(n => (
-            <button key={n.id} className={`nav-item ${page === n.id ? "nav-item-active" : ""}`} onClick={() => navigate(n.id)}>
-              <span className="nav-icon">{n.icon}</span>
-              <span className="nav-label">{n.label}</span>
-              {n.badge ? <span className="nav-badge">{n.badge}</span> : null}
-            </button>
+          {NAV_GROUPS.map(group => (
+            <div key={group.label || "main"} style={{ marginBottom:4 }}>
+              {group.label && (
+                <div style={{
+                  fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.32)",
+                  textTransform:"uppercase", letterSpacing:"0.07em",
+                  padding:"10px 16px 4px"
+                }}>{group.label}</div>
+              )}
+              {group.items.map(n => (
+                <button key={n.id} className={`nav-item ${page === n.id ? "nav-item-active" : ""}`} onClick={() => navigate(n.id)}>
+                  <span className="nav-icon">{n.icon}</span>
+                  <span className="nav-label">{n.label}</span>
+                  {n.badge ? <span className="nav-badge">{n.badge}</span> : null}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
-        {/* Mini stats in sidebar */}
+
+        {/* ── Mini stats ── */}
         <div className="sidebar-stats">
           <div className="sidebar-stat"><span className="ss-val">{contacts.length}</span><span className="ss-lbl">Applied</span></div>
           <div className="sidebar-stat"><span className="ss-val">{openedCount}</span><span className="ss-lbl">Opened</span></div>
           <div className="sidebar-stat"><span className="ss-val">{replyCount}</span><span className="ss-lbl">Replies</span></div>
         </div>
+
         <div className="sidebar-footer">
           <DarkModeToggle dark={darkMode} onToggle={() => setDarkMode(d => !d)} />
-          <button
-            onClick={() => {
-              clearToken();
-              localStorage.removeItem("em_user");
-              setAuthUser(null);
-              setContacts([]);
-              setReplies([]);
-              setScheduledJobs([]);
-              setPage("dashboard");
-            }}
-            style={{
-              background:"transparent", border:"none", cursor:"pointer",
-              color:"#64748b", fontSize:12, padding:"6px 8px", borderRadius:8,
-              display:"flex", alignItems:"center", gap:6, width:"100%",
-              transition:"all 0.2s"
-            }}
-            title="Logout">
-            🚪 <span style={{ fontSize:11 }}>{authUser?.displayName || authUser?.username || "Logout"}</span>
-          </button>
         </div>
       </aside>
 
