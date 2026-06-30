@@ -4448,4 +4448,53 @@ Output: just the 2 sentences, nothing else`;
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CHROME EXTENSION ROUTES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── POST /api/extension/parse-job — extract company/role/HR email from page text ─
+app.post("/api/extension/parse-job", requireAuth, async (req, res) => {
+  try {
+    const { pageText, pageUrl, pageTitle } = req.body;
+    if (!pageText?.trim()) return res.status(400).json({ success: false, message: "pageText required" });
+
+    const truncated = pageText.slice(0, 6000); // keep prompt small & fast
+
+    const prompt = `Extract job application details from this job posting page. Return ONLY valid JSON, no markdown, no explanation.
+
+Page URL: ${pageUrl || "unknown"}
+Page Title: ${pageTitle || "unknown"}
+Page Content:
+${truncated}
+
+Return JSON in this exact shape:
+{
+  "company": "company name or empty string",
+  "role": "job title/role or empty string",
+  "hrEmail": "recruiter/HR email if visible on the page, else empty string",
+  "hrName": "recruiter/HR name if visible, else empty string",
+  "location": "job location if visible, else empty string",
+  "confidence": "high" | "medium" | "low"
+}`;
+
+    const reply = await groqChat([{ role: "user", content: prompt }], 300, 0.2, "llama-3.1-8b-instant");
+
+    let parsed;
+    try {
+      const cleaned = reply.trim().replace(/^```json\n?/, "").replace(/```$/, "").trim();
+      parsed = JSON.parse(cleaned);
+    } catch {
+      parsed = { company: "", role: "", hrEmail: "", hrName: "", location: "", confidence: "low" };
+    }
+
+    res.json({ success: true, ...parsed });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── GET /api/extension/whoami — lightweight check that the token still works ──
+app.get("/api/extension/whoami", requireAuth, async (req, res) => {
+  res.json({ success: true, username: req.user.username, displayName: req.user.displayName });
+});
+
 app.listen(PORT, () => console.log(`\n🚀 Job Mailer API → http://localhost:${PORT}\n`));
