@@ -2324,6 +2324,11 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed }) 
                 ✋ Just remind me, I'll send manually
               </button>
             </div>
+            {autoSend && (
+              <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:6 }}>
+                ✅ If you already applied here before, it'll auto-pause and email you instead of sending again.
+              </p>
+            )}
             {!autoSend && (
               <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:6 }}>
                 You'll get an email reminder at the scheduled time — go to Scheduled → Reminders tab and tap Send Now.
@@ -4627,7 +4632,7 @@ function ScheduledPage({ addToast }) {
 
       {tab === "held" && held.length > 0 && (
         <div style={{ background:"#fef9c3", border:"1px solid #fde047", borderRadius:10, padding:"10px 14px", marginBottom:12, fontSize:12, color:"#713f12" }}>
-          ✋ These are reminders only — you'll get an email when they're due, and you send them manually using <strong>Send Now</strong>.
+          ✋ <strong>Manual reminders</strong> are emails you chose to send yourself. <strong>Auto-paused</strong> ones were stopped because you'd already applied to that contact — review and tap <strong>Send Now</strong> if you still want to send, or delete.
         </div>
       )}
 
@@ -4639,17 +4644,23 @@ function ScheduledPage({ addToast }) {
         : <div className="contacts-list">
             {list.map(job => (
               <div key={job.jobId} className="contact-card">
-                <div className="contact-avatar" style={{ background: tab==="failed" ? "#dc2626" : tab==="held" ? "#d97706" : "#7c3aed" }}>
-                  {tab==="failed" ? "⚠️" : tab==="held" ? "✋" : "🗓"}
+                <div className="contact-avatar" style={{ background: tab==="failed" ? "#dc2626" : tab==="held" ? (job.holdReason==="duplicate"?"#dc2626":"#d97706") : "#7c3aed" }}>
+                  {tab==="failed" ? "⚠️" : tab==="held" ? (job.holdReason==="duplicate"?"⏸":"✋") : "🗓"}
                 </div>
                 <div className="contact-body">
                   <div className="contact-top">
                     <span className="contact-company">{job.emailData.company}</span>
-                    <span className={`badge ${tab==="failed"?"badge-failed":"badge-scheduled"}`} style={tab==="failed"?{background:"#fee2e2",color:"#991b1b"}: tab==="held"?{background:"#fef3c7",color:"#92400e"}:{}}>
-                      {tab==="failed" ? "Failed" : tab==="held" ? "Manual" : "Auto-send"}
+                    <span className={`badge ${tab==="failed"?"badge-failed":"badge-scheduled"}`}
+                      style={tab==="failed"?{background:"#fee2e2",color:"#991b1b"}
+                        : tab==="held" && job.holdReason==="duplicate" ? {background:"#fee2e2",color:"#991b1b"}
+                        : tab==="held" ? {background:"#fef3c7",color:"#92400e"} : {}}>
+                      {tab==="failed" ? "Failed" : tab==="held" ? (job.holdReason==="duplicate"?"Auto-paused":"Manual") : "Auto-send"}
                     </span>
                   </div>
                   <p className="contact-email">{job.emailData.hrEmail}</p>
+                  {tab==="held" && job.holdReason==="duplicate" && (
+                    <p style={{ fontSize:11, color:"#dc2626", marginTop:2 }}>⏸ Already applied to this contact — paused to avoid a duplicate send</p>
+                  )}
                   <div className="contact-meta">
                     {tab==="failed" ? (
                       <span style={{ color:"#dc2626", fontSize:12 }}>❌ {job.error || "Unknown error"}</span>
@@ -4684,7 +4695,6 @@ function ScheduledPage({ addToast }) {
   );
 }
 
-// ═══════════════════════════════ MAIN APP
 // ═══════════════════════════════ MAIN APP ════════════════════════════════════
 
 // ─── Login / Register Page ────────────────────────────────────────────────────
