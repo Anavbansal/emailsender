@@ -34,7 +34,7 @@ const HR_PROFILE_ANAV = {
   relevantExp:      "4.7+ Years",
   currentCompany:   "NovelVox Pvt. Ltd.",
   reasonForChange:  "Personal and professional growth",
-  noticePeriod:     "Serving Notice Period (available by late August 2026)",
+  noticePeriod:     "Serving Notice Period",
   currentCTC:       "₹9 LPA",
   offerInHand:      "No",
   expectedCTC:      "₹15 LPA",
@@ -48,7 +48,7 @@ const HR_PROFILE_PRIYAL = {
   relevantExp:      "2+ Years",
   currentCompany:   "Tata Capital Limited",
   reasonForChange:  "Personal and professional growth",
-  noticePeriod:     "Serving Notice Period (available by late August 2026)",
+  noticePeriod:     "Serving Notice Period",
   currentCTC:       "",
   offerInHand:      "No",
   expectedCTC:      "",
@@ -67,7 +67,7 @@ const getHRProfile = () => {
     relevantExp:      "4.8+ Years",
     currentCompany:   "NovelVox Pvt Ltd",
     reasonForChange:  "Personal and professional growth",
-    noticePeriod:     "Serving Notice Period (available by late August 2026)",
+    noticePeriod:     "Serving Notice Period",
     currentCTC:       "",
     offerInHand:      "No",
     expectedCTC:      "",
@@ -81,7 +81,7 @@ const getHRProfile = () => {
     relevantExp:      user?.relevantExp      || "",
     currentCompany:   user?.currentCompany   || "",
     reasonForChange:  "Personal and professional growth",
-    noticePeriod:     user?.noticePeriod     || "Serving Notice Period (available by late August 2026)",
+    noticePeriod:     user?.noticePeriod     || "Serving Notice Period",
     currentCTC:       user?.currentCTC       || "",
     offerInHand:      "No",
     expectedCTC:      user?.expectedCTC      || "",
@@ -5314,7 +5314,7 @@ function SettingsPage({ addToast }) {
               <Field k="relevantExp"       label="Relevant Experience" ph="4.7+ Years" />
               <Field k="currentCTC"        label="Current CTC"         ph="₹9 LPA" />
               <Field k="expectedCTC"       label="Expected CTC"        ph="₹15 LPA" />
-              <Field k="noticePeriod"      label="Notice Period"       ph="Serving Notice Period (available by late August 2026)" />
+              <Field k="noticePeriod"      label="Notice Period"       ph="Serving Notice Period" />
               <Field k="currentLocation"   label="Current Location"    ph="Faridabad, Haryana" />
               <Field k="preferredLocation" label="Preferred Location"  ph="PAN India" />
             </div>
@@ -5364,7 +5364,7 @@ Thank you for reaching out! Please find my details below:
 • Relevant Experience    : ${profile.relevantExp || currentUser?.relevantExp || "X Years"}
 • Current Company        : ${profile.currentCompany || currentUser?.currentCompany || "Company"}
 • Reason for Change      : ${profile.reasonForChange || "Personal and professional growth"}
-• Notice Period / LWD    : ${profile.noticePeriod || currentUser?.noticePeriod || "Serving Notice Period (available by late August 2026)"}
+• Notice Period / LWD    : ${profile.noticePeriod || currentUser?.noticePeriod || "Serving Notice Period"}
 • Current CTC            : ${profile.currentCTC || currentUser?.currentCTC || "X LPA"}
 • Offer in Hand          : ${profile.offerInHand || "No"}
 • Expected CTC           : ${profile.expectedCTC || currentUser?.expectedCTC || "X LPA"}
