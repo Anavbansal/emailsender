@@ -3313,6 +3313,15 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
         <button type="submit" className="btn-primary btn-sm" disabled={loading}>{loading ? "…" : "Search"}</button>
         <button type="button" className="btn-ghost btn-sm" onClick={() => window.location.href = `${API}/api/gmail/auth`}>Connect Gmail</button>
         <button type="button" className="btn-ghost btn-sm" onClick={() => doFetch(searchQuery || baseQ(activeTab))} disabled={loading}>↻</button>
+        <button type="button" className="btn-ghost btn-sm" title="Sync replies from Gmail to HR Contacts"
+          style={{ color:"#059669", borderColor:"#059669", whiteSpace:"nowrap" }}
+          onClick={async () => {
+            try {
+              const r = await axios.get(`${API}/api/resync-replies`);
+              addToast && addToast(`✅ ${r.data.newReplies} new repl${r.data.newReplies===1?"y":"ies"} found`);
+              if (r.data.newReplies > 0) window.location.reload();
+            } catch(e) { addToast && addToast("❌ Sync failed: " + (e.response?.data?.message || e.message), "error"); }
+          }}>↺ Sync Replies</button>
       </form>
 
       {/* Job keyword shortcuts — inbox only */}
@@ -4870,15 +4879,9 @@ function App() {
     fetchContacts();
     fetchReplies();
     fetchScheduled();
+    // Run resync once on login silently — marks new replies in DB from Gmail
+    setTimeout(() => resyncRepliesDB(), 3000);
   }, [authUser, fetchContacts, fetchReplies, fetchScheduled]);
-
-  // ── Auto-resync DB replied status every 10 minutes (silent) ─────────────────
-  useEffect(() => {
-    if (!authUser) return;
-    resyncRepliesDB(); // run immediately on login
-    const t = setInterval(resyncRepliesDB, 10 * 60 * 1000); // then every 10 min
-    return () => clearInterval(t);
-  }, [authUser, resyncRepliesDB]);
 
   // ── Auto-poll replies every 2 minutes + notify on new replies ───────────────
   const prevReplyCountRef = React.useRef(0);
