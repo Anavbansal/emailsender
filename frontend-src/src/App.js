@@ -2371,14 +2371,17 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
     });
     setStatus(null);
   };
-  const buildPayload = useCallback(() => ({
-    ...form,
-    templateType: BACKEND_TEMPLATE_MAP[templateId] || "fullstack",
-    readReceipt,
-    headerTheme: customTpl.headerTheme,
-    customIntro: customTpl.customIntro || undefined,
-    customHighlights: customTpl.highlights.length ? customTpl.highlights : undefined,
-  }), [form, templateId, readReceipt, customTpl]);
+  const buildPayload = useCallback(() => {
+    const tpl = customTpl || getDefaultTemplate();
+    return {
+      ...form,
+      templateType: BACKEND_TEMPLATE_MAP[templateId] || "fullstack",
+      readReceipt,
+      headerTheme: tpl.headerTheme || "blue",
+      customIntro: tpl.customIntro || undefined,
+      customHighlights: tpl.highlights?.length ? tpl.highlights : undefined,
+    };
+  }, [form, templateId, readReceipt, customTpl]);
 
   const doSend = useCallback(async (payload) => {
     setLoading(true); setStatus(null);
@@ -2465,13 +2468,13 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
       </div>
 
       {/* Custom template indicator */}
-      {(customTpl.customIntro || customTpl.headerTheme !== "blue") && (
+      {customTpl && (customTpl.customIntro || customTpl.headerTheme !== "blue") && (
         <div className="custom-tpl-badge">
           🎨 Custom template active —
-          <span style={{ color: HEADER_THEMES.find(h => h.id === customTpl.headerTheme)?.color }}>
-            {" "}{customTpl.headerTheme} header
+          <span style={{ color: HEADER_THEMES.find(h => h.id === customTpl?.headerTheme)?.color }}>
+            {" "}{customTpl?.headerTheme} header
           </span>
-          {customTpl.customIntro && ", custom intro"}
+          {customTpl?.customIntro && ", custom intro"}
           <button className="tpl-reset-link" onClick={() => {
             setCustomTpl(getDefaultTemplate());
             localStorage.removeItem("customEmailTemplate");
