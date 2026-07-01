@@ -291,7 +291,7 @@ function getUserConfig(user) {
     currentCompany:   user.currentCompany   || (isOwner ? "NovelVox Pvt. Ltd." : ""),
     currentCTC:       user.currentCTC       || (isOwner ? "₹9 LPA" : ""),
     expectedCTC:      user.expectedCTC      || (isOwner ? "₹15 LPA" : ""),
-    noticePeriod:     user.noticePeriod     || (isOwner ? "30 Days" : ""),
+    noticePeriod:     user.noticePeriod     || (isOwner ? "Serving Notice Period (available by late August 2026)" : ""),
     currentLocation:  user.currentLocation  || (isOwner ? "Faridabad, Haryana" : ""),
     preferredLocation:user.preferredLocation|| (isOwner ? "PAN India" : ""),
     totalExp:         user.totalExp         || (isOwner ? "4.8+ Years" : ""),
@@ -3237,7 +3237,7 @@ app.post("/api/auth/init-mohit", async (req, res) => {
         currentCompany:   "NovelVox Pvt Ltd",
         totalExp:         "4.7+ Years",
         relevantExp:      "4.7+ Years",
-        noticePeriod:     "30 Days",
+        noticePeriod:     "Serving Notice Period (available by late August 2026)",
         currentLocation:  "Gurugram, Haryana",
         preferredLocation:"PAN India",
         currentCTC:       "",
@@ -3273,7 +3273,7 @@ app.post("/api/auth/init-priyal", async (req, res) => {
         currentCompany:   "Tata Capital Limited",
         totalExp:         "2+ Years",
         relevantExp:      "2+ Years",
-        noticePeriod:     "30 Days",
+        noticePeriod:     "Serving Notice Period (available by late August 2026)",
         currentLocation:  "Mumbai, India",
         preferredLocation:"PAN India",
         currentCTC:       "",
@@ -3892,7 +3892,7 @@ app.post("/api/ai/screening-reply", requireAuth, async (req, res) => {
     const exp       = userCfg.totalExp        || req.user.totalExp     || "";
     const currCTC   = userCfg.currentCTC      || req.user.currentCTC   || "";
     const expCTC    = userCfg.expectedCTC     || req.user.expectedCTC  || "";
-    const notice    = userCfg.noticePeriod    || req.user.noticePeriod || "30 Days";
+    const notice    = userCfg.noticePeriod    || req.user.noticePeriod || "Serving Notice Period (available by late August 2026)";
     const location  = userCfg.currentLocation || req.user.currentLocation || "";
     const company   = userCfg.currentCompany  || req.user.currentCompany  || "";
 
