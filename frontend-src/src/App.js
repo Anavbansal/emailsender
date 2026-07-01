@@ -2570,55 +2570,80 @@ function ScreeningReplyModal({ message, contacts, onClose, addToast }) {
   const matched   = contacts.find(c => c.hrEmail.toLowerCase() === fromEmail.toLowerCase());
   const hrName    = matched?.hrName || fromName || "";
 
-  const [replyText, setReplyText] = useState(() => buildScreeningReply(hrName));
+  const [replyText, setReplyText] = useState("");
   const [loading,   setLoading]   = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
   const [sent,      setSent]      = useState(false);
+  const [profile,   setProfile]   = useState({ ...getHRProfile() });
   const [editProfile, setEditProfile] = useState(false);
-  const [profile, setProfile] = useState({ ...getHRProfile() });
   useLockBodyScroll();
 
-  const handleProfileChange = (k, v) => setProfile(p => ({ ...p, [k]: v }));
+  // ── Auto-generate AI reply on modal open ─────────────────────────────────
+  useEffect(() => {
+    generateReply();
+  }, []);
 
-  const regenerate = () => {
-    // rebuild with current profile values
-    const greeting = hrName ? `Hi ${hrName},` : "Hi,";
+  const generateReply = async () => {
+    setAiLoading(true);
     const rUser  = getUser();
     const rName  = rUser?.displayName || "Anav Bansal";
-    const rPhone = rUser?.username === "anav" ? "+91 7827855635" : "+91 7665941798";
-    const rEmail = rUser?.username === "anav" ? "anavbansal06@gmail.com" : "priyalgoyal1702@gmail.com";
-    const rLi    = rUser?.username === "anav" ? "linkedin.com/in/anavbansal-51b191162" : "linkedin.com/in/priyal--goyal/";
-    const txt = `${greeting}
+    const rPhone = rUser?.phone || (rUser?.username === "anav" ? "+91 7827855635" : "+91 7665941798");
+    const rEmail = rUser?.profileEmail || (rUser?.username === "anav" ? "anavbansal06@gmail.com" : "");
+    const rLi    = rUser?.linkedinUrl  || (rUser?.username === "anav" ? "linkedin.com/in/anavbansal-51b191162" : "");
+    const pf     = { ...getHRProfile(), ...profile };
 
-Thank you for reaching out! Please find my details below:
+    // Build the profile context string (all candidate details)
+    const profileContext = `Candidate Name: ${rName}
+Key Skills: ${pf.keySkills}
+Total Experience: ${pf.totalExp}
+Relevant Experience: ${pf.relevantExp}
+Current Company: ${pf.currentCompany}
+Notice Period / LWD: ${pf.noticePeriod}
+Current CTC: ${pf.currentCTC}
+Expected CTC: ${pf.expectedCTC}
+Offer in Hand: ${pf.offerInHand || "No"}
+Reason for Change: ${pf.reasonForChange}
+Current Location: ${pf.currentLocation}
+Preferred Location: ${pf.preferredLocation}
+Contact: ${rPhone} | ${rEmail}
+LinkedIn: ${rLi}`;
 
-📋 Candidate Profile — ${rName}
+    // The actual HR email content for AI to analyze
+    const hrEmailContent = `Subject: ${message.subject || ""}
+From: ${hrName || fromEmail}
+Body snippet: ${message.snippet || ""}`;
 
-• Key Skills             : ${profile.keySkills}
-• Total Experience       : ${profile.totalExp}
-• Relevant Experience    : ${profile.relevantExp}
-• Current Company        : ${profile.currentCompany}
-• Reason for Change      : ${profile.reasonForChange}
-• Notice Period / LWD    : ${profile.noticePeriod}
-• Current CTC            : ${profile.currentCTC}
-• Offer in Hand          : ${profile.offerInHand || "No"}
-• Expected CTC           : ${profile.expectedCTC}
-• Current Location       : ${profile.currentLocation}
-• Preferred Location     : ${profile.preferredLocation}
+    try {
+      const r = await axios.post(`${API}/api/ai/chat`, {
+        tool: "screening",
+        message: `Here is the HR email I received:
 
-Looking forward to the next steps. Please feel free to reach out for any further information.
+${hrEmailContent}
 
-Best regards,
-${rName}
-📞 ${rPhone} | ✉ ${rEmail}
-🔗 ${rLi}`;
-    setReplyText(txt);
-    setEditProfile(false);
+Here is my complete profile:
+
+${profileContext}
+
+Write a professional reply that ONLY answers what the HR specifically asked for. Do not dump all profile fields — only include the details relevant to their questions. If they asked for notice period and CTC, only give those. If they asked for skills and experience, only answer that. Address HR by name "${hrName || "there"}" and sign off as ${rName} with phone ${rPhone}. Keep it concise and professional. Plain text only, no markdown.`,
+        history: [],
+      });
+      if (r.data.success && r.data.reply) {
+        setReplyText(r.data.reply);
+      } else {
+        // Fallback to smart template if AI fails
+        setReplyText(buildScreeningReply(hrName));
+      }
+    } catch {
+      setReplyText(buildScreeningReply(hrName));
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const send = async () => {
+    if (!replyText.trim()) return;
     setLoading(true);
     try {
-      // Use direct Gmail reply for screening — plain text, same thread, no "Follow-Up" header
       await axios.post(`${API}/api/gmail/reply`, {
         threadId:  message.threadId,
         messageId: message.id,
@@ -2627,218 +2652,97 @@ ${rName}
         body:      replyText,
       });
       setSent(true);
-      addToast && addToast("✅ Screening reply sent!");
+      addToast && addToast("✅ Reply sent!");
       setTimeout(onClose, 1500);
-    } catch (e) {
-      addToast && addToast("❌ Failed to send reply", "error");
+    } catch {
+      addToast && addToast("❌ Failed to send", "error");
     } finally { setLoading(false); }
   };
 
   const profileFields = [
-    { key: "keySkills",       label: "Key Skills",          wide: true },
-    { key: "totalExp",        label: "Total Experience" },
-    { key: "relevantExp",     label: "Relevant Experience" },
-    { key: "currentCompany",  label: "Current Company" },
-    { key: "reasonForChange", label: "Reason for Change" },
-    { key: "noticePeriod",    label: "Notice Period / LWD" },
-    { key: "currentCTC",      label: "Current CTC" },
-    { key: "offerInHand",     label: "Offer in Hand" },
-    { key: "expectedCTC",     label: "Expected CTC" },
-    { key: "currentLocation", label: "Current Location" },
-    { key: "preferredLocation", label: "Preferred Location" },
+    { key: "keySkills",        label: "Key Skills",          wide: true },
+    { key: "totalExp",         label: "Total Experience" },
+    { key: "relevantExp",      label: "Relevant Experience" },
+    { key: "currentCompany",   label: "Current Company" },
+    { key: "reasonForChange",  label: "Reason for Change" },
+    { key: "noticePeriod",     label: "Notice Period / LWD" },
+    { key: "currentCTC",       label: "Current CTC" },
+    { key: "offerInHand",      label: "Offer in Hand" },
+    { key: "expectedCTC",      label: "Expected CTC" },
+    { key: "currentLocation",  label: "Current Location" },
+    { key: "preferredLocation",label: "Preferred Location" },
   ];
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box-form modal-wide" onClick={e => e.stopPropagation()} style={{ maxWidth: 680 }}>
+      <div className="modal-box" style={{ maxWidth:580 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div className="modal-title-row">
-            <span>🤖</span>
-            <h3 className="modal-title">Auto HR Screening Reply</h3>
-            <span className="modal-hint" style={{ background: "#fef3c7", color: "#92400e", padding: "2px 8px", borderRadius: 6, fontSize: 11 }}>
-              📧 Replying to {fromName || fromEmail}
-            </span>
-          </div>
-          <button className="modal-close" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="modal-scroll">
-          {/* Toggle: Edit Profile */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
-            <button
-              className={`chip ${editProfile ? "chip-active" : ""}`}
-              onClick={() => setEditProfile(p => !p)}
-              type="button"
-            >
-              ✏️ {editProfile ? "Hide Profile Editor" : "Edit Profile Values"}
-            </button>
-            {editProfile && (
-              <button className="chip chip-active" onClick={regenerate} type="button">
-                🔄 Regenerate Reply
-              </button>
-            )}
-          </div>
-
-          {/* Profile editor */}
-          {editProfile && (
-            <div style={{
-              background: "var(--bg-secondary, #f8fafc)", border: "1px solid var(--border, #e2e8f0)",
-              borderRadius: 10, padding: "16px", marginBottom: 14
-            }}>
-              <p style={{ fontSize: 12, color: "var(--text-muted, #64748b)", marginBottom: 10, fontWeight: 600 }}>
-                📋 Edit your profile — changes reflect in the reply below
+            <span>✨</span>
+            <div>
+              <h3 className="modal-title">AI Screening Reply</h3>
+              <p style={{ fontSize:11, color:"var(--text-muted)", margin:0 }}>
+                Replying to {hrName || fromEmail} · {message.subject?.slice(0,50)}
               </p>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                {profileFields.map(f => (
-                  <div key={f.key} className="form-group"
-                    style={{ marginBottom: 0, gridColumn: f.wide ? "1 / -1" : undefined }}>
-                    <label className="form-label" style={{ fontSize: 11 }}>{f.label}</label>
-                    <input
-                      className="form-input"
-                      style={{ fontSize: 12 }}
-                      value={profile[f.key] || ""}
-                      onChange={e => handleProfileChange(f.key, e.target.value)}
-                    />
-                  </div>
-                ))}
-              </div>
             </div>
-          )}
-
-          {/* Reply preview / editor */}
-          <div className="form-group">
-            <label className="form-label">
-              📝 Reply Text — <span style={{ color: "var(--text-muted,#64748b)", fontWeight: 400 }}>Edit if needed before sending</span>
-            </label>
-            <textarea
-              className="form-textarea"
-              rows={18}
-              value={replyText}
-              onChange={e => setReplyText(e.target.value)}
-              style={{ fontFamily: "monospace", fontSize: 12, lineHeight: 1.7 }}
-            />
-          </div>
-
-          {sent && (
-            <div className="alert alert-success">
-              <span className="alert-icon">✓</span>
-              <span>Reply sent successfully in the same thread!</span>
-            </div>
-          )}
-        </div>
-
-        <div className="modal-footer">
-          <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
-          <button
-            className={`btn-followup ${loading ? "loading" : ""}`}
-            onClick={send}
-            disabled={loading || sent}
-          >
-            {loading ? <><span className="spinner" /> Sending…</> : sent ? "✓ Sent!" : <><span className="btn-arrow">↑</span> Send Reply in Thread</>}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-// ─── Thread Modal — full conversation history ─────────────────────────────────
-function ThreadModal({ messageId, contact, onClose }) {
-  const [data,    setData]    = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
-  useLockBodyScroll();
-
-  useEffect(() => {
-    if (!messageId) { setLoading(false); return; }
-    axios.get(`${API}/api/thread/${messageId}`)
-      .then(r => { setData(r.data); setLoading(false); })
-      .catch(e => { setError(e.response?.data?.message || e.message); setLoading(false); });
-  }, [messageId]);
-
-  const fmt = (dateStr) => {
-    if (!dateStr) return "";
-    try { return new Date(dateStr).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }); }
-    catch { return dateStr; }
-  };
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box-form modal-wide" onClick={e => e.stopPropagation()} style={{ maxWidth: 700 }}>
-        <div className="modal-header">
-          <div className="modal-title-row">
-            <span>🧵</span>
-            <h3 className="modal-title">Thread History</h3>
-            <span className="modal-hint">{contact?.company || ""} · {contact?.hrEmail || ""}</span>
           </div>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
 
-        <div className="modal-scroll" style={{ maxHeight: 520 }}>
-          {loading && (
-            <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted,#64748b)" }}>
-              <span className="spinner" /> Loading thread…
+        <div className="modal-scroll" style={{ maxHeight:"70vh" }}>
+          {/* HR Email Preview */}
+          <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:8, padding:"10px 14px", marginBottom:14, fontSize:12 }}>
+            <div style={{ fontWeight:700, color:"var(--text-700,#374151)", marginBottom:4 }}>📩 HR's Email</div>
+            <div style={{ color:"var(--text-muted)", lineHeight:1.6 }}>{message.snippet || "(No preview available)"}</div>
+          </div>
+
+          {/* AI generating */}
+          {aiLoading ? (
+            <div style={{ textAlign:"center", padding:"32px 0", color:"var(--text-muted)" }}>
+              <div style={{ fontSize:24, marginBottom:8 }}>✨</div>
+              <div style={{ fontSize:13, fontWeight:600 }}>AI is reading their email and crafting a reply…</div>
+              <div style={{ fontSize:11, marginTop:4 }}>Only answering what they actually asked</div>
             </div>
-          )}
-          {error && (
-            <div className="alert alert-error"><span className="alert-icon">✕</span>{error}</div>
-          )}
-          {!loading && !error && data && (
+          ) : (
             <>
-              {/* Thread summary */}
-              <div style={{
-                background: "var(--bg-secondary,#f8fafc)", borderRadius: 8,
-                padding: "12px 16px", marginBottom: 16,
-                display: "flex", gap: 16, flexWrap: "wrap",
-              }}>
-                <span><strong>Subject:</strong> {data.subject || "—"}</span>
-                <span><strong>Messages:</strong> {data.conversation?.length || 0}</span>
-                {data.replied && (
-                  <span style={{ color: "#0d9488", fontWeight: 600 }}>
-                    ✅ HR Replied {data.repliedAt ? `· ${fmt(data.repliedAt)}` : ""}
-                  </span>
-                )}
-                {!data.replied && (
-                  <span style={{ color: "var(--text-muted,#64748b)" }}>⏳ No reply yet</span>
-                )}
+              {/* Generated reply */}
+              <div className="form-group">
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                  <label className="form-label" style={{ margin:0, fontSize:12 }}>Your Reply</label>
+                  <div style={{ display:"flex", gap:6 }}>
+                    <button className="btn-ghost btn-sm" style={{ fontSize:11 }}
+                      onClick={() => setEditProfile(p => !p)}>
+                      {editProfile ? "✕ Close Profile" : "✏️ Edit Profile"}
+                    </button>
+                    <button className="btn-ghost btn-sm" style={{ fontSize:11, color:"#7c3aed", borderColor:"#7c3aed" }}
+                      onClick={generateReply} disabled={aiLoading}>
+                      ✨ Regenerate
+                    </button>
+                  </div>
+                </div>
+                <textarea className="form-textarea" rows={12} style={{ fontSize:13, fontFamily:"inherit" }}
+                  value={replyText} onChange={e => setReplyText(e.target.value)} />
               </div>
 
-              {/* Messages */}
-              {(data.conversation || []).length === 0 ? (
-                <div className="empty-state">
-                  <span className="empty-icon">📭</span>
-                  <p>No conversation history found.</p>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {data.conversation.map((msg, i) => (
-                    <div key={i} style={{
-                      borderRadius: 10,
-                      padding: "12px 16px",
-                      background: msg.isReply
-                        ? "linear-gradient(135deg,#f0fdfa,#ccfbf1)"
-                        : msg.isMine
-                          ? "var(--bg-secondary,#f8fafc)"
-                          : "var(--card-bg,#fff)",
-                      border: msg.isReply
-                        ? "1px solid #0d9488"
-                        : "1px solid var(--border,#e2e8f0)",
-                      marginLeft: msg.isMine ? 20 : 0,
-                      marginRight: msg.isReply ? 0 : (msg.isMine ? 0 : 20),
-                    }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, gap: 8, flexWrap: "wrap" }}>
-                        <span style={{ fontWeight: 600, fontSize: 13, color: msg.isReply ? "#0d9488" : "var(--text,#111)" }}>
-                          {msg.isReply ? "↩ " : msg.isMine ? "📤 You" : ""}
-                          {msg.from?.replace(/<[^>]+>/, "").trim() || msg.fromEmail}
-                        </span>
-                        <span style={{ fontSize: 11, color: "var(--text-muted,#64748b)" }}>{fmt(msg.date)}</span>
+              {/* Profile editor (collapsible) */}
+              {editProfile && (
+                <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:10, padding:"14px 16px", marginBottom:12 }}>
+                  <div style={{ fontWeight:700, fontSize:12, marginBottom:10, color:"var(--blue)" }}>
+                    ✏️ Edit Profile Details
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                    {profileFields.map(f => (
+                      <div key={f.key} className="form-group" style={{ marginBottom:0, gridColumn: f.wide ? "1 / -1" : undefined }}>
+                        <label className="form-label" style={{ fontSize:10 }}>{f.label}</label>
+                        <input className="form-input" style={{ fontSize:12 }}
+                          value={profile[f.key] || ""}
+                          onChange={e => setProfile(p => ({ ...p, [f.key]: e.target.value }))} />
                       </div>
-                      <p style={{ margin: 0, fontSize: 13, color: "var(--text,#374151)", lineHeight: 1.6 }}>
-                        {msg.body || msg.snippet || "—"}
-                      </p>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                  <button className="btn-primary btn-sm" style={{ marginTop:10 }} onClick={generateReply}>
+                    ✨ Re-generate with updated profile
+                  </button>
                 </div>
               )}
             </>
@@ -2846,351 +2750,9 @@ function ThreadModal({ messageId, contact, onClose }) {
         </div>
 
         <div className="modal-footer">
-          <button className="btn-ghost" onClick={onClose}>Close</button>
-          {data?.threadId && (
-            <a
-              href={`https://mail.google.com/mail/u/0/#inbox/${data.threadId}`}
-              target="_blank" rel="noreferrer"
-              className="btn-primary"
-              style={{ textDecoration: "none", fontSize: 13 }}
-            >
-              📬 Open in Gmail →
-            </a>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-// ─── Manual Contact Update Modal ──────────────────────────────────────────────
-function ManualUpdateModal({ contact, onClose, onSaved, addToast }) {
-  // Load saved phone/stage from localStorage per contact
-  const [form, setForm] = useState({
-    replied:       contact.replied       || false,
-    repliedAt:     contact.repliedAt     ? new Date(contact.repliedAt).toISOString().slice(0,16) : new Date().toISOString().slice(0,16),
-    replyNote:     contact.replySnippet  || "",
-    notes:         contact.notes         || "",
-    followupSent:  contact.followupSent  || false,
-    phone:         contact.phone         || "",
-    stage:         contact.stage         || "Applied",
-    priority:      contact.priority      || "Normal",
-    interviewDate: contact.interviewDate ? new Date(contact.interviewDate).toISOString().slice(0,16) : "",
-    callLog:       contact.callLog       || "",
-    interviewRound:contact.interviewRound|| "",
-  });
-  const [loading, setLoading] = useState(false);
-  const [saved,   setSaved]   = useState(false);
-  useLockBodyScroll();
-
-  const handle = (k, v) => setForm(p => ({ ...p, [k]: v }));
-
-  const STAGES   = ["Applied", "Shortlisted", "HR Round", "Technical", "Final Round", "Offer Received", "Rejected", "On Hold"];
-  const PRIORITY = ["Low", "Normal", "High", "Hot 🔥"];
-  const ROUNDS   = ["HR Round", "Technical Round", "System Design", "Managerial", "Final Round"];
-
-  const Toggle = ({ value, onChange, colorOn="#0d9488" }) => (
-    <div onClick={() => onChange(!value)} style={{
-      width:44, height:24, borderRadius:99, cursor:"pointer", flexShrink:0,
-      background: value ? colorOn : "var(--border,#e2e8f0)",
-      position:"relative", transition:"all 0.2s ease"
-    }}>
-      <div style={{
-        position:"absolute", top:3, left: value ? 22 : 3,
-        width:18, height:18, borderRadius:"50%", background:"#fff",
-        transition:"left 0.2s ease", boxShadow:"0 1px 4px rgba(0,0,0,0.2)"
-      }} />
-    </div>
-  );
-
-  const submit = async () => {
-    setLoading(true);
-    try {
-      // Save everything to MongoDB
-      await axios.patch(`${API}/api/contact/update`, {
-        hrEmail:       contact.hrEmail,
-        replied:       form.replied,
-        repliedAt:     form.replied ? form.repliedAt : null,
-        replyNote:     form.replyNote,
-        notes:         form.notes,
-        followupSent:  form.followupSent,
-        phone:         form.phone,
-        stage:         form.stage,
-        priority:      form.priority,
-        interviewRound:form.interviewRound,
-        interviewDate: form.interviewDate || null,
-        callLog:       form.callLog,
-      });
-      setSaved(true);
-      addToast && addToast(`✅ ${contact.company || contact.hrEmail} updated!`);
-      setTimeout(() => { onSaved && onSaved(); onClose(); }, 800);
-    } catch (e) {
-      addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error");
-    } finally { setLoading(false); }
-  };
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box-form" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
-        <div className="modal-header">
-          <div className="modal-title-row">
-            <span>✏️</span>
-            <h3 className="modal-title">Update Contact</h3>
-            <span className="modal-hint">{contact.company || contact.hrEmail}</span>
-          </div>
-          <button className="modal-close" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="modal-scroll" style={{ maxHeight:560 }}>
-
-          {/* ── Contact Info ── */}
-          <div style={{ background:"var(--surface-2,#f8fafc)", borderRadius:12, padding:"12px 14px", marginBottom:14 }}>
-            <div style={{ fontSize:11, color:"var(--text-muted)", fontWeight:600, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.5px" }}>Contact Info</div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-              <div className="form-group" style={{ marginBottom:0 }}>
-                <label className="form-label" style={{ fontSize:11 }}>📞 Phone Number</label>
-                <div style={{ display:"flex", gap:6 }}>
-                  <input className="form-input" style={{ fontSize:13 }}
-                    placeholder="+91 98765 43210"
-                    value={form.phone}
-                    onChange={e => handle("phone", e.target.value)} />
-                  {form.phone && (
-                    <a href={`tel:${form.phone}`}
-                      style={{ display:"flex", alignItems:"center", padding:"0 10px", background:"#d1fae5", borderRadius:8, color:"#065f46", fontSize:18, textDecoration:"none" }}
-                      title="Call">📞</a>
-                  )}
-                </div>
-              </div>
-              <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                {form.phone && (
-                  <>
-                    <a href={`https://wa.me/${form.phone.replace(/[^0-9]/g,"")}`}
-                      target="_blank" rel="noreferrer"
-                      style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 10px", background:"#dcfce7", borderRadius:8, color:"#166534", fontSize:12, fontWeight:600, textDecoration:"none" }}>
-                      💬 WhatsApp
-                    </a>
-                    <button style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 10px", background:"#dbeafe", borderRadius:8, color:"#1d4ed8", fontSize:12, fontWeight:600, border:"none", cursor:"pointer" }}
-                      onClick={() => { navigator.clipboard?.writeText(form.phone); addToast && addToast("Number copied!"); }}>
-                      📋 Copy Number
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* ── Stage + Priority ── */}
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
-            <div className="form-group" style={{ marginBottom:0 }}>
-              <label className="form-label" style={{ fontSize:11 }}>🎯 Application Stage</label>
-              <select className="form-select" style={{ fontSize:13 }}
-                value={form.stage} onChange={e => handle("stage", e.target.value)}>
-                {STAGES.map(s => <option key={s}>{s}</option>)}
-              </select>
-            </div>
-            <div className="form-group" style={{ marginBottom:0 }}>
-              <label className="form-label" style={{ fontSize:11 }}>⭐ Priority</label>
-              <select className="form-select" style={{ fontSize:13 }}
-                value={form.priority} onChange={e => handle("priority", e.target.value)}>
-                {PRIORITY.map(p => <option key={p}>{p}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* ── Interview ── */}
-          <div style={{ background:"#ede9fe", border:"1px solid #c4b5fd", borderRadius:12, padding:"12px 14px", marginBottom:14 }}>
-            <div style={{ fontSize:11, color:"#5b21b6", fontWeight:600, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.5px" }}>Interview Details</div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-              <div className="form-group" style={{ marginBottom:0 }}>
-                <label className="form-label" style={{ fontSize:11 }}>Round</label>
-                <select className="form-select" style={{ fontSize:13 }}
-                  value={form.interviewRound} onChange={e => handle("interviewRound", e.target.value)}>
-                  <option value="">Not Scheduled</option>
-                  {ROUNDS.map(r => <option key={r}>{r}</option>)}
-                </select>
-              </div>
-              <div className="form-group" style={{ marginBottom:0 }}>
-                <label className="form-label" style={{ fontSize:11 }}>Date & Time</label>
-                <input type="datetime-local" className="form-input" style={{ fontSize:12 }}
-                  value={form.interviewDate}
-                  onChange={e => handle("interviewDate", e.target.value)} />
-              </div>
-            </div>
-          </div>
-
-          {/* ── Replied toggle ── */}
-          <div style={{
-            background: form.replied ? "linear-gradient(135deg,#f0fdfa,#ccfbf1)" : "var(--surface-2,#f8fafc)",
-            border: `1.5px solid ${form.replied ? "#0d9488" : "var(--border,#e2e8f0)"}`,
-            borderRadius:12, padding:"12px 14px", marginBottom:10, transition:"all 0.2s"
-          }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <Toggle value={form.replied} onChange={v => handle("replied", v)} colorOn="#0d9488" />
-              <div>
-                <div style={{ fontWeight:700, fontSize:13, color: form.replied ? "#0d9488" : "var(--text-900)" }}>
-                  {form.replied ? "✅ Replied" : "Mark as Replied"}
-                </div>
-                <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:1 }}>Phone / LinkedIn / WhatsApp / Email</div>
-              </div>
-            </div>
-            {form.replied && (
-              <div style={{ marginTop:10, display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                <div className="form-group" style={{ marginBottom:0 }}>
-                  <label className="form-label" style={{ fontSize:11 }}>Reply Date</label>
-                  <input type="datetime-local" className="form-input" style={{ fontSize:12 }}
-                    value={form.repliedAt} onChange={e => handle("repliedAt", e.target.value)} />
-                </div>
-                <div className="form-group" style={{ marginBottom:0 }}>
-                  <label className="form-label" style={{ fontSize:11 }}>Reply Summary</label>
-                  <input className="form-input" style={{ fontSize:12 }}
-                    placeholder="Called, said shortlisted..."
-                    value={form.replyNote} onChange={e => handle("replyNote", e.target.value)} />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ── Follow-up + Call Log row ── */}
-          <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:8, marginBottom:10 }}>
-            <div style={{
-              background:"var(--surface-2,#f8fafc)", border:"1.5px solid var(--border)",
-              borderRadius:12, padding:"10px 14px"
-            }}>
-              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                <Toggle value={form.followupSent} onChange={v => handle("followupSent", v)} colorOn="#7c3aed" />
-                <div style={{ fontWeight:600, fontSize:13, color: form.followupSent ? "#7c3aed" : "var(--text-700)" }}>
-                  🔁 Follow-up Sent
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Call Log ── */}
-          <div className="form-group" style={{ marginBottom:10 }}>
-            <label className="form-label" style={{ fontSize:11 }}>📞 Call Log <span className="lbadge lbadge-opt">Optional</span></label>
-            <textarea className="form-textarea" rows={2} style={{ fontSize:12 }}
-              placeholder="e.g. Called 7 Jun 10am — Priya said resume looks good, Tech round next week..."
-              value={form.callLog} onChange={e => handle("callLog", e.target.value)} />
-          </div>
-
-          {/* ── Notes ── */}
-          <div className="form-group">
-            <label className="form-label" style={{ fontSize:11 }}>📝 Notes <span className="lbadge lbadge-opt">Optional</span></label>
-            <textarea className="form-textarea" rows={2} style={{ fontSize:12 }}
-              placeholder="Salary discussed, referral given, requires 60 days notice..."
-              value={form.notes} onChange={e => handle("notes", e.target.value)} />
-          </div>
-        </div>
-
-        <div className="modal-footer">
           <button className="btn-ghost" onClick={onClose}>Cancel</button>
-          <button
-            className={`btn-primary ${loading ? "loading" : ""}`}
-            onClick={submit}
-            disabled={loading || saved}
-          >
-            {loading ? <><span className="spinner" /> Saving…</> : saved ? "✓ Saved!" : "💾 Save Changes"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Inbox Page ───────────────────────────────────────────────────────────────
-// ─── Interview Schedule Modal ─────────────────────────────────────────────────
-function InterviewScheduleModal({ contact, onClose, onSaved, addToast }) {
-  const ROUNDS = ["R1 Technical","R2 Technical","HR Round","Managerial","System Design","Final Round","Offer Discussion"];
-  const [form, setForm] = useState({
-    stage: "Interview",
-    interviewRound: "",
-    interviewDate: "",
-    priority: "Normal",
-    callLog: "",
-  });
-  const [saving, setSaving] = useState(false);
-
-  const save = async () => {
-    if (!form.interviewDate) { addToast && addToast("❌ Please select interview date & time", "error"); return; }
-    setSaving(true);
-    try {
-      const r = await axios.post(`${API}/api/interviews`, {
-        hrEmail:        contact.hrEmail,
-        hrName:         contact.hrName  || "",
-        company:        contact.company || "",
-        role:           contact.role    || "",
-        stage:          "Interview",
-        interviewRound: form.interviewRound,
-        interviewDate:  form.interviewDate,
-        priority:       form.priority,
-        callLog:        form.callLog,
-      });
-      addToast && addToast(r.data.calendarSynced ? "✅ Interview scheduled + added to Google Calendar!" : "✅ Interview scheduled! (Calendar sync skipped — reconnect Gmail to enable)");
-      onSaved && onSaved();
-      onClose();
-    } catch(e) {
-      addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error");
-    } finally { setSaving(false); }
-  };
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box-form" onClick={e => e.stopPropagation()} style={{ maxWidth:460 }}>
-        <div className="modal-header">
-          <div className="modal-title-row">
-            <span>🗓</span>
-            <h3 className="modal-title">Schedule Interview</h3>
-          </div>
-          <button className="modal-close" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="modal-scroll">
-          {/* Contact info */}
-          <div style={{ background:"linear-gradient(135deg,#eff6ff,#f0fdf4)", border:"1px solid #bfdbfe", borderRadius:10, padding:"10px 14px", marginBottom:16 }}>
-            <div style={{ fontWeight:700, fontSize:13 }}>{contact.company || "Company"}</div>
-            <div style={{ fontSize:12, color:"var(--text-muted)", marginTop:2 }}>{contact.hrEmail} {contact.hrName ? `· ${contact.hrName}` : ""}</div>
-            {contact.role && <div style={{ fontSize:12, color:"var(--blue)", marginTop:2 }}>📌 {contact.role}</div>}
-          </div>
-
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-            <div className="form-group" style={{ marginBottom:0 }}>
-              <label className="form-label" style={{ fontSize:11 }}>Interview Round</label>
-              <select className="form-select" style={{ fontSize:13 }}
-                value={form.interviewRound} onChange={e => setForm(p=>({...p, interviewRound:e.target.value}))}>
-                <option value="">Select round…</option>
-                {ROUNDS.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-            <div className="form-group" style={{ marginBottom:0 }}>
-              <label className="form-label" style={{ fontSize:11 }}>Priority</label>
-              <select className="form-select" style={{ fontSize:13 }}
-                value={form.priority} onChange={e => setForm(p=>({...p, priority:e.target.value}))}>
-                {["Low","Normal","High","Dream Company"].map(p => <option key={p}>{p}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div className="form-group" style={{ marginTop:12 }}>
-            <label className="form-label" style={{ fontSize:11 }}>Interview Date & Time <span style={{color:"#dc2626"}}>*</span></label>
-            <input type="datetime-local" className="form-input" style={{ fontSize:13 }}
-              value={form.interviewDate}
-              onChange={e => setForm(p=>({...p, interviewDate:e.target.value}))} />
-          </div>
-
-          <div className="form-group" style={{ marginBottom:0 }}>
-            <label className="form-label" style={{ fontSize:11 }}>Notes <span style={{ fontWeight:400, color:"var(--text-muted)" }}>(optional)</span></label>
-            <textarea className="form-textarea" rows={3} style={{ fontSize:13 }}
-              placeholder="Topics to prepare, contact details, dress code…"
-              value={form.callLog} onChange={e => setForm(p=>({...p, callLog:e.target.value}))} />
-          </div>
-        </div>
-
-        <div className="modal-footer">
-          <button className="btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={save} disabled={saving}
-            style={{ background:"linear-gradient(135deg,#d97706,#f59e0b)" }}>
-            {saving ? "Saving…" : "🗓 Schedule Interview"}
+          <button className="btn-primary" onClick={send} disabled={loading || aiLoading || sent || !replyText.trim()}>
+            {sent ? "✅ Sent!" : loading ? "Sending…" : "📤 Send Reply"}
           </button>
         </div>
       </div>
