@@ -889,9 +889,9 @@ const CTI_HIGHLIGHTS = [
 ];
 const CRM_HIGHLIGHTS = [
   "4.8+ years · Senior CRM Integration Expert",
-  "ServiceNow (ITSM, CSM, Flow Designer, IntegrationHub, Virtual Agent, Scripted REST)",
-  "Freshdesk (FDK, Marketplace Apps, CTI API) · Salesforce Open CTI · Zendesk Apps Framework",
-  "3 published marketplace apps: ServiceNow Store · Freshdesk · Webex App Hub",
+  "ServiceNow: ITSM · HRSD · CSM · Flow Designer · IntegrationHub · Virtual Agent · Scripted REST APIs · Marketplace Listing",
+  "Freshdesk (FDK, Marketplace Apps, CTI API) · Salesforce Open CTI · Zendesk Apps Framework · MS Dynamics 365",
+  "3 published enterprise marketplace apps: ServiceNow Store · Freshdesk · Webex App Hub",
   "CTI Screen Pop · Click-to-Dial · Real-Time Ticket Automation · CRM-Telephony Sync",
 ];
 
@@ -932,16 +932,30 @@ async function sendApplicationEmail({
     dbTemplate = await EmailTemplate.findOne({ userId: String(user._id), templateId: templateType }).lean();
   }
 
+  // Fetch user's permanent template overrides (intro/highlights saved via Settings)
+  let userOverride = null;
+  if (mongoose.connection.readyState === 1 && user?._id) {
+    userOverride = await EmailTemplate.findOne({
+      userId: String(user._id), templateId: templateType, isOverride: true
+    }).lean().catch(() => null);
+  }
+  // Merge override into tplOpts (only overrides what user actually customized)
+  if (userOverride) {
+    if (userOverride.intro)      tplOpts.customIntro      = userOverride.intro;
+    if (userOverride.highlights?.length) tplOpts.customHighlights = userOverride.highlights;
+    if (userOverride.customNote) tplOpts.customNote       = tplOpts.customNote || userOverride.customNote;
+  }
+
   if (isMohit) {
     html = buildMohitHTML({ ...tplOpts, templateType });
   } else if (isPriyal) {
     html = buildPriyalHTML({ ...tplOpts, templateType });
   } else if (isBuiltInUser) {
-    // Anav — built-in templates
-    if (templateType === "cti")    html = buildCTIHTML(tplOpts);
-    else if (templateType === "formal")   html = buildFormalHTML(tplOpts);
-    else if (templateType === "crm")      html = buildCRMHTML(tplOpts);
-    else                                  html = buildFullstackHTML(tplOpts);
+    // Anav — built-in templates with optional user overrides merged in
+    if (templateType === "cti")         html = buildCTIHTML(tplOpts);
+    else if (templateType === "formal") html = buildFormalHTML(tplOpts);
+    else if (templateType === "crm")    html = buildCRMHTML(tplOpts);
+    else                                html = buildFullstackHTML(tplOpts);
   } else if (dbTemplate) {
     // Custom users (newly added team members) — use their DB-configured template
     html = buildDynamicHTML({ ...tplOpts, dbTemplate, userName: userCfg?.profileName || user?.displayName || "Candidate" });
@@ -1028,9 +1042,10 @@ function buildCRMHTML({ hrName, company, role, customNote, trackUrl = "", custom
   const intro     = customIntro ||
     `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}.
      With <strong>4.8+ years as a CRM Integration Expert</strong>, I specialize in <strong>ServiceNow platform development</strong>
-     (Flow Designer, IntegrationHub, Virtual Agent, Scripted REST APIs) and <strong>Freshdesk CTI integrations</strong> —
+     (ITSM, HRSD, CSM, Flow Designer, IntegrationHub, Virtual Agent, Scripted REST APIs, Marketplace Listing) and
+     <strong>CTI integrations</strong> across Freshdesk, Salesforce, Zendesk, and MS Dynamics —
      delivering enterprise-grade solutions that automate ticket workflows, enable real-time telephony-to-CRM sync,
-     and measurably reduce agent handle time. I am currently serving my notice period with a 4.8-year tenure at NovelVox, and am available to join by late August 2026 or earlier for the right opportunity.`;
+     and measurably reduce agent handle time. I am currently serving my notice period at NovelVox and am available to join by late August 2026 or earlier for the right opportunity.`;
   const items     = (customHighlights && customHighlights.length) ? customHighlights : CRM_HIGHLIGHTS;
   const hlHtml    = items.map(h => `<li>${h}</li>`).join("");
 
@@ -1040,7 +1055,7 @@ function buildCRMHTML({ hrName, company, role, customNote, trackUrl = "", custom
   <div style="background:${gradient};padding:36px 40px;">
     <p style="margin:0 0 6px;color:#99f6e4;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Senior CRM Integration Expert</p>
     <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Anav Bansal</h1>
-    <p style="margin:6px 0 0;color:#99f6e4;font-size:14px;">ServiceNow · Freshdesk · Salesforce · Zendesk · MS Dynamics</p>
+    <p style="margin:6px 0 0;color:#99f6e4;font-size:14px;">ServiceNow (ITSM · HRSD · CSM) · Freshdesk · Salesforce · Zendesk · MS Dynamics</p>
   </div>
   <div style="padding:36px 40px;">
     <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
@@ -4600,6 +4615,42 @@ Return JSON in this exact shape:
 // ─── GET /api/extension/whoami — lightweight check that the token still works ──
 app.get("/api/extension/whoami", requireAuth, async (req, res) => {
   res.json({ success: true, username: req.user.username, displayName: req.user.displayName });
+});
+
+
+// ─── POST /api/template-override — permanently save user's template customizations ─
+// Stores intro + highlights in EmailTemplate model — backend merges them into
+// the built-in templates at send time (instead of replacing them entirely).
+app.post("/api/template-override", requireAuth, async (req, res) => {
+  try {
+    const { templateId, intro, highlights, subject, customNote } = req.body;
+    if (!templateId) return res.status(400).json({ success: false, message: "templateId required" });
+
+    await EmailTemplate.findOneAndUpdate(
+      { userId: req.userId, templateId },
+      { $set: {
+        templateId,
+        ...(intro       !== undefined && { intro }),
+        ...(highlights  !== undefined && { highlights: highlights.filter(Boolean) }),
+        ...(subject     !== undefined && { subject }),
+        ...(customNote  !== undefined && { customNote }),
+        isOverride: true,  // flag: only override specific fields, don't replace full template
+      }},
+      { upsert: true, new: true }
+    );
+
+    res.json({ success: true, message: "Template customization saved permanently ✅" });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── GET /api/template-override — get user's saved overrides ─────────────────
+app.get("/api/template-override", requireAuth, async (req, res) => {
+  try {
+    const overrides = await EmailTemplate.find({ userId: req.userId, isOverride: true }).lean();
+    const map = {};
+    overrides.forEach(o => { map[o.templateId] = o; });
+    res.json({ success: true, overrides: map });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
 app.listen(PORT, () => console.log(`\n🚀 Job Mailer API → http://localhost:${PORT}\n`));
