@@ -4090,6 +4090,10 @@ function LinkedInConnectionsPage({ onFillApply, addToast }) {
   const [refModal,       setRefModal]       = useState(null);
   const [ignoring,       setIgnoring]       = useState({});
   const [addConnModal,   setAddConnModal]   = useState(false);
+  const [liPage,  setLiPage]  = useState(1);
+  const [liPer,   setLiPer]   = useState(24);
+  const [liSort,  setLiSort]  = useState("recent");
+  useEffect(() => { setLiPage(1); }, [search, filter, liSort]);
 
   const fetchConnections = useCallback(async (q, f) => {
     setLoading(true);
