@@ -229,6 +229,21 @@ function getUserGmailAuth(user) {
 }
 
 // ── Sync interview to Google Calendar (best-effort, never blocks the response) ─
+// ── Smart company name from email domain when company field is blank ──────────
+function companyFromEmail(email = "", fallback = "your organization") {
+  if (!email) return fallback;
+  const domain = email.split("@")[1] || "";
+  if (!domain) return fallback;
+  // Strip common email service domains — not company names
+  const genericDomains = ["gmail.com","yahoo.com","hotmail.com","outlook.com","rediffmail.com",
+    "naukri.com","linkedin.com","jobstreet.com","indeed.com","shine.com","monsterindia.com"];
+  if (genericDomains.includes(domain)) return fallback;
+  // Extract company name from domain (strip .com/.in/.org etc., capitalize)
+  const parts = domain.split(".");
+  const name = parts[parts.length > 2 ? parts.length - 2 : 0];
+  return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+}
+
 async function syncInterviewToCalendar(user, interview) {
   try {
     if (!interview.interviewDate) return null;
@@ -887,12 +902,15 @@ async function sendApplicationEmail({
   customIntro = "", customHighlights = null, headerTheme = "blue",
   userCfg = null, user = null,
 }) {
+  // If company is blank, try to derive it from the HR email domain
+  if (!company && hrEmail) company = companyFromEmail(hrEmail, "");
   const userName = userCfg?.profileName || "Anav Bansal";
+  const companyStr = company ? ` at ${company}` : "";
   const subject = role
-    ? `Application for ${role} Position — ${userName}`
+    ? `Application for ${role} Position${companyStr} — ${userName}`
     : templateType === "crm"
-      ? `Job Application — ${userName} (Senior CRM & ServiceNow Expert)`
-      : `Job Application — ${userName}`;
+      ? `Job Application — ${userName} (Senior CRM & ServiceNow Expert)${companyStr}`
+      : `Job Application — ${userName}${companyStr}`;
 
   const trackRecord = createTrackingRecord({ hrEmail, hrName, company, role, subject, type: "application" });
   const trackUrl    = `${BASE_URL}/api/track/${trackRecord.trackingId}`;
@@ -1050,7 +1068,7 @@ function buildCRMHTML({ hrName, company, role, customNote, trackUrl = "", custom
 // ─── HTML: Dynamic DB Template ───────────────────────────────────────────────
 function buildDynamicHTML({ hrName, company, role, customNote, trackUrl = "", dbTemplate, userName = "Anav Bansal" }) {
   const greeting   = hrName ? `Dear ${hrName},` : "Dear Hiring Manager,";
-  const co         = company || "your organization";
+  const co         = company||"your organization";
   const roleText   = role ? ` for the <strong>${role}</strong> position` : "";
   const noteBlock  = (customNote || dbTemplate.customNote)
     ? `<p style="color:#374151;line-height:1.8;margin:16px 0;">${customNote || dbTemplate.customNote}</p>` : "";
@@ -1451,7 +1469,7 @@ function buildReferralHTML({ employeeName, company, role, customNote, trackUrl =
     <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
     <p style="color:#374151;line-height:1.8;margin:0 0 16px;">
       I hope you don't mind me reaching out. I came across your profile and noticed you work at
-      <strong>${company || "your organization"}</strong>. I'm very interested in the
+      <strong>${company||"your organization"}</strong>. I'm very interested in the
       <strong>${role}</strong> role there and was hoping you might be open to referring me.
     </p>
     ${noteBlock}
