@@ -1914,79 +1914,94 @@ app.get("/api/sent-log", requireAuth, async (req, res) => {
 // ─── GET /api/gmail/replies — inbox replies from tracked HR emails ─────────────
 app.get("/api/gmail/replies", requireAuth, async (req, res) => {
   try {
-    // Use refresh token from env (works on Render without tokens.json)
     const cfg7 = getUserConfig(req.user);
     if (!cfg7.gmailUser && !process.env.GMAIL_REFRESH_TOKEN) return res.json({ success: true, replies: [] });
-    const auth = getUserGmailAuth(req.user);
+    const auth  = getUserGmailAuth(req.user);
     const gmail = google.gmail({ version: "v1", auth });
 
-    // Pull tracked emails from DB (more complete) with fallback to tracking.json
-    let trackedEmails;
+    // ── FAST PATH: Return DB-already-marked replies immediately (no Gmail API call) ──
+    const isOwner2 = req.user.username === (process.env.OWNER_USERNAME || "anav");
+    const userFilter2 = isOwner2
+      ? { $or: [{ userId: req.userId }, { userId: "default" }, { userId: { $exists: false } }] }
+      : { userId: req.userId };
+
+    let fastReplies = [];
     if (mongoose.connection.readyState === 1) {
-      const isOwner2 = req.user.username === (process.env.OWNER_USERNAME || "anav");
-      const emailFilter = isOwner2
-        ? { $or: [{ userId: req.userId }, { userId: "default" }, { userId: { $exists: false } }] }
-        : { userId: req.userId };
-      const dbEmails = await SentEmailLog.distinct("hrEmail", emailFilter);
-      trackedEmails = [...new Set(dbEmails.map(e => e.toLowerCase()))];
-    } else {
-      trackedEmails = [...new Set(getTrackingRecords().map(r => r.hrEmail.toLowerCase()))];
-    }
-    if (!trackedEmails.length) return res.json({ success: true, replies: [] });
+      const dbReplied = await SentEmailLog.find({
+        ...userFilter2,
+        replied: true,
+      }, { hrEmail:1, hrName:1, company:1, role:1, repliedAt:1, replySnippet:1, sentAt:1 })
+        .sort({ repliedAt: -1 }).lean();
 
-    // Batch into chunks of 25 emails per Gmail query (URL length limit)
-    const CHUNK = 25;
-    const allMessages = [];
-    for (let i = 0; i < trackedEmails.length; i += CHUNK) {
-      const chunk = trackedEmails.slice(i, i + CHUNK);
-      const fromClause = chunk.map(e => `from:${e}`).join(" OR ");
-      const query = `(${fromClause}) newer_than:120d`;
+      fastReplies = dbReplied.map(r => ({
+        id: r._id.toString(),
+        fromEmail: r.hrEmail.toLowerCase(),
+        from: r.hrName ? `${r.hrName} <${r.hrEmail}>` : r.hrEmail,
+        subject: `Re: Application — ${r.company || r.hrEmail}`,
+        date: r.repliedAt || r.sentAt,
+        snippet: r.replySnippet || "",
+        isReply: true,
+        sentContext: { company: r.company, role: r.role, sentAt: r.sentAt },
+      }));
+    }
+
+    // ── GMAIL LIVE FETCH: also check live inbox for NEW replies not yet in DB ──
+    // Run in background — don't block the response
+    (async () => {
       try {
-        const list = await gmail.users.messages.list({ userId: "me", q: query, maxResults: 100 });
-        if (list.data.messages?.length) allMessages.push(...list.data.messages);
-      } catch { /* skip chunk on error */ }
-    }
+        const emailFilter2 = isOwner2
+          ? { $or: [{ userId: req.userId }, { userId: "default" }, { userId: { $exists: false } }] }
+          : { userId: req.userId };
+        const dbEmails = await SentEmailLog.distinct("hrEmail", emailFilter2);
+        const trackedEmails = [...new Set(dbEmails.map(e => e.toLowerCase()))];
+        if (!trackedEmails.length) return;
 
-    if (!allMessages.length) return res.json({ success: true, replies: [] });
+        // Use domain-level search which is more reliable than exact email match.
+        // Batch 25 emails per query. Also search wider — job board replies often
+        // come from a different subdomain/address than what we emailed.
+        const CHUNK = 25;
+        for (let i = 0; i < trackedEmails.length; i += CHUNK) {
+          const chunk = trackedEmails.slice(i, i + CHUNK);
+          // Build domain-aware query: match by exact email OR domain of that email
+          const fromClause = chunk.map(e => {
+            const domain = e.split("@")[1];
+            // Use exact email match — domain match causes too many false positives
+            return `from:${e}`;
+          }).join(" OR ");
+          const query = `(${fromClause}) newer_than:180d -from:me`;
+          try {
+            const list = await gmail.users.messages.list({ userId: "me", q: query, maxResults: 50 });
+            for (const msg of list.data.messages || []) {
+              const d = await gmail.users.messages.get({ userId: "me", id: msg.id, format: "metadata",
+                metadataHeaders: ["From", "Date", "In-Reply-To", "References"] });
+              const h = d.data.payload?.headers || [];
+              const from = h.find(x => x.name === "From")?.value || "";
+              const fMatch = from.match(/<([^>]+)>/);
+              const fromEmail = (fMatch ? fMatch[1] : from).trim().toLowerCase();
+              const dateH = h.find(x => x.name === "Date")?.value;
+              const inReplyTo = h.find(x => x.name === "In-Reply-To")?.value || "";
+              const refs = h.find(x => x.name === "References")?.value || "";
 
-    // Deduplicate message IDs
-    const seen = new Set();
-    const uniqueMessages = allMessages.filter(m => { if (seen.has(m.id)) return false; seen.add(m.id); return true; });
+              // Update DB if not already marked
+              const escapedFE = fromEmail.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
+              const existing = await SentEmailLog.findOne({
+                hrEmail: new RegExp("^" + escapedFE + "$", "i"),
+                ...emailFilter2,
+              }).lean();
+              if (existing && !existing.replied) {
+                await SentEmailLog.updateMany(
+                  { hrEmail: new RegExp("^" + escapedFE + "$", "i"), ...emailFilter2 },
+                  { $set: { replied: true, repliedAt: dateH ? new Date(dateH) : new Date(), replySnippet: d.data.snippet || "" } }
+                );
+              }
+            }
+          } catch { /* skip chunk */ }
+        }
+      } catch { /* background task — ignore errors */ }
+    })();
 
-    const replies = (await Promise.all(
-      uniqueMessages.slice(0, 100).map(async item => {
-        try {
-          const d = await gmail.users.messages.get({ userId: "me", id: item.id, format: "metadata",
-            metadataHeaders: ["From", "Subject", "Date", "In-Reply-To", "References"] });
-          const h = d.data.payload.headers || [];
-          const from      = h.find(x => x.name === "From")?.value || "";
-          const match     = from.match(/<(.+?)>/);
-          const fromEmail = match ? match[1].toLowerCase() : from.trim().toLowerCase();
-          const inReplyTo = h.find(x => x.name === "In-Reply-To")?.value || "";
-          const refs      = h.find(x => x.name === "References")?.value || "";
-
-          let sentContext = null;
-          if (mongoose.connection.readyState === 1) {
-            const escaped = fromEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const sent = await SentEmailLog.findOne({ hrEmail: new RegExp("^" + escaped + "$", "i") })
-              .sort({ sentAt: -1 }).lean();
-            if (sent) sentContext = { company: sent.company, role: sent.role, sentAt: sent.sentAt };
-          }
-
-          return {
-            id: item.id, threadId: d.data.threadId, from, fromEmail,
-            subject:   h.find(x => x.name === "Subject")?.value || "(No Subject)",
-            date:      h.find(x => x.name === "Date")?.value || "",
-            snippet:   d.data.snippet || "",
-            isReply:   !!(inReplyTo || refs),
-            sentContext,
-          };
-        } catch { return null; }
-      })
-    )).filter(Boolean);
-
-    replies.sort((a, b) => new Date(b.date) - new Date(a.date));
-    res.json({ success: true, replies });
+    // Return fast path immediately
+    res.json({ success: true, replies: fastReplies });
   } catch (e) {
     res.json({ success: true, replies: [], error: e.message });
   }
