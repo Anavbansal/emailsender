@@ -1535,6 +1535,38 @@ function DropdownSelect({ value, onChange, options=[], placeholder, width="auto"
 }
 
 
+// ─── Thread Modal — wraps ThreadView in a modal overlay ──────────────────────
+function ThreadModal({ messageId, contact, onClose }) {
+  useLockBodyScroll();
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" style={{ maxWidth:700, maxHeight:"85vh", display:"flex", flexDirection:"column" }}
+        onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title-row">
+            <span>💬</span>
+            <div>
+              <h3 className="modal-title">Email Thread</h3>
+              {contact?.company && (
+                <p style={{ fontSize:11, color:"var(--text-muted)", margin:0 }}>
+                  {contact.company}{contact.hrEmail ? ` · ${contact.hrEmail}` : ""}
+                </p>
+              )}
+            </div>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div style={{ flex:1, overflowY:"auto", padding:"0 0 16px" }}>
+          {messageId
+            ? <ThreadView threadId={messageId} onBack={onClose} />
+            : <div className="empty-state"><span className="empty-icon">💬</span><p>No thread ID available.</p></div>
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail, onFollowUp, onMessage, onRefresh, addToast, onViewThread, onManualUpdate }) {
   const [search,     setSearch]    = useState("");
   const [view,       setView]      = useState("list"); // "list" | "kanban"
