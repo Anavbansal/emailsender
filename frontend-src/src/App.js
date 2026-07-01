@@ -898,6 +898,23 @@ function TemplateEditorModal({ templateType, onClose, onSave }) {
 
   const debouncedTpl = useDebounce(tpl, 600);
 
+  // Load saved overrides from backend on open
+  useEffect(() => {
+    axios.get(`${API}/api/template-override`)
+      .then(r => {
+        const key = BACKEND_TEMPLATE_MAP[templateType] || "fullstack";
+        const ov = r.data.overrides?.[key];
+        if (ov) {
+          setTpl(p => ({
+            ...p,
+            ...(ov.intro      && { customIntro: ov.intro }),
+            ...(ov.highlights?.length && { highlights: ov.highlights }),
+            ...(ov.customNote && { customNote: ov.customNote }),
+          }));
+        }
+      }).catch(() => {});
+  }, [templateType]);
+
   useEffect(() => {
     setPL(true);
     axios.post(`${API}/api/preview-email`, {
@@ -921,16 +938,42 @@ function TemplateEditorModal({ templateType, onClose, onSave }) {
   }));
   const addHighlight = () => setTpl(p => ({ ...p, highlights: [...p.highlights, ""] }));
 
-  const save = () => {
-    localStorage.setItem("customEmailTemplate", JSON.stringify(tpl));
-    onSave(tpl);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      // Save to backend permanently (survives logout/browser clear)
+      await axios.post(`${API}/api/template-override`, {
+        templateId:  BACKEND_TEMPLATE_MAP[templateType] || "fullstack",
+        intro:       tpl.customIntro || "",
+        highlights:  tpl.highlights.filter(Boolean),
+        customNote:  tpl.customNote || "",
+      });
+      // Also save to localStorage as instant cache
+      localStorage.setItem("customEmailTemplate", JSON.stringify(tpl));
+      onSave(tpl);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch(e) {
+      // Fallback to localStorage only
+      localStorage.setItem("customEmailTemplate", JSON.stringify(tpl));
+      onSave(tpl);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally { setSaving(false); }
   };
 
-  const reset = () => {
+  const reset = async () => {
     setTpl(getDefaultTemplate());
     localStorage.removeItem("customEmailTemplate");
+    // Also clear from backend
+    try {
+      await axios.post(`${API}/api/template-override`, {
+        templateId: BACKEND_TEMPLATE_MAP[templateType] || "fullstack",
+        intro: "", highlights: [], customNote: "",
+      });
+    } catch {}
   };
 
   return (
@@ -991,8 +1034,8 @@ function TemplateEditorModal({ templateType, onClose, onSave }) {
 
             <div className="editor-footer-btns">
               <button className="btn-ghost btn-sm" onClick={reset}>↺ Reset Default</button>
-              <button className={`btn-primary btn-sm ${saved ? "btn-copied" : ""}`} onClick={save}>
-                {saved ? "✓ Saved!" : "💾 Save Template"}
+              <button className={`btn-primary btn-sm ${saved ? "btn-copied" : ""}`} onClick={save} disabled={saving}>
+                {saving ? "Saving…" : saved ? "✓ Saved!" : "💾 Save Template"}
               </button>
             </div>
           </div>
