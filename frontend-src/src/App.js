@@ -2292,6 +2292,11 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
   const valid = form.hrEmail && form.company;
   const activeTemplate = getEmailTemplates().find(t => t.id === templateId);
 
+  const selectTemplate = (t) => {
+    setTemplateId(t.id);
+    setCustomTpl(null); // reset any custom overrides when switching template
+  };
+
   return (
     <div className="page">
       {dupModal && <DuplicateWarningModal info={dupModal} onClose={() => setDupModal(null)} onConfirm={confirmDup} />}
