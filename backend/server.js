@@ -728,14 +728,13 @@ cron.schedule("* * * * *", async () => {
           subject: trackRecord.subject, sentAt: new Date(),
         });
         await deleteJob(job.jobId);
-
-        // Notify user it was sent
-        notifyScheduledResult(jobUser, jobUserCfg, job, "sent", null).catch(() => {});
+        // ✅ Auto-sent silently — no email notification for successful sends
+        console.log(`✅ Scheduled email sent to ${job.emailData?.hrEmail} (${job.emailData?.company})`);
       } catch (e) {
         await updateJobStatus(job.jobId, "failed", e.message);
         const failedUsername = jobUser?.username || "unknown";
         await recordGmailFailure(failedUsername, e.message);
-        // Notify user it failed — they can retry manually
+        // ⚠️ Notify ONLY on failure — user needs to know so they can retry
         notifyScheduledResult(jobUser, jobUserCfg, job, "failed", e.message).catch(() => {});
       }
     }
