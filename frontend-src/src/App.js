@@ -4854,6 +4854,12 @@ function App() {
     try { const r = await axios.get(`${API}/api/gmail/replies`); setReplies(r.data.replies || []); } catch {}
   }, []);
 
+  // Silent background DB resync — marks replied:true for all HR replies found
+  // Runs once on login, then every 10 minutes quietly
+  const resyncRepliesDB = useCallback(async () => {
+    try { await axios.get(`${API}/api/resync-replies`); } catch {}
+  }, []);
+
   const fetchScheduled = useCallback(async () => {
     try { const r = await axios.get(`${API}/api/scheduled-emails`); setScheduledJobs(r.data.jobs || []); } catch {}
   }, []);
@@ -4865,6 +4871,14 @@ function App() {
     fetchReplies();
     fetchScheduled();
   }, [authUser, fetchContacts, fetchReplies, fetchScheduled]);
+
+  // ── Auto-resync DB replied status every 10 minutes (silent) ─────────────────
+  useEffect(() => {
+    if (!authUser) return;
+    resyncRepliesDB(); // run immediately on login
+    const t = setInterval(resyncRepliesDB, 10 * 60 * 1000); // then every 10 min
+    return () => clearInterval(t);
+  }, [authUser, resyncRepliesDB]);
 
   // ── Auto-poll replies every 2 minutes + notify on new replies ───────────────
   const prevReplyCountRef = React.useRef(0);
