@@ -2346,27 +2346,27 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
   const pendingPayload = useRef(null);
 
   // Core autofill logic — shared between onChange and onPaste
-  const autofillFromEmail = (email, prev) => {
-    const updates = {};
+  const autofillFromEmail = (email) => {
+    // ALWAYS reset name/company/role first, then fill from contacts or domain
+    const updates = { hrName: "", company: "", role: "" };
+
+    if (!email) return updates;
+
     const matched = contacts.find(c => c.hrEmail?.toLowerCase() === email.toLowerCase());
     if (matched) {
-      // Always update from contacts (overwrite stale values)
+      // Exact contact match — fill all available fields
       if (matched.hrName)  updates.hrName  = matched.hrName;
       if (matched.company) updates.company = matched.company;
       if (matched.role)    updates.role    = matched.role;
     } else if (email.includes("@")) {
-      // Derive company from email domain if not already set from contacts
+      // No contact match — derive company from domain
       const domain = email.split("@")[1] || "";
       const generic = ["gmail.com","yahoo.com","hotmail.com","outlook.com","rediffmail.com",
-        "naukri.com","linkedin.com","indeed.com","shine.com","monsterindia.com"];
+        "naukri.com","linkedin.com","indeed.com","shine.com","monsterindia.com","iimjobs.com"];
       if (domain && !generic.includes(domain)) {
         const parts = domain.split(".");
         const co = parts[parts.length > 2 ? parts.length-2 : 0] || "";
         if (co) updates.company = co.charAt(0).toUpperCase() + co.slice(1).toLowerCase();
-      }
-      // Clear stale name/company if switching to a different unknown email
-      if (!updates.company && prev.company && !contacts.find(c => c.company === prev.company && c.hrEmail?.toLowerCase() === email.toLowerCase())) {
-        // keep existing company — user might have typed it manually
       }
     }
     return updates;
@@ -2377,20 +2377,21 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
     setForm(p => {
       const updated = { ...p, [name]: value };
       if (name === "hrEmail") {
-        Object.assign(updated, autofillFromEmail(value, p));
+        // Clear + re-autofill on every email change
+        Object.assign(updated, autofillFromEmail(value));
       }
       return updated;
     });
     setStatus(null);
   };
 
-  // Handle paste on email field — paste gives old value, so read from clipboardData
+  // Handle paste on email field
   const handleEmailPaste = e => {
     const pasted = (e.clipboardData || window.clipboardData)?.getData("text") || "";
     const email  = pasted.trim();
     if (!email) return;
-    setTimeout(() => {  // let the paste complete first
-      setForm(p => ({ ...p, hrEmail: email, ...autofillFromEmail(email, p) }));
+    setTimeout(() => {
+      setForm(p => ({ ...p, hrEmail: email, ...autofillFromEmail(email) }));
       setStatus(null);
     }, 0);
   };
