@@ -2346,6 +2346,20 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
   const pendingPayload = useRef(null);
 
   // Core autofill logic — shared between onChange and onPaste
+  // Extract a readable first name from email prefix
+  // e.g. divya.kg@... → "Divya", hr.recruiter@... → "Hr", priya_sharma@... → "Priya"
+  const nameFromEmail = (email) => {
+    const prefix = email.split("@")[0] || "";
+    // Skip generic prefixes that aren't real names
+    const generic = ["hr","recruiter","hiring","talent","careers","jobs","noreply","info",
+      "contact","admin","recruitment","apply","team","hello","support","hrd"];
+    const firstPart = prefix.split(/[._\-+]/)[0].toLowerCase();
+    if (!firstPart || generic.includes(firstPart) || firstPart.length < 2) return "";
+    // Only use if it looks like a name (letters only, not pure numbers)
+    if (!/^[a-z]+$/.test(firstPart)) return "";
+    return firstPart.charAt(0).toUpperCase() + firstPart.slice(1);
+  };
+
   const autofillFromEmail = (email) => {
     // ALWAYS reset name/company/role first, then fill from contacts or domain
     const updates = { hrName: "", company: "", role: "" };
@@ -2359,7 +2373,7 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
       if (matched.company) updates.company = matched.company;
       if (matched.role)    updates.role    = matched.role;
     } else if (email.includes("@")) {
-      // No contact match — derive company from domain
+      // No contact match — derive company from domain + name from email prefix
       const domain = email.split("@")[1] || "";
       const generic = ["gmail.com","yahoo.com","hotmail.com","outlook.com","rediffmail.com",
         "naukri.com","linkedin.com","indeed.com","shine.com","monsterindia.com","iimjobs.com"];
@@ -2368,6 +2382,9 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
         const co = parts[parts.length > 2 ? parts.length-2 : 0] || "";
         if (co) updates.company = co.charAt(0).toUpperCase() + co.slice(1).toLowerCase();
       }
+      // Guess HR first name from email prefix (best-effort)
+      const guessedName = nameFromEmail(email);
+      if (guessedName) updates.hrName = guessedName;
     }
     return updates;
   };
