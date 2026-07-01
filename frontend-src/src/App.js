@@ -2345,31 +2345,54 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
   const [customTpl, setCustomTpl] = useState(loadCustomTemplate);
   const pendingPayload = useRef(null);
 
+  // Core autofill logic — shared between onChange and onPaste
+  const autofillFromEmail = (email, prev) => {
+    const updates = {};
+    const matched = contacts.find(c => c.hrEmail?.toLowerCase() === email.toLowerCase());
+    if (matched) {
+      // Always update from contacts (overwrite stale values)
+      if (matched.hrName)  updates.hrName  = matched.hrName;
+      if (matched.company) updates.company = matched.company;
+      if (matched.role)    updates.role    = matched.role;
+    } else if (email.includes("@")) {
+      // Derive company from email domain if not already set from contacts
+      const domain = email.split("@")[1] || "";
+      const generic = ["gmail.com","yahoo.com","hotmail.com","outlook.com","rediffmail.com",
+        "naukri.com","linkedin.com","indeed.com","shine.com","monsterindia.com"];
+      if (domain && !generic.includes(domain)) {
+        const parts = domain.split(".");
+        const co = parts[parts.length > 2 ? parts.length-2 : 0] || "";
+        if (co) updates.company = co.charAt(0).toUpperCase() + co.slice(1).toLowerCase();
+      }
+      // Clear stale name/company if switching to a different unknown email
+      if (!updates.company && prev.company && !contacts.find(c => c.company === prev.company && c.hrEmail?.toLowerCase() === email.toLowerCase())) {
+        // keep existing company — user might have typed it manually
+      }
+    }
+    return updates;
+  };
+
   const handle = e => {
     const { name, value } = e.target;
     setForm(p => {
       const updated = { ...p, [name]: value };
       if (name === "hrEmail") {
-        // Try to match from saved contacts first
-        const matched = contacts.find(c => c.hrEmail?.toLowerCase() === value.toLowerCase());
-        if (matched) {
-          if (!p.hrName    && matched.hrName)  updated.hrName  = matched.hrName;
-          if (!p.company   && matched.company) updated.company = matched.company;
-          if (!p.role      && matched.role)    updated.role    = matched.role;
-        } else if (!p.company && value.includes("@")) {
-          // Fallback — derive company from email domain
-          const domain = value.split("@")[1] || "";
-          const generic = ["gmail.com","yahoo.com","hotmail.com","outlook.com","rediffmail.com","naukri.com","linkedin.com","indeed.com","shine.com"];
-          if (domain && !generic.includes(domain)) {
-            const parts = domain.split(".");
-            const co = parts[parts.length > 2 ? parts.length-2 : 0] || "";
-            if (co) updated.company = co.charAt(0).toUpperCase() + co.slice(1).toLowerCase();
-          }
-        }
+        Object.assign(updated, autofillFromEmail(value, p));
       }
       return updated;
     });
     setStatus(null);
+  };
+
+  // Handle paste on email field — paste gives old value, so read from clipboardData
+  const handleEmailPaste = e => {
+    const pasted = (e.clipboardData || window.clipboardData)?.getData("text") || "";
+    const email  = pasted.trim();
+    if (!email) return;
+    setTimeout(() => {  // let the paste complete first
+      setForm(p => ({ ...p, hrEmail: email, ...autofillFromEmail(email, p) }));
+      setStatus(null);
+    }, 0);
   };
   const buildPayload = useCallback(() => {
     const tpl = customTpl || getDefaultTemplate();
@@ -2524,7 +2547,7 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
         <div className="form-row">
           <div className="form-group">
             <label className="form-label" htmlFor="ap-email"><span className="lbadge">Required</span> HR / Recruiter Email</label>
-            <input id="ap-email" name="hrEmail" type="email" value={form.hrEmail} onChange={handle}
+            <input id="ap-email" name="hrEmail" type="email" value={form.hrEmail} onChange={handle} onPaste={handleEmailPaste}
               placeholder="recruiter@company.com" className="form-input" required disabled={loading} />
           </div>
           <div className="form-group">
