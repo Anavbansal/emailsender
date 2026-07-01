@@ -1454,6 +1454,132 @@ const PIPELINE_STAGES = [
   { key: "replied",  label: "Replied",       icon: "↩", color: "#059669" },
 ];
 
+// ─── Interview Schedule Modal ─────────────────────────────────────────────────
+function InterviewScheduleModal({ contact, onClose, onSaved, addToast }) {
+  const ROUNDS = ["R1 Technical","R2 Technical","HR Round","Managerial","System Design","Final Round","Offer Discussion"];
+  const [form,   setForm]   = useState({ interviewRound:"", interviewDate:"", priority:"Normal", callLog:"" });
+  const [saving, setSaving] = useState(false);
+  useLockBodyScroll();
+
+  const save = async () => {
+    if (!form.interviewDate) { addToast && addToast("❌ Please select date & time","error"); return; }
+    setSaving(true);
+    try {
+      const r = await axios.post(`${API}/api/interviews`, {
+        hrEmail: contact.hrEmail, hrName: contact.hrName||"",
+        company: contact.company||"", role: contact.role||"",
+        stage:"Interview", interviewRound: form.interviewRound,
+        interviewDate: form.interviewDate, priority: form.priority, callLog: form.callLog,
+      });
+      addToast && addToast(r.data.calendarSynced ? "✅ Scheduled + synced to Google Calendar!" : "✅ Interview scheduled!");
+      onSaved && onSaved(); onClose();
+    } catch(e) { addToast && addToast("❌ "+(e.response?.data?.message||e.message),"error"); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box-form" onClick={e=>e.stopPropagation()} style={{maxWidth:460}}>
+        <div className="modal-header">
+          <div className="modal-title-row"><span>🗓</span><h3 className="modal-title">Schedule Interview</h3></div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-scroll">
+          <div style={{background:"linear-gradient(135deg,#eff6ff,#f0fdf4)",border:"1px solid #bfdbfe",borderRadius:10,padding:"10px 14px",marginBottom:16}}>
+            <div style={{fontWeight:700,fontSize:13}}>{contact.company||"Company"}</div>
+            <div style={{fontSize:12,color:"var(--text-muted)",marginTop:2}}>{contact.hrEmail}{contact.hrName?` · ${contact.hrName}`:""}</div>
+            {contact.role&&<div style={{fontSize:12,color:"var(--blue)",marginTop:2}}>📌 {contact.role}</div>}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label" style={{fontSize:11}}>Round</label>
+              <select className="form-select" style={{fontSize:13}} value={form.interviewRound} onChange={e=>setForm(p=>({...p,interviewRound:e.target.value}))}>
+                <option value="">Select…</option>
+                {ROUNDS.map(r=><option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label" style={{fontSize:11}}>Priority</label>
+              <select className="form-select" style={{fontSize:13}} value={form.priority} onChange={e=>setForm(p=>({...p,priority:e.target.value}))}>
+                {["Low","Normal","High","Dream Company"].map(p=><option key={p}>{p}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="form-group" style={{marginTop:12}}>
+            <label className="form-label" style={{fontSize:11}}>Date & Time <span style={{color:"#dc2626"}}>*</span></label>
+            <input type="datetime-local" className="form-input" style={{fontSize:13}} value={form.interviewDate} onChange={e=>setForm(p=>({...p,interviewDate:e.target.value}))} />
+          </div>
+          <div className="form-group" style={{marginBottom:0}}>
+            <label className="form-label" style={{fontSize:11}}>Notes <span style={{fontWeight:400,color:"var(--text-muted)"}}>(optional)</span></label>
+            <textarea className="form-textarea" rows={3} style={{fontSize:13}} placeholder="Topics to prepare, dress code, link…" value={form.callLog} onChange={e=>setForm(p=>({...p,callLog:e.target.value}))} />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={save} disabled={saving} style={{background:"linear-gradient(135deg,#d97706,#f59e0b)"}}>
+            {saving?"Saving…":"🗓 Schedule"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Manual Update Modal ──────────────────────────────────────────────────────
+function ManualUpdateModal({ contact, onClose, onSaved, addToast }) {
+  const STAGES = ["Applied","Opened","Replied","Interview","Offer","Rejected","On Hold"];
+  const [stage,    setStage]    = useState(contact?.stage || "Applied");
+  const [notes,    setNotes]    = useState(contact?.notes || "");
+  const [saving,   setSaving]   = useState(false);
+  useLockBodyScroll();
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await axios.patch(`${API}/api/contact/update`, {
+        hrEmail: contact.hrEmail, stage, notes,
+        ...(stage === "Replied" ? { replied: true } : {}),
+      });
+      addToast && addToast("✅ Contact updated!");
+      onSaved && onSaved(); onClose();
+    } catch(e) { addToast && addToast("❌ "+(e.response?.data?.message||e.message),"error"); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box-form" onClick={e=>e.stopPropagation()} style={{maxWidth:400}}>
+        <div className="modal-header">
+          <div className="modal-title-row"><span>✏️</span><h3 className="modal-title">Update Contact</h3></div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-scroll">
+          <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13}}>
+            <strong>{contact?.company||"—"}</strong>
+            <span style={{color:"var(--text-muted)",marginLeft:8,fontSize:12}}>{contact?.hrEmail}</span>
+          </div>
+          <div className="form-group">
+            <label className="form-label" style={{fontSize:11}}>Stage</label>
+            <DropdownSelect value={stage} onChange={setStage} width="100%"
+              options={STAGES.map(s=>({value:s,label:s}))} />
+          </div>
+          <div className="form-group" style={{marginBottom:0}}>
+            <label className="form-label" style={{fontSize:11}}>Notes <span style={{fontWeight:400,color:"var(--text-muted)"}}>(optional)</span></label>
+            <textarea className="form-textarea" rows={3} style={{fontSize:13}} placeholder="Add any notes about this contact…" value={notes} onChange={e=>setNotes(e.target.value)} />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={save} disabled={saving}>
+            {saving?"Saving…":"💾 Save"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 // ─── Shared UI Components ─────────────────────────────────────────────────────
 function Pagination({ page, total, perPage, onChange }) {
   const totalPages = Math.ceil(total / perPage);
