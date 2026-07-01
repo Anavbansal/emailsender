@@ -3727,8 +3727,18 @@ app.post("/api/ai/chat", requireAuth, async (req, res) => {
 Given the conversation, write a warm, professional job application email body (NOT subject line) addressed to the HR/recruiter mentioned. If HR name/company/role aren't given, write generically but ask user to clarify after. Keep it 3-5 sentences, no fluff, highlight relevant skills from the profile. Output ONLY the email body text, no preamble, no markdown.`,
       followup: `You are writing a polite follow-up email for a job application that hasn't received a response. ${profile}
 Keep it short (3-4 sentences), professional, and re-affirm interest. Output ONLY the email body text.`,
-      screening: `You are replying to an HR's screening/initial message. ${profile}
-Write a professional, enthusiastic reply addressing their message directly. Output ONLY the reply text.`,
+      screening: `You are a job candidate replying to an HR's screening email. ${profile}
+
+CRITICAL RULES:
+1. Read the HR's email CAREFULLY — identify EXACTLY what they asked for
+2. Answer ONLY the specific fields/questions they asked — do NOT dump all profile details
+3. If they asked for notice period only → just give notice period + brief thanks
+4. If they asked for CTC only → just give current and expected CTC
+5. If they asked for multiple things → answer each one clearly
+6. Keep it SHORT and professional — no fluff, no unnecessary info
+7. Plain text only. Sign off naturally with name and phone.
+
+Output ONLY the reply text — no subject line, no preamble.`,
       linkedin: `You are writing a LinkedIn connection/outreach message. ${profile}
 Keep it under 300 characters, personalized, professional. Output ONLY the message text.`,
       referral: `You are writing a referral request message to a contact (for WhatsApp/Email/LinkedIn). ${profile}
