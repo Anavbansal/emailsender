@@ -2125,7 +2125,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
 }
 
 // ─── Send Application Page ────────────────────────────────────────────────────
-function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed }) {
+function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, addToast, contacts = [] }) {
   const [form, setForm]           = useState({ hrEmail: "", hrName: "", company: "", role: "", customNote: "" });
 
   // ── AI Writer State ────────────────────────────────────────────────────────
@@ -2191,13 +2191,22 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed }) 
     const { name, value } = e.target;
     setForm(p => {
       const updated = { ...p, [name]: value };
-      if (name === "hrEmail" && !p.company && value.includes("@")) {
-        const domain = value.split("@")[1] || "";
-        const generic = ["gmail.com","yahoo.com","hotmail.com","outlook.com","rediffmail.com","naukri.com","linkedin.com","indeed.com","shine.com"];
-        if (domain && !generic.includes(domain)) {
-          const parts = domain.split(".");
-          const co = parts[parts.length > 2 ? parts.length-2 : 0] || "";
-          if (co) updated.company = co.charAt(0).toUpperCase() + co.slice(1).toLowerCase();
+      if (name === "hrEmail") {
+        // Try to match from saved contacts first
+        const matched = contacts.find(c => c.hrEmail?.toLowerCase() === value.toLowerCase());
+        if (matched) {
+          if (!p.hrName    && matched.hrName)  updated.hrName  = matched.hrName;
+          if (!p.company   && matched.company) updated.company = matched.company;
+          if (!p.role      && matched.role)    updated.role    = matched.role;
+        } else if (!p.company && value.includes("@")) {
+          // Fallback — derive company from email domain
+          const domain = value.split("@")[1] || "";
+          const generic = ["gmail.com","yahoo.com","hotmail.com","outlook.com","rediffmail.com","naukri.com","linkedin.com","indeed.com","shine.com"];
+          if (domain && !generic.includes(domain)) {
+            const parts = domain.split(".");
+            const co = parts[parts.length > 2 ? parts.length-2 : 0] || "";
+            if (co) updated.company = co.charAt(0).toUpperCase() + co.slice(1).toLowerCase();
+          }
         }
       }
       return updated;
@@ -4752,7 +4761,7 @@ function App() {
               onManualUpdate={contact => setManualUpdateModal({ contact })}
             />
           )}
-          {page === "send"      && <SendApplicationPage onContactsRefresh={fetchContacts} prefill={prefillSend} onPrefillConsumed={() => setPrefillSend(null)} addToast={addToast} />}
+          {page === "send"      && <SendApplicationPage onContactsRefresh={fetchContacts} prefill={prefillSend} onPrefillConsumed={() => setPrefillSend(null)} addToast={addToast} contacts={contacts} />}
           {page === "linkedin"  && <LinkedInConnectionsPage onFillApply={goToSendPrefilled} addToast={addToast} />}
           {page === "inbox"     && <InboxPage contacts={contacts} onFollowUp={contact => setModal({ type: "followUp", contact })} addToast={addToast} />}
 
