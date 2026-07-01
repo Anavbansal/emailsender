@@ -2187,13 +2187,23 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed }) 
   const [customTpl, setCustomTpl] = useState(loadCustomTemplate);
   const pendingPayload = useRef(null);
 
-  const handle = e => { setForm(p => ({ ...p, [e.target.name]: e.target.value })); setStatus(null); };
-
-  const selectTemplate = t => {
-    setTemplateId(t.id);
-    setForm(p => ({ ...p, customNote: t.customNote }));
+  const handle = e => {
+    const { name, value } = e.target;
+    setForm(p => {
+      const updated = { ...p, [name]: value };
+      if (name === "hrEmail" && !p.company && value.includes("@")) {
+        const domain = value.split("@")[1] || "";
+        const generic = ["gmail.com","yahoo.com","hotmail.com","outlook.com","rediffmail.com","naukri.com","linkedin.com","indeed.com","shine.com"];
+        if (domain && !generic.includes(domain)) {
+          const parts = domain.split(".");
+          const co = parts[parts.length > 2 ? parts.length-2 : 0] || "";
+          if (co) updated.company = co.charAt(0).toUpperCase() + co.slice(1).toLowerCase();
+        }
+      }
+      return updated;
+    });
+    setStatus(null);
   };
-
   const buildPayload = useCallback(() => ({
     ...form,
     templateType: BACKEND_TEMPLATE_MAP[templateId] || "fullstack",
