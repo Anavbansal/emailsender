@@ -1934,44 +1934,57 @@ app.get("/api/gmail/replies", requireAuth, async (req, res) => {
     }
     if (!trackedEmails.length) return res.json({ success: true, replies: [] });
 
-    // Build query: replies from any HR we emailed, in INBOX, newer than 90 days
-    const fromClause = trackedEmails.slice(0, 20).map(e => `from:${e}`).join(" OR ");
-    const query = `(${fromClause}) in:inbox newer_than:90d`;
-    const list  = await gmail.users.messages.list({ userId: "me", q: query, maxResults: 50 });
+    // Batch into chunks of 25 emails per Gmail query (URL length limit)
+    const CHUNK = 25;
+    const allMessages = [];
+    for (let i = 0; i < trackedEmails.length; i += CHUNK) {
+      const chunk = trackedEmails.slice(i, i + CHUNK);
+      const fromClause = chunk.map(e => `from:${e}`).join(" OR ");
+      const query = `(${fromClause}) newer_than:120d`;
+      try {
+        const list = await gmail.users.messages.list({ userId: "me", q: query, maxResults: 100 });
+        if (list.data.messages?.length) allMessages.push(...list.data.messages);
+      } catch { /* skip chunk on error */ }
+    }
 
-    if (!(list.data.messages || []).length) return res.json({ success: true, replies: [] });
+    if (!allMessages.length) return res.json({ success: true, replies: [] });
 
-    const replies = await Promise.all(
-      (list.data.messages || []).map(async item => {
-        const d = await gmail.users.messages.get({ userId: "me", id: item.id, format: "metadata",
-          metadataHeaders: ["From", "Subject", "Date", "In-Reply-To", "References"] });
-        const h = d.data.payload.headers || [];
-        const from     = h.find(x => x.name === "From")?.value || "";
-        const match    = from.match(/<(.+?)>/);
-        const fromEmail = match ? match[1].toLowerCase() : from.toLowerCase();
+    // Deduplicate message IDs
+    const seen = new Set();
+    const uniqueMessages = allMessages.filter(m => { if (seen.has(m.id)) return false; seen.add(m.id); return true; });
 
-        // Match back to our sent email log for context
-        let sentContext = null;
-        if (mongoose.connection.readyState === 1) {
-          const sent = await SentEmailLog.findOne({ hrEmail: new RegExp(fromEmail, "i") })
-            .sort({ sentAt: -1 }).lean();
-          if (sent) sentContext = { company: sent.company, role: sent.role, sentAt: sent.sentAt };
-        }
+    const replies = (await Promise.all(
+      uniqueMessages.slice(0, 100).map(async item => {
+        try {
+          const d = await gmail.users.messages.get({ userId: "me", id: item.id, format: "metadata",
+            metadataHeaders: ["From", "Subject", "Date", "In-Reply-To", "References"] });
+          const h = d.data.payload.headers || [];
+          const from      = h.find(x => x.name === "From")?.value || "";
+          const match     = from.match(/<(.+?)>/);
+          const fromEmail = match ? match[1].toLowerCase() : from.trim().toLowerCase();
+          const inReplyTo = h.find(x => x.name === "In-Reply-To")?.value || "";
+          const refs      = h.find(x => x.name === "References")?.value || "";
 
-        return {
-          id: item.id,
-          threadId: d.data.threadId,
-          from, fromEmail,
-          subject:   h.find(x => x.name === "Subject")?.value || "(No Subject)",
-          date:      h.find(x => x.name === "Date")?.value || "",
-          snippet:   d.data.snippet || "",
-          isReply:   !!(h.find(x => x.name === "In-Reply-To")?.value),
-          sentContext,
-        };
+          let sentContext = null;
+          if (mongoose.connection.readyState === 1) {
+            const escaped = fromEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const sent = await SentEmailLog.findOne({ hrEmail: new RegExp("^" + escaped + "$", "i") })
+              .sort({ sentAt: -1 }).lean();
+            if (sent) sentContext = { company: sent.company, role: sent.role, sentAt: sent.sentAt };
+          }
+
+          return {
+            id: item.id, threadId: d.data.threadId, from, fromEmail,
+            subject:   h.find(x => x.name === "Subject")?.value || "(No Subject)",
+            date:      h.find(x => x.name === "Date")?.value || "",
+            snippet:   d.data.snippet || "",
+            isReply:   !!(inReplyTo || refs),
+            sentContext,
+          };
+        } catch { return null; }
       })
-    );
+    )).filter(Boolean);
 
-    // Sort newest first
     replies.sort((a, b) => new Date(b.date) - new Date(a.date));
     res.json({ success: true, replies });
   } catch (e) {
@@ -2873,52 +2886,102 @@ app.get("/api/resync-replies", requireAuth, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1)
       return res.status(503).json({ success: false, message: "MongoDB not connected" });
-    if (!process.env.GMAIL_REFRESH_TOKEN)
-      return res.status(401).json({ success: false, message: "GMAIL_REFRESH_TOKEN not set" });
 
-    const auth    = getGmailAPITransport();
-    const gmail   = google.gmail({ version: "v1", auth });
-    const myEmail = (process.env.GMAIL_USER || "").toLowerCase();
+    // Use the REQUESTING USER's Gmail auth (not hardcoded owner token)
+    const auth  = getUserGmailAuth(req.user);
+    const gmail = google.gmail({ version: "v1", auth });
+    const cfg   = getUserConfig(req.user);
+    const myEmail = (cfg.gmailUser || req.user.gmailUser || "").toLowerCase();
 
-    // Get all logs that have a threadId but no reply yet
-    const logs = await SentEmailLog.find({
+    const isOwner2 = req.user.username === (process.env.OWNER_USERNAME || "anav");
+    const userFilter = isOwner2
+      ? { $or: [{ userId: req.userId }, { userId: "default" }, { userId: { $exists: false } }] }
+      : { userId: req.userId };
+
+    // Strategy A: check all threads that have a threadId
+    const logsWithThread = await SentEmailLog.find({
+      ...userFilter,
       threadId: { $ne: null },
       replied:  { $ne: true },
-      source:   { $ne: "import" },
-    }).lean().limit(200);
+      type:     "application",
+    }).sort({ sentAt: -1 }).lean().limit(500);
 
-    let newReplies = 0, checked = 0;
-    for (const log of logs) {
+    let newReplies = 0, checkedThread = 0;
+
+    for (const log of logsWithThread) {
       try {
         const thread = await gmail.users.threads.get({
           userId: "me", id: log.threadId, format: "metadata",
-          metadataHeaders: ["From", "Date"]
+          metadataHeaders: ["From", "Date", "Subject"]
         });
         const threadMsgs = thread.data.messages || [];
+        // Look for any message NOT from us
         const hrReply = threadMsgs.find(tm => {
           const h = tm.payload?.headers || [];
           const from = h.find(x => x.name === "From")?.value || "";
           const fromMatch = from.match(/<([^>]+)>/);
           const fromEmail = (fromMatch ? fromMatch[1] : from).trim().toLowerCase();
-          return fromEmail === log.hrEmail.toLowerCase() && fromEmail !== myEmail;
+          return fromEmail !== myEmail && fromEmail.includes("@");
         });
 
         if (hrReply) {
           const h = hrReply.payload?.headers || [];
           const dateH = h.find(x => x.name === "Date")?.value || "";
-          await SentEmailLog.updateOne({ _id: log._id }, { $set: {
-            replied:      true,
-            repliedAt:    dateH ? new Date(dateH) : new Date(),
-            replySnippet: hrReply.snippet || "",
-          }});
+          await SentEmailLog.updateMany(
+            { hrEmail: new RegExp("^" + log.hrEmail.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&") + "$", "i"), ...userFilter },
+            { $set: { replied: true, repliedAt: dateH ? new Date(dateH) : new Date(), replySnippet: hrReply.snippet || "" } }
+          );
           newReplies++;
         }
-        checked++;
-      } catch { /* skip */ }
+        checkedThread++;
+      } catch { /* skip individual thread errors */ }
     }
 
-    res.json({ success: true, checked, newReplies,
-      message: `Checked ${checked} threads, found ${newReplies} new replies` });
+    // Strategy B: also search inbox for emails FROM our tracked HRs
+    // (catches cases where HR replied in a new thread — no threadId match)
+    const trackedHRs = await SentEmailLog.distinct("hrEmail", {
+      ...userFilter, replied: { $ne: true }, type: "application"
+    });
+
+    let checkedInbox = 0;
+    const CHUNK = 25;
+    for (let i = 0; i < Math.min(trackedHRs.length, 200); i += CHUNK) {
+      const chunk = trackedHRs.slice(i, i + CHUNK);
+      const fromClause = chunk.map(e => `from:${e}`).join(" OR ");
+      try {
+        const list = await gmail.users.messages.list({
+          userId: "me", q: `(${fromClause}) newer_than:90d`, maxResults: 50
+        });
+        for (const msg of list.data.messages || []) {
+          const d = await gmail.users.messages.get({
+            userId: "me", id: msg.id, format: "metadata",
+            metadataHeaders: ["From", "Date", "Subject"]
+          });
+          const h = d.data.payload?.headers || [];
+          const from = h.find(x => x.name === "From")?.value || "";
+          const fromMatch = from.match(/<([^>]+)>/);
+          const fromEmail = (fromMatch ? fromMatch[1] : from).trim().toLowerCase();
+          const dateH = h.find(x => x.name === "Date")?.value;
+
+          const existing = await SentEmailLog.findOne({
+            hrEmail: new RegExp("^" + fromEmail.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&") + "$", "i"),
+            ...userFilter, replied: { $ne: true }
+          }).lean();
+
+          if (existing) {
+            await SentEmailLog.updateMany(
+              { hrEmail: new RegExp("^" + fromEmail.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&") + "$", "i"), ...userFilter },
+              { $set: { replied: true, repliedAt: dateH ? new Date(dateH) : new Date(), replySnippet: d.data.snippet || "" } }
+            );
+            newReplies++;
+          }
+          checkedInbox++;
+        }
+      } catch { /* skip chunk */ }
+    }
+
+    res.json({ success: true, checkedThread, checkedInbox, newReplies,
+      message: `Checked ${checkedThread} threads + ${checkedInbox} inbox msgs, found ${newReplies} new replies` });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }
