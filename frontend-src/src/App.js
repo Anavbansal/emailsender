@@ -5398,17 +5398,23 @@ function SettingsPage({ addToast }) {
   const [editIdx,   setEditIdx]     = useState(null); // which template is being edited
   const [uploading, setUploading]   = useState(false);
 
-  // Load user's saved templates on mount — merge DB with defaults
+  // Load user's permanent template overrides on mount
   useEffect(() => {
-    axios.get(`${API}/api/templates`)
+    axios.get(`${API}/api/template-override`)
       .then(r => {
-        if (r.data.templates?.length > 0) {
-          // Merge saved templates back — map by templateId/id
-          const dbMap = {};
-          r.data.templates.forEach(t => { dbMap[t.templateId || t.id] = t; });
+        if (r.data.overrides && Object.keys(r.data.overrides).length > 0) {
+          const overrides = r.data.overrides;
           setTemplates(prev => prev.map(tpl => {
             const key = tpl.id || tpl.templateId;
-            return dbMap[key] ? { ...tpl, ...dbMap[key], id: tpl.id } : tpl;
+            const ov = overrides[key];
+            if (!ov) return tpl;
+            return {
+              ...tpl,
+              ...(ov.intro      && { intro:      ov.intro }),
+              ...(ov.highlights?.length && { highlights: ov.highlights }),
+              ...(ov.subject    && { subject:    ov.subject }),
+              ...(ov.customNote && { customNote: ov.customNote }),
+            };
           }));
         }
       }).catch(() => {});
@@ -5417,22 +5423,19 @@ function SettingsPage({ addToast }) {
   const saveTemplates = async () => {
     setTplSaving(true);
     try {
-      // Save each template individually to match backend schema
+      // Save each edited template as a permanent override
       for (const tpl of templates) {
-        await axios.post(`${API}/api/templates`, {
-          templateId:    tpl.id || tpl.templateId,
-          name:          tpl.name,
-          icon:          tpl.icon        || "⚡",
-          accent:        tpl.accent      || "#2563eb",
-          subject:       tpl.subject     || "",
-          customNote:    tpl.customNote  || "",
-          intro:         tpl.intro       || "",
-          highlights:    tpl.highlights  || [],
-          resumeUrl:     tpl.resumeUrl   || "",
-          resumeFileName:tpl.resumeFileName || "",
+        const hasCustom = tpl.intro || tpl.highlights?.some(Boolean) || tpl.subject || tpl.customNote;
+        if (!hasCustom) continue; // skip unchanged templates
+        await axios.post(`${API}/api/template-override`, {
+          templateId: tpl.id || tpl.templateId,
+          intro:      tpl.intro      || "",
+          highlights: tpl.highlights || [],
+          subject:    tpl.subject    || "",
+          customNote: tpl.customNote || "",
         });
       }
-      addToast && addToast("✅ Templates saved!");
+      addToast && addToast("✅ Templates saved permanently!");
     } catch(e) { addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error"); }
     finally { setTplSaving(false); }
   };
@@ -5677,9 +5680,19 @@ ${profile.displayName || currentUser?.displayName || "Your Name"}`}
                       placeholder="Job Application — Your Name" />
                   </div>
 
+                  {/* Opening Intro Para */}
+                  <div className="form-group" style={{ marginBottom:0 }}>
+                    <label className="form-label" style={{ fontSize:11 }}>
+                      Opening Intro <span style={{ fontWeight:400, color:"var(--text-muted)" }}>(replaces default — leave blank to use default)</span>
+                    </label>
+                    <textarea className="form-textarea" rows={4} style={{ fontSize:12 }} value={tpl.intro || ""}
+                      onChange={e => updateTpl(idx,"intro",e.target.value)}
+                      placeholder="I am writing to express my strong interest in joining [Company]..." />
+                  </div>
+
                   {/* Custom Note */}
                   <div className="form-group" style={{ marginBottom:0 }}>
-                    <label className="form-label" style={{ fontSize:11 }}>Custom Note (1-2 lines)</label>
+                    <label className="form-label" style={{ fontSize:11 }}>Custom Note <span style={{ fontWeight:400, color:"var(--text-muted)" }}>(optional extra line)</span></label>
                     <textarea className="form-textarea" rows={2} style={{ fontSize:13 }} value={tpl.customNote || ""}
                       onChange={e => updateTpl(idx,"customNote",e.target.value)}
                       placeholder="Why you're a great fit for this role..." />
