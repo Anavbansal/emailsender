@@ -3756,8 +3756,8 @@ app.post("/api/ai/chat", requireAuth, async (req, res) => {
     const profile = `Candidate: ${userCfg?.profileName || req.user.displayName}, ${userCfg?.totalExp || "4+"} years experience. Skills: ${userCfg?.keySkills || "Full Stack, CRM, CTI"}.`;
 
     const SYSTEM_PROMPTS = {
-      email: `You are an expert career email writer helping a candidate apply for jobs. ${profile}
-Given the conversation, write a warm, professional job application email body (NOT subject line) addressed to the HR/recruiter mentioned. If HR name/company/role aren't given, write generically but ask user to clarify after. Keep it 3-5 sentences, no fluff, highlight relevant skills from the profile. Output ONLY the email body text, no preamble, no markdown.`,
+      email: `You are an expert career email writer and template creator. ${profile}
+The user may ask you to: (1) write a job application email intro paragraph, (2) generate bullet-point highlights, (3) create a subject line, or (4) write a custom note. Read their message carefully and produce EXACTLY what they ask — if they give a custom instruction, follow it precisely. Keep language confident, specific, and professional. Output ONLY the requested content, no preamble, no markdown unless they ask for bullet points.`,
       followup: `You are writing a polite follow-up email for a job application that hasn't received a response. ${profile}
 Keep it short (3-4 sentences), professional, and re-affirm interest. Output ONLY the email body text.`,
       screening: `You are a job candidate replying to an HR's screening email. ${profile}
