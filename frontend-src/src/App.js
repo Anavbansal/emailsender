@@ -913,73 +913,135 @@ function EmailBodyModal({ trackingId, onClose }) {
 
 // ─── Template Editor Modal ────────────────────────────────────────────────────
 function TemplateEditorModal({ templateType, onClose, onSave }) {
-  const [tpl, setTpl]           = useState(() => loadCustomTemplate());
-  const [previewHtml, setPreview] = useState("");
-  const [previewLoading, setPL] = useState(false);
-  const [saved, setSaved]       = useState(false);
-  useLockBodyScroll();
+  const TMAP = BACKEND_TEMPLATE_MAP[templateType] || "fullstack";
+  const tplName = templateType === "crm" ? "CRM Expert"
+    : templateType === "cti" ? "CTI/Telephony"
+    : templateType === "formal" ? "Formal"
+    : templateType === "startup" ? "Startup"
+    : "Full Stack";
 
+  const [tpl, setTpl] = useState(() => ({
+    ...loadCustomTemplate(),
+    customSubject: "",
+  }));
+  const [previewHtml, setPreview] = useState("");
+  const [previewLoading, setPL]   = useState(false);
+  const [saved, setSaved]         = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiField, setAiField]     = useState(null); // which field AI is writing
+  const [aiPrompt, setAiPrompt]   = useState("");
+  const [showAiBar, setShowAiBar] = useState(false);
   const debouncedTpl = useDebounce(tpl, 600);
+  useLockBodyScroll();
 
   // Load saved overrides from backend on open
   useEffect(() => {
     axios.get(`${API}/api/template-override`)
       .then(r => {
-        const key = BACKEND_TEMPLATE_MAP[templateType] || "fullstack";
-        const ov = r.data.overrides?.[key];
-        if (ov) {
-          setTpl(p => ({
-            ...p,
-            ...(ov.intro      && { customIntro: ov.intro }),
-            ...(ov.highlights?.length && { highlights: ov.highlights }),
-            ...(ov.customNote && { customNote: ov.customNote }),
-          }));
-        }
+        const ov = r.data.overrides?.[TMAP];
+        if (ov) setTpl(p => ({
+          ...p,
+          ...(ov.intro       && { customIntro:    ov.intro }),
+          ...(ov.highlights?.length && { highlights: ov.highlights }),
+          ...(ov.customNote  && { customNote:      ov.customNote }),
+          ...(ov.subject     && { customSubject:   ov.subject }),
+        }));
       }).catch(() => {});
-  }, [templateType]);
+  }, [TMAP]);
 
+  // Live preview
   useEffect(() => {
     setPL(true);
     axios.post(`${API}/api/preview-email`, {
       hrName: "Priya Sharma", company: "Your Company", role: "Senior Full Stack Developer",
       customNote: "I am very excited about this opportunity.",
-      templateType: BACKEND_TEMPLATE_MAP[templateType] || "fullstack",
-      customIntro:  debouncedTpl.customIntro || undefined,
+      templateType: TMAP,
+      customIntro:      debouncedTpl.customIntro      || undefined,
       customHighlights: debouncedTpl.highlights.length ? debouncedTpl.highlights : undefined,
-      headerTheme: debouncedTpl.headerTheme,
-    })
-      .then(r => setPreview(r.data.html || ""))
-      .catch(() => {})
-      .finally(() => setPL(false));
-  }, [debouncedTpl, templateType]);
+      headerTheme:      debouncedTpl.headerTheme,
+    }).then(r => setPreview(r.data.html || "")).catch(() => {}).finally(() => setPL(false));
+  }, [debouncedTpl, TMAP]);
 
-  const setHighlight = (idx, val) => setTpl(p => ({
-    ...p, highlights: p.highlights.map((h, i) => i === idx ? val : h),
-  }));
-  const removeHighlight = (idx) => setTpl(p => ({
-    ...p, highlights: p.highlights.filter((_, i) => i !== idx),
-  }));
-  const addHighlight = () => setTpl(p => ({ ...p, highlights: [...p.highlights, ""] }));
+  const setHighlight = (i, v) => setTpl(p => ({ ...p, highlights: p.highlights.map((h, j) => j===i?v:h) }));
+  const removeHighlight = i  => setTpl(p => ({ ...p, highlights: p.highlights.filter((_,j)=>j!==i) }));
+  const addHighlight    = () => setTpl(p => ({ ...p, highlights: [...p.highlights, ""] }));
 
-  const [saving, setSaving] = useState(false);
+  // ── AI rewrite any field ──────────────────────────────────────────────────
+  const aiRewrite = async (field, customInstruction = "") => {
+    setAiLoading(true); setAiField(field);
+    const user  = getUser();
+    const name  = user?.displayName || "Anav Bansal";
+    const prof  = getHRProfile();
+    const context = `Candidate: ${name}. Template type: ${tplName}. Experience: ${prof.totalExp}. Skills: ${prof.keySkills}. Notice: ${prof.noticePeriod}.`;
+
+    const prompts = {
+      intro: `${context}
+Write a compelling email introduction paragraph (3-4 sentences, plain text, no markdown) for a job application email of type "${tplName}". ${customInstruction || "Make it confident, specific to the template type, and mention key skills naturally."}`,
+      highlights: `${context}
+Generate exactly 5 powerful bullet points for a job application email of type "${tplName}". ${customInstruction || "Each bullet should be concise (under 80 chars), specific, and impressive."}
+Return ONLY a JSON array of 5 strings, no markdown, no preamble. Example: ["Point 1","Point 2","Point 3","Point 4","Point 5"]`,
+      subject: `${context}
+Write 3 creative, professional email subject lines for a "${tplName}" job application. ${customInstruction || "Make them stand out, not generic."}
+Return ONLY a JSON array of 3 strings. Example: ["Subject 1","Subject 2","Subject 3"]`,
+      customNote: `${context}
+Write a short custom note (1-2 sentences) that fits naturally in a "${tplName}" job application email. ${customInstruction || "Express genuine interest and a specific reason you're a good fit."}`,
+    };
+
+    try {
+      const r = await axios.post(`${API}/api/ai/chat`, {
+        tool: "email",
+        message: prompts[field],
+        history: [],
+      });
+      const reply = r.data.reply?.trim() || "";
+
+      if (field === "highlights") {
+        try {
+          const arr = JSON.parse(reply.replace(/```json?/g,"").replace(/```/g,"").trim());
+          if (Array.isArray(arr)) setTpl(p => ({ ...p, highlights: arr }));
+        } catch {
+          const lines = reply.split("
+").map(l => l.replace(/^[-•*\d.]+\s*/,"").trim()).filter(Boolean);
+          if (lines.length) setTpl(p => ({ ...p, highlights: lines.slice(0,5) }));
+        }
+      } else if (field === "subject") {
+        try {
+          const arr = JSON.parse(reply.replace(/```json?/g,"").replace(/```/g,"").trim());
+          setTpl(p => ({ ...p, customSubject: Array.isArray(arr) ? arr[0] : reply }));
+          if (Array.isArray(arr) && arr.length > 1) {
+            setSubjectOptions(arr);
+          }
+        } catch {
+          setTpl(p => ({ ...p, customSubject: reply }));
+        }
+      } else if (field === "intro") {
+        setTpl(p => ({ ...p, customIntro: reply }));
+      } else if (field === "customNote") {
+        setTpl(p => ({ ...p, customNote: reply }));
+      }
+    } catch(e) {
+      // silent fail — user can still edit manually
+    } finally { setAiLoading(false); setAiField(null); setShowAiBar(false); setAiPrompt(""); }
+  };
+
+  const [subjectOptions, setSubjectOptions] = useState([]);
 
   const save = async () => {
     setSaving(true);
     try {
-      // Save to backend permanently (survives logout/browser clear)
       await axios.post(`${API}/api/template-override`, {
-        templateId:  BACKEND_TEMPLATE_MAP[templateType] || "fullstack",
-        intro:       tpl.customIntro || "",
-        highlights:  tpl.highlights.filter(Boolean),
-        customNote:  tpl.customNote || "",
+        templateId: TMAP,
+        intro:      tpl.customIntro     || "",
+        highlights: tpl.highlights.filter(Boolean),
+        customNote: tpl.customNote      || "",
+        subject:    tpl.customSubject   || "",
       });
-      // Also save to localStorage as instant cache
       localStorage.setItem("customEmailTemplate", JSON.stringify(tpl));
       onSave(tpl);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch(e) {
-      // Fallback to localStorage only
+    } catch {
       localStorage.setItem("customEmailTemplate", JSON.stringify(tpl));
       onSave(tpl);
       setSaved(true);
@@ -988,57 +1050,144 @@ function TemplateEditorModal({ templateType, onClose, onSave }) {
   };
 
   const reset = async () => {
-    setTpl(getDefaultTemplate());
+    setTpl({ ...getDefaultTemplate(), customSubject: "" });
     localStorage.removeItem("customEmailTemplate");
-    // Also clear from backend
-    try {
-      await axios.post(`${API}/api/template-override`, {
-        templateId: BACKEND_TEMPLATE_MAP[templateType] || "fullstack",
-        intro: "", highlights: [], customNote: "",
-      });
-    } catch {}
+    try { await axios.post(`${API}/api/template-override`, { templateId: TMAP, intro:"", highlights:[], customNote:"", subject:"" }); } catch {}
   };
+
+  const AiBtn = ({ field, label }) => (
+    <button
+      style={{
+        padding:"3px 10px", borderRadius:99, fontSize:11, fontWeight:600, cursor:"pointer",
+        border:"1.5px solid #7c3aed", background: aiLoading&&aiField===field ? "#7c3aed18" : "transparent",
+        color:"#7c3aed", opacity: aiLoading&&aiField!==field ? 0.5 : 1,
+        display:"flex", alignItems:"center", gap:4,
+      }}
+      disabled={aiLoading}
+      onClick={() => aiRewrite(field)}
+      title={`AI: rewrite ${label}`}
+    >
+      {aiLoading && aiField===field
+        ? <><span style={{width:8,height:8,borderRadius:"50%",border:"2px solid #7c3aed",borderTopColor:"transparent",animation:"spin 0.7s linear infinite",display:"inline-block"}}/>Writing…</>
+        : <>✨ AI {label}</>}
+    </button>
+  );
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box modal-box-editor" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <div className="modal-title-row"><span>🎨</span><h3 className="modal-title">Visual Template Editor</h3><span className="modal-hint">Changes apply to all sent emails</span></div>
+          <div className="modal-title-row">
+            <span>🎨</span>
+            <h3 className="modal-title">Template Editor</h3>
+            <span className="modal-hint">{tplName} — ✨ AI-powered</span>
+          </div>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
+
         <div className="editor-body">
-          {/* ── Left: controls ── */}
-          <div className="editor-left">
-            <div className="form-group">
-              <label className="form-label">Header Colour Theme</label>
+          {/* ── Left panel ── */}
+          <div className="editor-left" style={{ display:"flex", flexDirection:"column", gap:14, overflowY:"auto" }}>
+
+            {/* AI Generate All */}
+            <div style={{
+              background:"linear-gradient(135deg,#7c3aed15,#2563eb15)", border:"1.5px solid #7c3aed33",
+              borderRadius:10, padding:"12px 14px",
+            }}>
+              <div style={{ fontWeight:700, fontSize:12, color:"#7c3aed", marginBottom:6 }}>✨ AI Generate Everything</div>
+              <p style={{ fontSize:11, color:"var(--text-muted)", margin:"0 0 8px" }}>
+                Describe what you want — role focus, tone, specific points to highlight — or leave blank for smart defaults.
+              </p>
+              <textarea className="form-textarea" rows={2} style={{ fontSize:12, marginBottom:8 }}
+                placeholder={`e.g. "Focus on ServiceNow ITSM and banking clients, confident but not arrogant tone"`}
+                value={aiPrompt} onChange={e => setAiPrompt(e.target.value)} />
+              <button
+                className="btn-primary" style={{ width:"100%", fontSize:12, padding:"8px" }}
+                disabled={aiLoading}
+                onClick={async () => {
+                  setAiLoading(true);
+                  await aiRewrite("intro", aiPrompt);
+                  await aiRewrite("highlights", aiPrompt);
+                  await aiRewrite("subject", aiPrompt);
+                  await aiRewrite("customNote", aiPrompt);
+                  setAiLoading(false);
+                }}
+              >
+                {aiLoading ? "✨ Generating…" : "✨ Generate Full Template with AI"}
+              </button>
+            </div>
+
+            {/* Header theme */}
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <label className="form-label" style={{ fontSize:11 }}>Header Colour Theme</label>
               <div className="color-swatches">
                 {HEADER_THEMES.map(th => (
                   <button key={th.id} title={th.label}
-                    className={`color-swatch ${tpl.headerTheme === th.id ? "swatch-active" : ""}`}
+                    className={`color-swatch ${tpl.headerTheme===th.id?"swatch-active":""}`}
                     style={{ background: th.color }}
                     onClick={() => setTpl(p => ({ ...p, headerTheme: th.id }))}>
-                    {tpl.headerTheme === th.id && <span className="swatch-check">✓</span>}
+                    {tpl.headerTheme===th.id && <span className="swatch-check">✓</span>}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="form-group">
-              <label className="form-label">
-                Introduction Paragraph
-                <span className="label-hint">Leave blank to use the default</span>
-              </label>
-              <textarea
-                className="form-textarea"
-                rows={5}
-                placeholder="e.g. I am writing to express my strong interest in joining…"
-                value={tpl.customIntro}
-                onChange={e => setTpl(p => ({ ...p, customIntro: e.target.value }))}
-              />
+            {/* Subject line */}
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
+                <label className="form-label" style={{ margin:0, fontSize:11 }}>Email Subject Line</label>
+                <AiBtn field="subject" label="Subject" />
+              </div>
+              <input className="form-input" style={{ fontSize:12 }}
+                placeholder="Leave blank to use default (auto-generated from role/company)"
+                value={tpl.customSubject || ""}
+                onChange={e => setTpl(p => ({ ...p, customSubject: e.target.value }))} />
+              {subjectOptions.length > 1 && (
+                <div style={{ marginTop:6, display:"flex", flexDirection:"column", gap:4 }}>
+                  <div style={{ fontSize:10, color:"var(--text-muted)", fontWeight:600 }}>AI suggestions — click to use:</div>
+                  {subjectOptions.map((s,i) => (
+                    <button key={i} style={{
+                      padding:"4px 10px", borderRadius:6, fontSize:11, textAlign:"left", cursor:"pointer",
+                      border:"1px solid var(--border)", background:"var(--surface)", color:"var(--text-700,#374151)"
+                    }} onClick={() => { setTpl(p => ({ ...p, customSubject: s })); setSubjectOptions([]); }}>{s}</button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div className="form-group">
-              <label className="form-label">Highlights / Bullet Points</label>
+            {/* Intro paragraph */}
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
+                <label className="form-label" style={{ margin:0, fontSize:11 }}>
+                  Opening Introduction
+                  <span className="label-hint" style={{ marginLeft:6 }}>Blank = use default</span>
+                </label>
+                <AiBtn field="intro" label="Intro" />
+              </div>
+              <textarea className="form-textarea" rows={5} style={{ fontSize:12 }}
+                placeholder="e.g. I am writing to express my strong interest in joining…"
+                value={tpl.customIntro}
+                onChange={e => setTpl(p => ({ ...p, customIntro: e.target.value }))} />
+            </div>
+
+            {/* Custom note */}
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
+                <label className="form-label" style={{ margin:0, fontSize:11 }}>Extra Note <span style={{ fontWeight:400, color:"var(--text-muted)" }}>(optional)</span></label>
+                <AiBtn field="customNote" label="Note" />
+              </div>
+              <textarea className="form-textarea" rows={2} style={{ fontSize:12 }}
+                placeholder="Any extra line to add after the intro…"
+                value={tpl.customNote || ""}
+                onChange={e => setTpl(p => ({ ...p, customNote: e.target.value }))} />
+            </div>
+
+            {/* Highlights */}
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
+                <label className="form-label" style={{ margin:0, fontSize:11 }}>Key Highlights / Bullet Points</label>
+                <AiBtn field="highlights" label="Highlights" />
+              </div>
               <div className="hl-list">
                 {tpl.highlights.map((h, i) => (
                   <div key={i} className="hl-row">
@@ -1050,40 +1199,36 @@ function TemplateEditorModal({ templateType, onClose, onSave }) {
                   </div>
                 ))}
               </div>
-              <button className="btn-ghost btn-sm" style={{ marginTop: 6 }} onClick={addHighlight}>
-                + Add Highlight
-              </button>
+              <button className="btn-ghost btn-sm" style={{ marginTop:6 }} onClick={addHighlight}>+ Add Highlight</button>
             </div>
 
-            <div className="editor-footer-btns">
+            {/* Footer */}
+            <div className="editor-footer-btns" style={{ display:"flex", gap:8, paddingTop:4 }}>
               <button className="btn-ghost btn-sm" onClick={reset}>↺ Reset Default</button>
-              <button className={`btn-primary btn-sm ${saved ? "btn-copied" : ""}`} onClick={save} disabled={saving}>
-                {saving ? "Saving…" : saved ? "✓ Saved!" : "💾 Save Template"}
+              <button className={`btn-primary btn-sm ${saved?"btn-copied":""}`} onClick={save} disabled={saving} style={{ flex:1 }}>
+                {saving ? "Saving…" : saved ? "✓ Saved!" : "💾 Save Permanently"}
               </button>
             </div>
           </div>
 
           {/* ── Right: live preview ── */}
-          <div className="editor-right">
+          <div className="editor-right" style={{ position:"relative" }}>
             <div className="editor-preview-label">
-              Live Preview {previewLoading && <span className="preview-loading-dot" />}
+              Live Preview {previewLoading && <span style={{ fontSize:10, color:"#7c3aed", marginLeft:6 }}>Updating…</span>}
             </div>
-            <iframe
-              srcDoc={previewHtml || "<p style='padding:24px;color:#6b7280;font-family:sans-serif;'>Loading preview…</p>"}
-              className="editor-iframe"
-              title="Template Preview"
-              sandbox="allow-same-origin"
-            />
+            <div className="editor-preview-frame" style={{ opacity: previewLoading ? 0.6 : 1, transition:"opacity 0.2s" }}>
+              {previewHtml
+                ? <iframe srcDoc={previewHtml} style={{ width:"100%", height:"100%", border:"none" }} title="preview" />
+                : <div style={{ padding:20, color:"var(--text-muted)", fontSize:13 }}>Loading preview…</div>}
+            </div>
           </div>
         </div>
       </div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }
 
-// ─── Follow-up Modal ──────────────────────────────────────────────────────────
-
-// ─── Bulk Follow-up Scheduler ─────────────────────────────────────────────────
 function BulkFollowUpModal({ contacts, onClose, addToast }) {
   // Only show contacts that are due for followup or haven't been followed up
   const eligible = contacts.filter(c =>
