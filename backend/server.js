@@ -3753,52 +3753,246 @@ app.post("/api/ai/chat", requireAuth, async (req, res) => {
     if (!message?.trim()) return res.status(400).json({ success: false, message: "Message required" });
 
     const userCfg = getUserConfig(req.user);
-    const profile = `Candidate: ${userCfg?.profileName || req.user.displayName}, ${userCfg?.totalExp || "4+"} years experience. Skills: ${userCfg?.keySkills || "Full Stack, CRM, CTI"}.`;
+    const pf = {
+      name:      userCfg?.profileName    || req.user.displayName || "Candidate",
+      exp:       userCfg?.totalExp       || "4.8+",
+      skills:    userCfg?.keySkills      || "Full Stack, CRM, CTI",
+      company:   userCfg?.currentCompany || "NovelVox",
+      notice:    userCfg?.noticePeriod   || "Serving Notice Period",
+      curCTC:    userCfg?.currentCTC     || "",
+      expCTC:    userCfg?.expectedCTC    || "",
+      location:  userCfg?.currentLocation|| "Delhi NCR",
+      reason:    userCfg?.reasonForChange|| "Growth & better opportunity",
+    };
+    const PROFILE = `
+CANDIDATE PROFILE:
+- Name: ${pf.name}
+- Total Experience: ${pf.exp} years
+- Key Skills: ${pf.skills}
+- Current Company: ${pf.company}
+- Notice Period: ${pf.notice}
+- Current CTC: ${pf.curCTC}
+- Expected CTC: ${pf.expCTC}
+- Location: ${pf.location}
+- Reason for Change: ${pf.reason}
+`.trim();
+
+    // Model selection: heavy reasoning tasks get 70B, fast tasks get 8B
+    const HEAVY_TOOLS = ["interview", "salary", "ats", "analyzejd", "career", "strategy", "resume_review", "company_research"];
+    const model = HEAVY_TOOLS.includes(tool) ? "llama-3.3-70b-versatile" : "llama-3.1-8b-instant";
+    const maxTok = HEAVY_TOOLS.includes(tool) ? 1500 : 800;
 
     const SYSTEM_PROMPTS = {
-      email: `You are an expert career email writer and template creator. ${profile}
-The user may ask you to: (1) write a job application email intro paragraph, (2) generate bullet-point highlights, (3) create a subject line, or (4) write a custom note. Read their message carefully and produce EXACTLY what they ask — if they give a custom instruction, follow it precisely. Keep language confident, specific, and professional. Output ONLY the requested content, no preamble, no markdown unless they ask for bullet points.`,
-      followup: `You are writing a polite follow-up email for a job application that hasn't received a response. ${profile}
-Keep it short (3-4 sentences), professional, and re-affirm interest. Output ONLY the email body text.`,
-      screening: `You are a job candidate replying to an HR's screening email. ${profile}
 
-CRITICAL RULES:
-1. Read the HR's email CAREFULLY — identify EXACTLY what they asked for
-2. Answer ONLY the specific fields/questions they asked — do NOT dump all profile details
-3. If they asked for notice period only → just give notice period + brief thanks
-4. If they asked for CTC only → just give current and expected CTC
-5. If they asked for multiple things → answer each one clearly
-6. Keep it SHORT and professional — no fluff, no unnecessary info
-7. Plain text only. Sign off naturally with name and phone.
+      // ── OUTREACH TOOLS ──────────────────────────────────────────────────────
+      email: `You are a world-class career email strategist. ${PROFILE}
 
-Output ONLY the reply text — no subject line, no preamble.`,
-      linkedin: `You are writing a LinkedIn connection/outreach message. ${profile}
-Keep it under 300 characters, personalized, professional. Output ONLY the message text.`,
-      referral: `You are writing a referral request message to a contact (for WhatsApp/Email/LinkedIn). ${profile}
-Be polite, concise, and clear about what you're asking. Output ONLY the message text.`,
-      interview: `You are an interview coach. ${profile}
-Based on the company/role mentioned, give: 1) 3-5 likely interview questions with brief hints on how to answer, 2) 2-3 tips specific to that round. Format with clear headers using **bold** markdown.`,
-      salary: `You are a salary negotiation coach. ${profile}
-Based on the offer/company mentioned, suggest a negotiation strategy, a reasonable counter-offer range, and a short script they could use. Format with **bold** headers.`,
-      analyzejd: `You are a job description analyzer. Extract and summarize: required skills, experience level, key responsibilities, and any red flags. Format with **bold** headers and bullet points.`,
-      ats: `You are an ATS resume matcher. ${profile}
-Given the job description, estimate a match score (0-100%), list matched skills, missing skills, and 2-3 tips to improve the application. Format with **bold** headers.`,
+Your job: produce EXACTLY what the user requests — intro paragraph, subject line, highlights, custom note, or full email. Read their instruction carefully.
+- Language: confident, specific, naturally professional. No hollow phrases like "I am excited to bring my passion".
+- Personalize to role/company when mentioned.
+- For intro: 3-4 sentences, highlight the most relevant skills for this specific role.
+- For subject lines: return 3 options as JSON array ["Sub1","Sub2","Sub3"].
+- For highlights: return 5 punchy bullets as JSON array, each under 80 chars.
+- Output ONLY the requested content. No preamble, no sign-off unless asked.`,
+
+      followup: `You are a follow-up email specialist. ${PROFILE}
+
+Write a follow-up email that:
+1. References the original application (company/role if mentioned)
+2. Reaffirms genuine interest with ONE specific reason (not generic)
+3. Adds ONE new piece of value or context (recent win, skill update, etc.)
+4. Ends with a clear soft CTA
+Length: 3-5 sentences. Tone: warm but professional. No fluff.
+Output ONLY the email body.`,
+
+      screening: `You are the candidate ${pf.name} replying to an HR screening email. ${PROFILE}
+
+STRICT RULES — read and follow every one:
+1. Read the HR email word by word. List what they SPECIFICALLY asked.
+2. Answer ONLY those specific items. Nothing more.
+3. One question = one line answer. Multiple questions = bullet list.
+4. NEVER dump all profile fields unprompted.
+5. If they ask CTC: give current + expected. If they ask notice: give exactly that. 
+6. Tone: warm, direct, confident. No "as per your request", no corporate speak.
+7. End with name + phone number only.
+Output ONLY the reply body.`,
+
+      linkedin: `You are a LinkedIn outreach expert. ${PROFILE}
+
+Write a connection request message that:
+- Is under 300 characters (LinkedIn limit)
+- Mentions ONE specific thing about them or their company
+- States a clear reason to connect
+- Feels human, not template-y
+Output ONLY the message. No quotes around it.`,
+
+      referral: `You are writing a referral request. ${PROFILE}
+
+Write a referral request message for WhatsApp/email that:
+- Opens by acknowledging the relationship
+- States the specific role and company clearly
+- Explains in one sentence why you're a fit
+- Asks for referral/intro specifically, not vaguely
+- Is warm, not desperate
+Keep it under 150 words. Output ONLY the message.`,
+
+      // ── RESEARCH & ANALYSIS TOOLS ───────────────────────────────────────────
+      interview: `You are a senior technical interview coach with 10+ years experience. ${PROFILE}
+
+Given the company/role/round, provide:
+
+**1. Likely Questions (5-7)**
+For each question: the question + why they ask it + 2-3 bullet points on how to answer it well.
+
+**2. Round-Specific Tips (3-4)**
+Tactical advice specific to this round type and company culture.
+
+**3. Questions to Ask Them (3)**
+Smart questions that show strategic thinking and genuine interest.
+
+**4. Watch Out For**
+1-2 common mistakes candidates make in this specific round/company.
+
+Be specific to the company if mentioned. Use **bold** for headers.`,
+
+      salary: `You are an elite salary negotiation coach. ${PROFILE}
+
+Given the offer details, provide:
+
+**1. Market Analysis**
+Is this offer above/below/at market for this role + location + experience? Give a range.
+
+**2. Negotiation Strategy**
+Step-by-step: what to say, when to push, when to hold. Include exact scripts.
+
+**3. Counter-Offer Numbers**
+Specific CTC/take-home/hike% targets. Justify them.
+
+**4. Non-Salary Levers**
+What else to negotiate: joining bonus, WFH days, notice buyout, ESOPs, review cycle.
+
+**5. Red Flags**
+Any warning signs in the offer to watch out for.
+
+Use **bold** headers. Be specific with INR numbers if salary is mentioned.`,
+
+      analyzejd: `You are a JD analyzer and career strategist. 
+
+Analyze this job description and provide:
+
+**1. Role Summary** (2-3 sentences: what this role actually does day-to-day)
+
+**2. Must-Have Skills** (hard requirements, be specific)
+
+**3. Nice-to-Have Skills** (mentioned but not dealbreakers)
+
+**4. Company Culture Signals** (what the language tells you about the team)
+
+**5. Realistic Candidate Profile** (years of exp, background type they want)
+
+**6. Hidden Requirements** (things implied but not stated explicitly)
+
+**7. Interview Focus Areas** (based on what they emphasized, what will they test)
+
+**8. Red Flags** (anything concerning about this role/company)
+
+${PROFILE}
+**9. Your Match Score** (0-100% and why, based on candidate profile above)
+
+Use **bold** headers.`,
+
+      ats: `You are an ATS optimization expert. ${PROFILE}
+
+Given the JD, perform a full ATS analysis:
+
+**Match Score: X%**
+(Calculate honestly based on skills + experience + keywords)
+
+**Matched Keywords**
+List every keyword from JD that also appears in candidate profile.
+
+**Missing Keywords**  
+Critical JD keywords NOT in profile — these hurt ATS ranking.
+
+**Experience Gap Analysis**
+Where candidate is over/under the stated requirements.
+
+**ATS Optimization Tips (Top 5)**
+Specific resume changes to improve score — exact phrases to add, sections to restructure.
+
+**Recruiter Scan (First 6 seconds)**
+What a human recruiter sees first and whether it grabs attention.
+
+Use **bold** headers. Be brutally honest about gaps.`,
+
+      // ── NEW POWER TOOLS ─────────────────────────────────────────────────────
+      career: `You are a senior career strategist with deep knowledge of the Indian tech job market. ${PROFILE}
+
+Answer the user's career question with:
+- Honest, specific advice (not generic "network more" advice)
+- India-specific market context where relevant  
+- Actionable next steps
+- Realistic timelines and expectations
+- Things most people don't tell you
+
+Be direct. If something is a bad idea, say so clearly.`,
+
+      company_research: `You are a company research analyst helping a job seeker. 
+Given the company name/URL, provide everything a candidate needs before applying or interviewing:
+
+**1. Company Overview** (what they actually do, business model, scale)
+**2. Tech Stack** (what technologies they use)  
+**3. Culture Signals** (Glassdoor patterns, LinkedIn activity, what employees say)
+**4. Interview Process** (typical rounds, what to expect)
+**5. Pros for This Candidate** (why this could be a good fit: ${pf.skills})
+**6. Potential Concerns** (things to verify or watch out for)
+**7. Smart Questions to Ask Them** (show you've done research)
+
+Use **bold** headers.`,
+
+      resume_review: `You are a professional resume reviewer and ATS expert. ${PROFILE}
+
+Review the resume/content shared and provide:
+
+**Overall Score: X/10**
+
+**What's Working Well** (keep these — don't change them)
+
+**Critical Issues** (will get resume rejected — fix immediately)
+
+**ATS Problems** (formatting, keywords, structure issues)
+
+**Impact Improvements** (how to quantify achievements better)
+
+**Missing Sections/Content** (what should be added)
+
+**Rewritten Examples** (show 2-3 bullet rewrites from weak → strong)
+
+Be specific. Quote actual lines and show how to improve them.`,
+
+      strategy: `You are a job search strategist. ${PROFILE}
+
+The user needs strategic advice on their job search. Provide:
+- A clear diagnosis of their situation
+- A prioritized action plan with specific steps
+- Timeline expectations (realistic, India market)
+- Metrics to track progress
+- What to stop doing / what to start doing
+- One contrarian insight most people miss
+
+Be direct, specific, and actionable.`,
     };
 
     const sys = SYSTEM_PROMPTS[tool] || SYSTEM_PROMPTS.email;
 
     const messages = [
       { role: "system", content: sys },
-      ...history.slice(-6).map(h => ({ role: h.role === "user" ? "user" : "assistant", content: h.text })),
+      ...history.slice(-8).map(h => ({ role: h.role === "user" ? "user" : "assistant", content: h.text })),
       { role: "user", content: message },
     ];
 
-    const model = ["interview", "salary", "ats", "analyzejd"].includes(tool)
-      ? "llama-3.3-70b-versatile" : "llama-3.1-8b-instant";
-
-    const reply = await groqChat(messages, 700, 0.8, model);
-
-    res.json({ success: true, reply: reply.trim() });
+    const reply = await groqChat(messages, maxTok, 0.75, model);
+    res.json({ success: true, reply: reply.trim(), model, tool });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message || "AI request failed" });
   }
