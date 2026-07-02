@@ -874,10 +874,10 @@ const HEADER_THEMES = {
   orange: "linear-gradient(135deg,#92400e 0%,#d97706 100%)",
 };
 const DEFAULT_HIGHLIGHTS = [
-  "4.8+ years · Node.js, AngularJS, Express.js",
-  "AWS Lambda · DynamoDB · S3 · Amazon Connect",
-  "10+ enterprise CTI integrations (Avaya, Genesys, Webex, Zoom)",
-  "CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics, CDK Global",
+  "4.8+ years · Node.js, AngularJS, Express.js, REST APIs, AWS Lambda, DynamoDB/MySQL",
+  "Serverless Architecture: AWS Lambda · DynamoDB · S3 · Amazon Connect · Render · Vercel",
+  "10+ enterprise CTI integrations (Avaya, Genesys, Webex, Zoom, Amazon Connect)",
+  "CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics, CDK Global, COX Automotive",
   "AI-assisted development: Claude, GitHub Copilot, ChatGPT",
 ];
 const CTI_HIGHLIGHTS = [
@@ -1293,7 +1293,7 @@ function buildFullstackHTML({ hrName, company, role, customNote, trackUrl = "", 
   const intro     = customIntro ||
     `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}.
      With <strong>4.8+ years of hands-on experience</strong> as a Senior Full-Stack Developer, I have architected and
-     shipped production-grade applications across Node.js, AngularJS, AWS Lambda, and REST APIs — with deep expertise
+     shipped production-grade applications across Node.js, AngularJS, Express.js, REST APIs, AWS Lambda, and DynamoDB/MySQL — with deep expertise
      in CTI/Telephony integrations for enterprise platforms. I am currently serving my notice period with a 4.8-year tenure at NovelVox, and am available to join by late August 2026 or earlier for the right opportunity.`;
   const items     = (customHighlights && customHighlights.length) ? customHighlights : DEFAULT_HIGHLIGHTS;
   const hlHtml    = items.map(h => `<li>${h}</li>`).join("");
