@@ -6346,57 +6346,61 @@ function AIAssistantPage({ addToast }) {
   const bottomRef = useRef(null);
 
   const TOOLS = [
-    { id:"email",     icon:"✉",  label:"Email Writer"       },
-    { id:"followup",  icon:"🔁", label:"Follow-up"          },
-    { id:"screening", icon:"💬", label:"Screening Reply"    },
-    { id:"linkedin",  icon:"🔗", label:"LinkedIn Message"   },
-    { id:"referral",  icon:"🤝", label:"Referral Message"   },
-    { id:"ats",       icon:"📊", label:"ATS Score"          },
-    { id:"interview", icon:"🎯", label:"Interview Prep"     },
-    { id:"salary",    icon:"💰", label:"Salary Negotiation" },
-    { id:"analyzejd", icon:"🔍", label:"Analyze JD"         },
+    { id:"email",           icon:"✉️",  label:"Email Writer",         group:"Outreach",  model:"fast",  desc:"Application emails, intros, subject lines" },
+    { id:"followup",        icon:"🔁",  label:"Follow-up",            group:"Outreach",  model:"fast",  desc:"Smart follow-up that adds new value" },
+    { id:"screening",       icon:"💬",  label:"Screening Reply",      group:"Outreach",  model:"fast",  desc:"AI reads HR email, answers only what's asked" },
+    { id:"linkedin",        icon:"🔗",  label:"LinkedIn Message",     group:"Outreach",  model:"fast",  desc:"Connection requests under 300 chars" },
+    { id:"referral",        icon:"🤝",  label:"Referral Request",     group:"Outreach",  model:"fast",  desc:"WhatsApp/email referral messages" },
+    { id:"ats",             icon:"📊",  label:"ATS Score",            group:"Research",  model:"heavy", desc:"Match % + missing keywords + fixes" },
+    { id:"analyzejd",       icon:"🔍",  label:"Analyze JD",           group:"Research",  model:"heavy", desc:"Deep JD breakdown — hidden requirements, red flags" },
+    { id:"company_research",icon:"🏢",  label:"Company Research",     group:"Research",  model:"heavy", desc:"Everything before you apply or interview" },
+    { id:"resume_review",   icon:"📄",  label:"Resume Review",        group:"Research",  model:"heavy", desc:"Score, gaps, rewrites, ATS fixes" },
+    { id:"interview",       icon:"🎯",  label:"Interview Prep",       group:"Interview", model:"heavy", desc:"Questions + answers + smart questions to ask" },
+    { id:"salary",          icon:"💰",  label:"Salary Negotiation",   group:"Interview", model:"heavy", desc:"Counter-offer strategy + exact scripts" },
+    { id:"strategy",        icon:"🧭",  label:"Job Search Strategy",  group:"Career",    model:"heavy", desc:"Prioritized action plan for your search" },
+    { id:"career",          icon:"🚀",  label:"Career Advice",        group:"Career",    model:"heavy", desc:"Honest India-specific career guidance" },
   ];
 
   const PROMPTS = {
-    email:     `✉ Email Writer ready! Tell me who you're applying to — e.g. "Write an email to Priya at Google for a Senior Developer role" — or just paste the job posting.`,
-    followup:  `🔁 Follow-up Writer! Tell me which company, the role, and how many days since you applied.`,
-    screening: `💬 Paste the HR's screening message and I'll write a reply using your profile.`,
-    linkedin:  `🔗 LinkedIn Message! Tell me who you want to reach out to and why (referral, networking, etc).`,
-    referral:  `🤝 Referral Message! Tell me the contact's name, company, role you want, and platform.`,
-    ats:       `📊 ATS Score Checker! Paste the job description and I'll score your match.`,
-    interview: `🎯 Interview Prep! Tell me the company, role, and round type.`,
-    salary:    `💰 Salary Negotiation! Tell me your offer details and I'll help you negotiate.`,
-    analyzejd: `🔍 JD Analyzer! Paste the job description and I'll break it down for you.`,
+    email:           "✉️ Ready to write! Tell me the company, role, and any specific angle you want — or paste the job description.",
+    followup:        "🔁 Let's write a follow-up that stands out. Which company and role? How long since you applied?",
+    screening:       "💬 Paste the HR's screening message and I'll reply to exactly what they asked — nothing more.",
+    linkedin:        "🔗 Who do you want to reach out to, and why? (Name, company, purpose — referral/networking/job inquiry)",
+    referral:        "🤝 Give me the contact's name, company, the role you're targeting, and the platform (WhatsApp/Email/LinkedIn).",
+    ats:             "📊 Paste the job description and I'll give you a match score, missing keywords, and exactly what to fix.",
+    analyzejd:       "🔍 Paste the JD — I'll give you a deep breakdown including hidden requirements, culture signals, and red flags.",
+    company_research:"🏢 Which company do you want to research? Give me the name and I'll tell you everything before you apply.",
+    resume_review:   "📄 Paste your resume text or specific bullet points — I'll score it and show exactly how to improve each line.",
+    interview:       "🎯 Tell me: company, role, and which round (Technical/HR/Managerial/System Design). I'll prep you thoroughly.",
+    salary:          "💰 Share the offer details (CTC, role, company, your current CTC) and I'll build your negotiation strategy.",
+    strategy:        "🧭 Tell me your current situation — where you are, what you want, how long you've been searching. I'll build a plan.",
+    career:          "🚀 What's the career question on your mind? Ask anything — I'll give you honest, India-specific advice.",
   };
 
+  const GROUPS = ["Outreach", "Research", "Interview", "Career"];
+
   useEffect(() => {
-    setMessages([{ role:"ai", text: PROMPTS[tool] }]);
+    const t = TOOLS.find(t => t.id === tool);
+    setMessages([{ role:"ai", text: PROMPTS[tool], meta: t?.desc }]);
     setInput("");
     setTimeout(() => inputRef.current?.focus(), 100);
   }, [tool]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior:"smooth" });
-  }, [messages, loading]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages, loading]);
 
-  const renderMsg = (text) => {
-    return text.split("\n").map((line, i) => {
-      const parts = line.split(/(\*\*[^*]+\*\*)/g);
-      return (
-        <div key={i} style={{ lineHeight:1.7 }}>
-          {parts.map((p,j) => p.startsWith("**") && p.endsWith("**")
-            ? <strong key={j}>{p.slice(2,-2)}</strong>
-            : p
-          )}
-        </div>
-      );
-    });
-  };
+  const renderMsg = (text) => text.split("\n").map((line, i) => {
+    const parts = line.split(/(\*\*[^*]+\*\*)/g);
+    return <div key={i} style={{ lineHeight:1.7, minHeight: line ? undefined : "0.5rem" }}>
+      {parts.map((p,j) => p.startsWith("**") && p.endsWith("**")
+        ? <strong key={j}>{p.slice(2,-2)}</strong>
+        : p
+      )}
+    </div>;
+  });
 
   const send = async () => {
     const text = input.trim();
     if (!text || loading) return;
-
     const newHistory = [...messages, { role:"user", text }];
     setMessages(newHistory);
     setInput("");
@@ -6405,115 +6409,173 @@ function AIAssistantPage({ addToast }) {
     try {
       const r = await axios.post(`${API}/api/ai/chat`, {
         tool, message: text,
-        history: newHistory.slice(-8).map(m => ({ role: m.role, text: m.text })),
+        history: newHistory.slice(-10).map(m => ({ role: m.role, text: m.text })),
       });
-
       if (r.data.success) {
-        setMessages(prev => [...prev, { role:"ai", text: r.data.reply, copyText: r.data.reply }]);
-      } else {
-        throw new Error(r.data.message || "AI failed");
-      }
+        setMessages(prev => [...prev, {
+          role:"ai", text: r.data.reply,
+          copyText: r.data.reply,
+          model: r.data.model,
+        }]);
+      } else throw new Error(r.data.message);
     } catch(e) {
-      setMessages(prev => [...prev, { role:"ai", text:"❌ " + (e.response?.data?.message || e.message), isError:true }]);
+      setMessages(prev => [...prev, {
+        role:"ai", text:"❌ " + (e.response?.data?.message || e.message), isError:true
+      }]);
     } finally {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
 
-  const copy = (text) => { navigator.clipboard?.writeText(text).catch(()=>{}); addToast && addToast("✅ Copied!"); };
+  const copy = (text) => {
+    navigator.clipboard?.writeText(text).catch(()=>{});
+    addToast && addToast("✅ Copied to clipboard!");
+  };
+
+  const clearChat = () => {
+    const t = TOOLS.find(t => t.id === tool);
+    setMessages([{ role:"ai", text: PROMPTS[tool], meta: t?.desc }]);
+  };
+
+  const activeTool = TOOLS.find(t => t.id === tool);
 
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"calc(100vh - 56px)", overflow:"hidden", padding:"0 20px" }}>
-      {/* Compact top bar */}
-      <div style={{ flexShrink:0, padding:"8px 0 6px", borderBottom:"1px solid var(--border)" }}>
+
+      {/* Header bar */}
+      <div style={{ flexShrink:0, padding:"8px 0 0", borderBottom:"1px solid var(--border)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
-          <span style={{ fontWeight:700, fontSize:15, background:"linear-gradient(135deg,#7c3aed,#2563eb)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>✨ AI Assistant</span>
-          <span style={{ fontSize:10, background:"linear-gradient(135deg,#7c3aed,#2563eb)", color:"#fff", padding:"2px 8px", borderRadius:99, fontWeight:700 }}>Groq</span>
-          <span style={{ fontSize:10, color:"var(--text-muted)", marginLeft:"auto" }}>Tell me naturally — I'll understand the details</span>
+          <span style={{ fontWeight:700, fontSize:16, background:"linear-gradient(135deg,#7c3aed,#2563eb)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
+            ✨ AI Assistant
+          </span>
+          {activeTool && (
+            <span style={{ fontSize:11, color:"var(--text-muted)", display:"flex", alignItems:"center", gap:6 }}>
+              {activeTool.label}
+              <span style={{
+                padding:"2px 8px", borderRadius:99, fontSize:10, fontWeight:700,
+                background: activeTool.model==="heavy" ? "#7c3aed18" : "#0d948818",
+                color: activeTool.model==="heavy" ? "#7c3aed" : "#0d9488",
+              }}>
+                {activeTool.model === "heavy" ? "⚡ 70B" : "🚀 Fast"}
+              </span>
+            </span>
+          )}
+          <button onClick={clearChat} style={{
+            marginLeft:"auto", padding:"3px 10px", borderRadius:6, fontSize:11, cursor:"pointer",
+            background:"none", border:"1px solid var(--border)", color:"var(--text-muted)"
+          }}>↺ Clear</button>
         </div>
-        <div style={{ display:"flex", gap:5, overflowX:"auto", paddingBottom:4, scrollbarWidth:"none" }}>
-          {TOOLS.map(t => (
-            <button key={t.id} onClick={() => setTool(t.id)}
-              style={{
-                padding:"4px 11px", borderRadius:99, fontSize:11, fontWeight:600, cursor:"pointer",
-                border:"1.5px solid", whiteSpace:"nowrap", flexShrink:0,
-                borderColor: tool===t.id ? "#7c3aed" : "var(--border)",
-                background: tool===t.id ? "linear-gradient(135deg,#7c3aed,#2563eb)" : "var(--surface)",
-                color: tool===t.id ? "#fff" : "var(--text-muted)",
-              }}>{t.icon} {t.label}</button>
+
+        {/* Tool groups */}
+        <div style={{ display:"flex", flexWrap:"wrap", gap:6, paddingBottom:8 }}>
+          {GROUPS.map(group => (
+            <div key={group} style={{ display:"flex", gap:4, alignItems:"center" }}>
+              <span style={{ fontSize:10, color:"var(--text-muted)", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.05em", marginRight:2 }}>{group}</span>
+              {TOOLS.filter(t => t.group===group).map(t => (
+                <button key={t.id} onClick={() => setTool(t.id)}
+                  title={t.desc}
+                  style={{
+                    padding:"4px 11px", borderRadius:99, fontSize:11, fontWeight:600, cursor:"pointer",
+                    border:"1.5px solid", whiteSpace:"nowrap",
+                    borderColor: tool===t.id ? "#7c3aed" : "var(--border)",
+                    background: tool===t.id ? "linear-gradient(135deg,#7c3aed,#2563eb)" : "var(--surface)",
+                    color: tool===t.id ? "#fff" : "var(--text-muted)",
+                  }}>{t.icon} {t.label}</button>
+              ))}
+              <span style={{ width:1, height:16, background:"var(--border)", margin:"0 4px" }} />
+            </div>
           ))}
         </div>
       </div>
 
       {/* Chat messages */}
-      <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:12, padding:"4px 0 16px", minHeight:0 }}>
+      <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:12, padding:"12px 0 16px", minHeight:0 }}>
         {messages.map((m, i) => (
-          <div key={i} style={{ display:"flex", justifyContent: m.role==="user" ? "flex-end" : "flex-start", gap:8, alignItems:"flex-start" }}>
+          <div key={i} style={{ display:"flex", justifyContent: m.role==="user"?"flex-end":"flex-start", gap:8, alignItems:"flex-start" }}>
             {m.role==="ai" && (
-              <div style={{ width:28, height:28, borderRadius:"50%", background:"linear-gradient(135deg,#7c3aed,#2563eb)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, flexShrink:0, marginTop:2 }}>✨</div>
+              <div style={{ width:30, height:30, borderRadius:"50%", background:"linear-gradient(135deg,#7c3aed,#2563eb)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, flexShrink:0, marginTop:2 }}>✨</div>
             )}
-            <div style={{
-              maxWidth:"80%", padding:"10px 14px", borderRadius:12,
-              borderTopLeftRadius: m.role==="ai"?4:12,
-              borderTopRightRadius: m.role==="user"?4:12,
-              background: m.role==="user" ? "linear-gradient(135deg,#7c3aed,#2563eb)" : m.isError ? "#fee2e2" : "var(--surface)",
-              color: m.role==="user" ? "#fff" : m.isError ? "#991b1b" : "var(--text-700,#374151)",
-              border: m.role==="ai" ? "1px solid var(--border)" : "none",
-              fontSize:13, lineHeight:1.7,
-            }}>
-              {renderMsg(m.text)}
+            <div style={{ maxWidth:"82%" }}>
+              <div style={{
+                padding:"10px 14px", borderRadius:12,
+                borderTopLeftRadius: m.role==="ai"?4:12,
+                borderTopRightRadius: m.role==="user"?4:12,
+                background: m.role==="user" ? "linear-gradient(135deg,#7c3aed,#2563eb)" : m.isError ? "#fee2e2" : "var(--surface)",
+                color: m.role==="user" ? "#fff" : m.isError ? "#991b1b" : "var(--text-700,#374151)",
+                border: m.role==="ai" ? "1px solid var(--border)" : "none",
+                fontSize:13, lineHeight:1.7,
+              }}>
+                {renderMsg(m.text)}
+              </div>
               {m.copyText && (
-                <button onClick={() => copy(m.copyText)} style={{
-                  marginTop:10, padding:"4px 12px", borderRadius:6, fontSize:11, fontWeight:600,
-                  background:"rgba(124,58,237,0.1)", border:"1px solid rgba(124,58,237,0.3)",
-                  cursor:"pointer", color:"#7c3aed", display:"block"
-                }}>📋 Copy</button>
+                <div style={{ display:"flex", gap:6, marginTop:6 }}>
+                  <button onClick={() => copy(m.copyText)} style={{
+                    padding:"3px 12px", borderRadius:6, fontSize:11, fontWeight:600, cursor:"pointer",
+                    background:"rgba(124,58,237,0.08)", border:"1px solid rgba(124,58,237,0.25)", color:"#7c3aed"
+                  }}>📋 Copy</button>
+                  {m.model && (
+                    <span style={{ fontSize:10, color:"var(--text-muted)", padding:"3px 0", alignSelf:"center" }}>
+                      {m.model === "llama-3.3-70b-versatile" ? "⚡ 70B" : "🚀 8B"}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           </div>
         ))}
+
         {loading && (
           <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-            <div style={{ width:28, height:28, borderRadius:"50%", background:"linear-gradient(135deg,#7c3aed,#2563eb)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>✨</div>
-            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, borderTopLeftRadius:4, padding:"10px 14px" }}>
-              <div style={{ display:"flex", gap:4 }}>
-                {[0,1,2].map(i=><div key={i} style={{ width:6,height:6,borderRadius:"50%",background:"#7c3aed",animation:`bounce 1.2s ease-in-out ${i*0.2}s infinite` }}/>)}
-              </div>
+            <div style={{ width:30, height:30, borderRadius:"50%", background:"linear-gradient(135deg,#7c3aed,#2563eb)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:15 }}>✨</div>
+            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, borderTopLeftRadius:4, padding:"10px 16px", fontSize:12, color:"var(--text-muted)" }}>
+              <span style={{ display:"flex", gap:4, alignItems:"center" }}>
+                <span style={{ width:6,height:6,borderRadius:"50%",background:"#7c3aed",animation:"pulse 1.2s ease-in-out 0s infinite" }}/>
+                <span style={{ width:6,height:6,borderRadius:"50%",background:"#7c3aed",animation:"pulse 1.2s ease-in-out 0.2s infinite" }}/>
+                <span style={{ width:6,height:6,borderRadius:"50%",background:"#7c3aed",animation:"pulse 1.2s ease-in-out 0.4s infinite" }}/>
+                <span style={{ marginLeft:4 }}>
+                  {activeTool?.model === "heavy" ? "Thinking deeply (70B model)…" : "Writing…"}
+                </span>
+              </span>
             </div>
           </div>
         )}
         <div ref={bottomRef} />
       </div>
 
-      {/* Input area */}
-      <div style={{ flexShrink:0, borderTop:"1px solid var(--border)", paddingTop:12 }}>
+      {/* Input */}
+      <div style={{ flexShrink:0, borderTop:"1px solid var(--border)", paddingTop:10, paddingBottom:8 }}>
         <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
           <textarea
             ref={inputRef}
             rows={2}
             className="form-textarea"
             style={{ flex:1, fontSize:13, resize:"none", borderRadius:12 }}
-            placeholder={tool==="ats"||tool==="analyzejd" ? "Paste job description here..." : "Type naturally — I'll figure out the details..."}
+            placeholder={
+              tool==="ats" || tool==="analyzejd" || tool==="resume_review"
+                ? "Paste content here…"
+                : "Type naturally — I understand the context…"
+            }
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
           />
           <button onClick={send} disabled={loading || !input.trim()}
             style={{
-              padding:"10px 18px", borderRadius:12, fontWeight:700, fontSize:14,
+              padding:"10px 20px", borderRadius:12, fontWeight:700, fontSize:14,
               background:"linear-gradient(135deg,#7c3aed,#2563eb)", color:"#fff",
               border:"none", cursor: loading||!input.trim() ? "not-allowed":"pointer",
-              opacity: loading||!input.trim() ? 0.6:1, flexShrink:0
+              opacity: loading||!input.trim() ? 0.5:1, flexShrink:0
             }}>➤</button>
         </div>
-        <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:6, textAlign:"center" }}>
-          Enter to send • Shift+Enter for new line • Ask for corrections anytime
+        <div style={{ fontSize:10, color:"var(--text-muted)", marginTop:5, display:"flex", justifyContent:"space-between" }}>
+          <span>Enter to send · Shift+Enter for new line</span>
+          <span>{activeTool?.model === "heavy" ? "⚡ Powered by Llama 3.3 70B" : "🚀 Llama 3.1 8B (fast)"}</span>
         </div>
       </div>
 
       <style>{`
-        @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
+        @keyframes pulse { 0%,80%,100%{transform:scale(1);opacity:0.5} 40%{transform:scale(1.3);opacity:1} }
       `}</style>
     </div>
   );
