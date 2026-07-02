@@ -1001,8 +1001,7 @@ Write a short custom note (1-2 sentences) that fits naturally in a "${tplName}" 
           const arr = JSON.parse(reply.replace(/```json?/g,"").replace(/```/g,"").trim());
           if (Array.isArray(arr)) setTpl(p => ({ ...p, highlights: arr }));
         } catch {
-          const lines = reply.split("
-").map(l => l.replace(/^[-•*\d.]+\s*/,"").trim()).filter(Boolean);
+          const lines = reply.split("\n").map(l => l.replace(/^[-*\d.\s]+/,"").trim()).filter(Boolean);
           if (lines.length) setTpl(p => ({ ...p, highlights: lines.slice(0,5) }));
         }
       } else if (field === "subject") {
