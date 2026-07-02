@@ -93,11 +93,25 @@ const getHRProfile = () => {
 
 // Keywords that indicate HR is asking screening questions
 const SCREENING_KEYWORDS = [
-  "total experience", "years of experience", "current ctc", "expected ctc",
-  "notice period", "current company", "reason for change", "offer in hand",
-  "current location", "preferred location", "lwd", "last working day",
-  "relevant experience", "ctc", "notice", "salary", "location", "joining",
-  "current salary", "expected salary", "current organization"
+  // CTC / Salary
+  "current ctc", "expected ctc", "current salary", "expected salary", "ctc", "salary", "package",
+  // Experience
+  "total experience", "years of experience", "relevant experience", "experience",
+  // Notice / Joining
+  "notice period", "notice", "lwd", "last working day", "joining", "available to join", "availability",
+  // Company / Role
+  "current company", "current organization", "reason for change",
+  // Location
+  "current location", "preferred location", "location", "relocate", "relocation",
+  // Offer
+  "offer in hand", "offer letter",
+  // Profile details request — Prachi-style emails
+  "candidate name", "candidate profile", "following details", "share your", "share details",
+  "please share", "profile:", "linkedin", "din id", "year of passing",
+  "phone", "contact number", "mobile", "personal details",
+  // Generic screening triggers
+  "screening", "pre-screen", "shortlisted", "interested in your profile",
+  "thank you for applying", "thank you for your application",
 ];
 
 function buildScreeningReply(hrName = "") {
@@ -134,9 +148,18 @@ ${name}
 🔗 ${li}`;
 }
 
-function isScreeningEmail(subject = "", snippet = "") {
+function isScreeningEmail(subject = "", snippet = "", fromEmail = "", trackedEmails = []) {
   const text = (subject + " " + snippet).toLowerCase();
-  return SCREENING_KEYWORDS.some(kw => text.includes(kw));
+  // Match by keywords
+  if (SCREENING_KEYWORDS.some(kw => text.includes(kw))) return true;
+  // Also show button for ANY reply from a tracked HR contact (they wrote back — let AI reply)
+  if (fromEmail && trackedEmails.length) {
+    const fe = fromEmail.toLowerCase();
+    if (trackedEmails.some(e => e.toLowerCase() === fe)) return true;
+  }
+  // Show for any RE: email (it's a reply to our application)
+  if ((subject || "").toLowerCase().startsWith("re:")) return true;
+  return false;
 }
 
 const EMAIL_TEMPLATES_ANAV = [
@@ -3031,6 +3054,8 @@ Write a professional reply that ONLY answers what the HR specifically asked for.
 
 
 function InboxPage({ contacts = [], onFollowUp, addToast }) {
+  // Tracked HR emails — used to show 🤖 button for any reply from known contacts
+  const trackedEmails = React.useMemo(() => contacts.map(c => c.hrEmail?.toLowerCase()).filter(Boolean), [contacts]);
   const [activeTab,       setActiveTab]       = useState("inbox"); // "inbox" | "sent"
   const [messages,        setMessages]        = useState([]);
   const [loading,         setLoading]         = useState(false);
@@ -3193,10 +3218,10 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
                     <p className="inbox-row-snippet">{m.snippet}</p>
                   </div>
                   <div className="inbox-row-actions" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {!isSent && isScreeningEmail(m.subject, m.snippet) && (
+                    {!isSent && isScreeningEmail(m.subject, m.snippet, m.fromEmail, trackedEmails) && (
                       <button
                         className="btn-primary btn-sm"
-                        title="Auto-fill HR screening answers"
+                        title="AI will read their email and reply to exactly what they asked"
                         style={{ background: "#0d9488", fontSize: 11, whiteSpace: "nowrap" }}
                         onClick={e => { e.stopPropagation(); setScreeningModal(m); }}
                       >
@@ -3222,7 +3247,7 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
                     </button>
                   </div>
                   {!m.isRead && !isSent && <span className="inbox-unread-dot" />}
-                  {!isSent && isScreeningEmail(m.subject, m.snippet) && (
+                  {!isSent && isScreeningEmail(m.subject, m.snippet, m.fromEmail, trackedEmails) && (
                     <span style={{
                       position: "absolute", top: 6, left: 6,
                       background: "#0d9488", color: "#fff",
