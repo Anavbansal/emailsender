@@ -3779,7 +3779,7 @@ CANDIDATE PROFILE:
 
     // Model selection: heavy reasoning tasks get 70B, fast tasks get 8B
     const HEAVY_TOOLS = ["interview", "salary", "ats", "analyzejd", "career", "strategy", "resume_review", "company_research"];
-    const model = HEAVY_TOOLS.includes(tool) ? "llama-3.3-70b-versatile" : "llama-3.1-8b-instant";
+    const model = HEAVY_TOOLS.includes(tool) ? "openai/gpt-oss-120b" : "openai/gpt-oss-120b";
     const maxTok = HEAVY_TOOLS.includes(tool) ? 1500 : 800;
 
     const SYSTEM_PROMPTS = {
@@ -4045,7 +4045,7 @@ Write ONLY the email body (no subject line, no "Dear" salutation — start from 
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: "openai/gpt-oss-120b",
         messages: [{ role: "user", content: prompt }],
         max_tokens: 500,
         temperature: 0.8,
@@ -4093,7 +4093,7 @@ Rules:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: "openai/gpt-oss-120b",
         messages: [{ role: "user", content: prompt }],
         max_tokens: 150,
         temperature: 0.9,
@@ -4149,7 +4149,7 @@ Write a professional, concise reply covering the relevant screening questions.
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: "openai/gpt-oss-120b",
         messages: [{ role: "user", content: prompt }],
         max_tokens: 300,
         temperature: 0.7,
@@ -4166,10 +4166,10 @@ Write a professional, concise reply covering the relevant screening questions.
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// AI ROUTES — Powered by Groq (llama-3.1-8b-instant)
+// AI ROUTES — Powered by Groq (moonshotai/kimi-k2-instruct)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-async function groqChat(messages, maxTokens = 800, temperature = 0.8, model = "llama-3.1-8b-instant") {
+async function groqChat(messages, maxTokens = 800, temperature = 0.8, model = "openai/gpt-oss-120b") {
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -4321,7 +4321,7 @@ Provide a detailed analysis in this EXACT JSON format (no markdown, no backticks
   "improvements": ["tip1", "tip2"],
   "verdict": "Strong match — apply with confidence",
   "emailTips": "Focus on X and Y in your email"
-}` }], 600, 0.3, "llama-3.3-70b-versatile");
+}` }], 600, 0.3, "openai/gpt-oss-120b");
 
     try {
       const cleaned = text.replace(/```json|```/g, "").trim();
@@ -4361,7 +4361,7 @@ Provide in EXACT JSON (no markdown):
   "tips": ["tip1", "tip2", "tip3"],
   "companyInsights": "Brief info about company culture and what they look for",
   "redFlags": ["avoid1", "avoid2"]
-}` }], 800, 0.5, "llama-3.3-70b-versatile");
+}` }], 800, 0.5, "openai/gpt-oss-120b");
 
     try {
       const result = JSON.parse(text.replace(/```json|```/g, "").trim());
@@ -4401,7 +4401,7 @@ Provide in EXACT JSON (no markdown):
   "keyArguments": ["arg1", "arg2", "arg3"],
   "walkawayPoint": 15,
   "tips": ["tip1", "tip2"]
-}` }], 700, 0.5, "llama-3.3-70b-versatile");
+}` }], 700, 0.5, "openai/gpt-oss-120b");
 
     try {
       const result = JSON.parse(text.replace(/```json|```/g, "").trim());
@@ -4736,7 +4736,7 @@ Output: just the 2 sentences, nothing else`;
             const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
               method: "POST",
               headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ model: "llama-3.1-8b-instant", messages: [{ role: "user", content: prompt }], max_tokens: 100, temperature: 0.9 })
+              body: JSON.stringify({ model: "openai/gpt-oss-120b", messages: [{ role: "user", content: prompt }], max_tokens: 100, temperature: 0.9 })
             });
             const aiData = await aiRes.json();
             personalNote = aiData.choices?.[0]?.message?.content?.trim() || customNote;
@@ -4792,7 +4792,7 @@ Return JSON in this exact shape:
   "confidence": "high" | "medium" | "low"
 }`;
 
-    const reply = await groqChat([{ role: "user", content: prompt }], 300, 0.2, "llama-3.1-8b-instant");
+    const reply = await groqChat([{ role: "user", content: prompt }], 300, 0.2, "openai/gpt-oss-120b");
 
     let parsed;
     try {
