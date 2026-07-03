@@ -6538,7 +6538,7 @@ function AIAssistantPage({ addToast }) {
                   }}>📋 Copy</button>
                   {m.model && (
                     <span style={{ fontSize:10, color:"var(--text-muted)", padding:"3px 0", alignSelf:"center" }}>
-                      {m.model === "llama-3.3-70b-versatile" ? "⚡ 70B" : "🚀 8B"}
+                      {m.model === "openai/gpt-oss-120b" ? "⚡ 70B" : "🚀 8B"}
                     </span>
                   )}
                 </div>
@@ -6592,7 +6592,7 @@ function AIAssistantPage({ addToast }) {
         </div>
         <div style={{ fontSize:10, color:"var(--text-muted)", marginTop:5, display:"flex", justifyContent:"space-between" }}>
           <span>Enter to send · Shift+Enter for new line</span>
-          <span>{activeTool?.model === "heavy" ? "⚡ Powered by Llama 3.3 70B" : "🚀 Llama 3.1 8B (fast)"}</span>
+          <span>{activeTool?.model === "heavy" ? "⚡ Powered by GPT-OSS 120B" : "🚀 Qwen 3.6 27B (fast)"}</span>
         </div>
       </div>
 
