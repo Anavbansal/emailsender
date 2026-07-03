@@ -920,12 +920,12 @@ function EmailBodyModal({ trackingId, onClose }) {
 
 // ─── Template Editor Modal ────────────────────────────────────────────────────
 function TemplateEditorModal({ templateType, onClose, onSave }) {
-  const TMAP = BACKEND_TEMPLATE_MAP[templateType] || "fullstack";
+  const TMAP = BACKEND_TEMPLATE_MAP[templateType] || templateType;
   const tplName = templateType === "crm" ? "CRM Expert"
     : templateType === "cti" ? "CTI/Telephony"
     : templateType === "formal" ? "Formal"
     : templateType === "startup" ? "Startup"
-    : "Full Stack";
+    : BACKEND_TEMPLATE_MAP[templateType] ? "Full Stack" : (templateType || "Custom");
 
   const [tpl, setTpl] = useState(() => ({
     ...loadCustomTemplate(),
@@ -2555,6 +2555,21 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
     onPrefillConsumed && onPrefillConsumed();
   }, [prefill, onPrefillConsumed]);
   const [templateId, setTemplateId] = useState("fullstack");
+  const [customTemplates, setCustomTemplates] = useState([]);
+  useEffect(() => {
+    axios.get(`${API}/api/templates`)
+      .then(r => setCustomTemplates((r.data.templates || []).map(t => ({
+        id: t.templateId, name: t.name || t.templateId, icon: t.icon || "⚡",
+        accent: t.accent || "#2563eb", customNote: t.customNote || "",
+      }))))
+      .catch(() => {});
+  }, []);
+  // Built-in templates + any custom ones created in Settings → Templates
+  const allTemplates = useCallback(() => {
+    const base = getEmailTemplates();
+    const baseIds = new Set(base.map(t => t.id));
+    return [...base, ...customTemplates.filter(t => !baseIds.has(t.id))];
+  }, [customTemplates]);
   const [mode, setMode]           = useState("now");
   const [scheduledTime, setSched] = useState(() => defaultScheduleTime());
   const [autoSend, setAutoSend]   = useState(true);  // true = auto-send at time, false = email reminder only
@@ -2638,7 +2653,7 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
     const tpl = customTpl || getDefaultTemplate();
     return {
       ...form,
-      templateType: BACKEND_TEMPLATE_MAP[templateId] || "fullstack",
+      templateType: BACKEND_TEMPLATE_MAP[templateId] || templateId,
       readReceipt,
       headerTheme: tpl.headerTheme || "blue",
       customIntro: tpl.customIntro || undefined,
@@ -2682,7 +2697,7 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
   };
 
   const valid = form.hrEmail && form.company;
-  const activeTemplate = getEmailTemplates().find(t => t.id === templateId);
+  const activeTemplate = allTemplates().find(t => t.id === templateId);
 
   const selectTemplate = (t) => {
     setTemplateId(t.id);
@@ -2719,7 +2734,7 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
       </div>
 
       <div className="template-grid">
-        {getEmailTemplates().map(t => (
+        {allTemplates().map(t => (
           <button key={t.id} type="button"
             className={`template-card ${templateId === t.id ? "template-card-active" : ""}`}
             style={templateId === t.id ? { borderColor: t.accent } : {}}
@@ -5927,20 +5942,83 @@ function SettingsPage({ addToast }) {
       }).catch(() => {});
   }, []);
 
+  // Load user's custom templates (created via "+ Add Template") and merge them in
+  useEffect(() => {
+    axios.get(`${API}/api/templates`)
+      .then(r => {
+        const builtinIds = new Set(getDefaultTemplates().map(t => t.id));
+        const custom = (r.data.templates || [])
+          .filter(t => !builtinIds.has(t.templateId))
+          .map(t => ({
+            id: t.templateId, templateId: t.templateId,
+            name: t.name || t.templateId, icon: t.icon || "⚡", accent: t.accent || "#2563eb",
+            subject: t.subject || "", customNote: t.customNote || "", intro: t.intro || "",
+            highlights: t.highlights?.length ? t.highlights : ["", "", "", ""],
+            resumeType: t.resumeUrl ? "drive" : (t.resumeFileName ? "upload" : "default"),
+            resumeDriveUrl: t.resumeUrl || "", resumeFileName: t.resumeFileName || "",
+            isCustom: true,
+          }));
+        if (custom.length) setTemplates(prev => [...prev, ...custom]);
+      }).catch(() => {});
+  }, []);
+
+  const addTemplate = () => {
+    const newId = `custom_${Date.now()}`;
+    const newTpl = {
+      id: newId, templateId: newId, name: "New Template", icon: "⚡", accent: "#2563eb",
+      subject: "", customNote: "", intro: "", highlights: ["", "", "", ""],
+      resumeType: "default", resumeDriveUrl: "", resumeFileName: "", isCustom: true,
+    };
+    setTemplates(prev => {
+      const next = [...prev, newTpl];
+      setEditIdx(next.length - 1);
+      return next;
+    });
+  };
+
+  const deleteTemplate = async (idx) => {
+    const tpl = templates[idx];
+    if (!window.confirm(`Delete "${tpl.name}" template? This can't be undone.`)) return;
+    try {
+      await axios.delete(`${API}/api/templates/${tpl.id || tpl.templateId}`);
+      setTemplates(prev => prev.filter((_, i) => i !== idx));
+      if (editIdx === idx) setEditIdx(null);
+      addToast && addToast("🗑 Template deleted");
+    } catch(e) { addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error"); }
+  };
+
   const saveTemplates = async () => {
     setTplSaving(true);
     try {
-      // Save each edited template as a permanent override
       for (const tpl of templates) {
-        const hasCustom = tpl.intro || tpl.highlights?.some(Boolean) || tpl.subject || tpl.customNote;
-        if (!hasCustom) continue; // skip unchanged templates
-        await axios.post(`${API}/api/template-override`, {
-          templateId: tpl.id || tpl.templateId,
-          intro:      tpl.intro      || "",
-          highlights: tpl.highlights || [],
-          subject:    tpl.subject    || "",
-          customNote: tpl.customNote || "",
-        });
+        const tid = tpl.id || tpl.templateId;
+        if (tpl.isCustom) {
+          // Custom template — full save/create in the generic templates collection
+          // so it's usable by Send Application / Bulk Send and the backend sender.
+          await axios.post(`${API}/api/templates`, {
+            templateId: tid,
+            name:       tpl.name   || "New Template",
+            icon:       tpl.icon   || "⚡",
+            accent:     tpl.accent || "#2563eb",
+            subject:    tpl.subject    || "",
+            customNote: tpl.customNote || "",
+            intro:      tpl.intro      || "",
+            highlights: (tpl.highlights || []).filter(Boolean),
+            resumeUrl:      tpl.resumeDriveUrl || "",
+            resumeFileName: tpl.resumeFileName || "",
+          });
+        } else {
+          // Built-in template — only save what the user actually customized
+          const hasCustom = tpl.intro || tpl.highlights?.some(Boolean) || tpl.subject || tpl.customNote;
+          if (!hasCustom) continue;
+          await axios.post(`${API}/api/template-override`, {
+            templateId: tid,
+            intro:      tpl.intro      || "",
+            highlights: tpl.highlights || [],
+            subject:    tpl.subject    || "",
+            customNote: tpl.customNote || "",
+          });
+        }
       }
       addToast && addToast("✅ Templates saved permanently!");
     } catch(e) { addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error"); }
@@ -6123,15 +6201,20 @@ ${profile.displayName || currentUser?.displayName || "Your Name"}`}
         <div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
             <div>
-              <div style={{ fontWeight:700, fontSize:14 }}>Email Templates ({templates.length}/4)</div>
+              <div style={{ fontWeight:700, fontSize:14 }}>Email Templates ({templates.length})</div>
               <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>
                 Edit text, highlights, and resume per template
               </div>
             </div>
-            <button className={`btn-primary ${tplSaving?"loading":""}`}
-              onClick={saveTemplates} disabled={tplSaving} style={{ fontSize:12 }}>
-              {tplSaving ? "Saving..." : "💾 Save All"}
-            </button>
+            <div style={{ display:"flex", gap:8 }}>
+              <button className="btn-ghost btn-sm" onClick={addTemplate} style={{ fontSize:12 }}>
+                ➕ Add Template
+              </button>
+              <button className={`btn-primary ${tplSaving?"loading":""}`}
+                onClick={saveTemplates} disabled={tplSaving} style={{ fontSize:12 }}>
+                {tplSaving ? "Saving..." : "💾 Save All"}
+              </button>
+            </div>
           </div>
 
           {templates.map((tpl, idx) => (
@@ -6146,12 +6229,23 @@ ${profile.displayName || currentUser?.displayName || "Your Name"}`}
               }} onClick={() => setEditIdx(editIdx===idx ? null : idx)}>
                 <span style={{ fontSize:20 }}>{tpl.icon}</span>
                 <div style={{ flex:1 }}>
-                  <div style={{ fontWeight:700, fontSize:13 }}>{tpl.name}</div>
+                  <div style={{ fontWeight:700, fontSize:13, display:"flex", alignItems:"center", gap:6 }}>
+                    {tpl.name}
+                    {tpl.isCustom && (
+                      <span style={{ fontSize:9, fontWeight:700, padding:"1px 6px", borderRadius:99, background:"#7c3aed20", color:"#7c3aed" }}>CUSTOM</span>
+                    )}
+                  </div>
                   <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:1 }}>
                     Resume: {tpl.resumeType==="drive" ? "🔗 Drive Link" : tpl.resumeType==="upload" ? "📎 Uploaded" : "📁 Default"}
                     {" · "}{tpl.highlights?.length || 0} highlights
                   </div>
                 </div>
+                {tpl.isCustom && (
+                  <button className="btn-ghost btn-sm" style={{ fontSize:11, color:"#dc2626", borderColor:"#dc2626" }}
+                    onClick={(e) => { e.stopPropagation(); deleteTemplate(idx); }}>
+                    🗑
+                  </button>
+                )}
                 <span style={{ color:"var(--text-muted)", fontSize:12 }}>{editIdx===idx ? "▲ Close" : "▼ Edit"}</span>
               </div>
 
@@ -7240,7 +7334,18 @@ function InterviewsPage({ addToast }) {
 }
 
 function BulkSendPage({ addToast, contacts }) {
-  const templates    = getEmailTemplates();
+  const baseTemplates = getEmailTemplates();
+  const [customTemplates, setCustomTemplates] = useState([]);
+  useEffect(() => {
+    axios.get(`${API}/api/templates`)
+      .then(r => setCustomTemplates((r.data.templates || []).map(t => ({
+        id: t.templateId, name: t.name || t.templateId, icon: t.icon || "⚡",
+        accent: t.accent || "#2563eb", customNote: t.customNote || "",
+      }))))
+      .catch(() => {});
+  }, []);
+  const baseIds = new Set(baseTemplates.map(t => t.id));
+  const templates = [...baseTemplates, ...customTemplates.filter(t => !baseIds.has(t.id))];
   const [selected,   setSelected]   = useState(new Set());
   const [templateId, setTemplateId] = useState(templates[0]?.id || "fullstack");
   const [customNote, setCustomNote] = useState("");

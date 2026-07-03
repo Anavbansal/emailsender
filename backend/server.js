@@ -959,9 +959,18 @@ async function sendApplicationEmail({
   const isBuiltInUser = isMohit || isPriyal ||
     (userCfg?.profileName?.toLowerCase().includes("anav") || user?.profileName?.toLowerCase().includes("anav"));
 
-  // Check if user has a custom DB template (only applies to NON built-in users)
+  // Each built-in user has a fixed set of hardcoded templateIds. Anything outside
+  // that set is a CUSTOM template the user created in Settings — it must be pulled
+  // from the DB and rendered dynamically, not silently fall back to a hardcoded one.
+  const BUILTIN_IDS = isMohit  ? ["backend", "crm", "java", "formal"]
+                    : isPriyal ? ["finance", "credit", "formal", "genai"]
+                    :            ["fullstack", "cti", "crm", "formal"];
+  const isCustomTemplate = !BUILTIN_IDS.includes(templateType);
+
+  // Check if user has a custom DB template (non built-in users, OR built-in users
+  // using a templateId they created themselves that isn't one of the 4 curated ones)
   let dbTemplate = null;
-  if (!isBuiltInUser && mongoose.connection.readyState === 1 && user?._id) {
+  if ((!isBuiltInUser || isCustomTemplate) && mongoose.connection.readyState === 1 && user?._id) {
     dbTemplate = await EmailTemplate.findOne({ userId: String(user._id), templateId: templateType }).lean();
   }
 
@@ -979,7 +988,10 @@ async function sendApplicationEmail({
     if (userOverride.customNote) tplOpts.customNote       = tplOpts.customNote || userOverride.customNote;
   }
 
-  if (isMohit) {
+  if (dbTemplate && (isCustomTemplate || !isBuiltInUser)) {
+    // Custom template (created via Settings "+ New Template") — fully DB-driven
+    html = buildDynamicHTML({ ...tplOpts, dbTemplate, userName: userCfg?.profileName || user?.displayName || "Candidate" });
+  } else if (isMohit) {
     html = buildMohitHTML({ ...tplOpts, templateType });
   } else if (isPriyal) {
     html = buildPriyalHTML({ ...tplOpts, templateType });
@@ -989,13 +1001,11 @@ async function sendApplicationEmail({
     else if (templateType === "formal") html = buildFormalHTML(tplOpts);
     else if (templateType === "crm")    html = buildCRMHTML(tplOpts);
     else                                html = buildFullstackHTML(tplOpts);
-  } else if (dbTemplate) {
-    // Custom users (newly added team members) — use their DB-configured template
-    html = buildDynamicHTML({ ...tplOpts, dbTemplate, userName: userCfg?.profileName || user?.displayName || "Candidate" });
   } else if (templateType === "cti")    html = buildCTIHTML(tplOpts);
   else if (templateType === "formal")   html = buildFormalHTML(tplOpts);
   else if (templateType === "crm")      html = buildCRMHTML(tplOpts);
   else                                  html = buildFullstackHTML(tplOpts);
+
 
   storeEmailHtml(trackRecord.trackingId, html);
 
@@ -1147,7 +1157,7 @@ function buildDynamicHTML({ hrName, company, role, customNote, trackUrl = "", db
     </div>
     <p style="color:#374151;line-height:1.8;margin:0;">Thank you for your time and consideration. I would love to discuss this opportunity further.</p>
   </div>
-</div></body></html>`;
+</div>${pixel}</body></html>`;
 }
 
 // ─── HTML: Mohit Singh — Backend/CRM Template ────────────────────────────────
