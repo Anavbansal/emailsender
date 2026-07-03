@@ -2227,3 +2227,21 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .page-title { font-size: 17px; }
   .page-header { flex-direction: column; align-items: flex-start; }
 }
+
+/* ─── Sidebar Collapsed Mode ──────────────────────────────────────────────── */
+.sidebar-collapsed {
+  width: 60px !important;
+}
+.sidebar-collapsed .sidebar-header { padding: 14px 10px; justify-content: center; }
+.sidebar-collapsed .nav-item { padding: 10px; margin: 0 8px; justify-content: center; }
+.sidebar-collapsed .nav-item-collapsed { padding: 10px 0; }
+.sidebar-collapsed .sidebar-nav { padding: 6px 0; }
+.sidebar-collapsed .sidebar-footer { padding: 10px; justify-content: center; }
+.nav-badge-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: #2563eb;
+  position: absolute; top: 6px; right: 6px;
+}
+
+/* ─── Contact template chip ───────────────────────────────────────────────── */
+.tpl-chip { font-size: 10px; padding: 1px 6px; border-radius: 99px; border: 1px solid var(--border); }
+
