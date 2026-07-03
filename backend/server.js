@@ -729,9 +729,25 @@ cron.schedule("* * * * *", async () => {
           }
         }
 
-        const { info, trackRecord } = await sendApplicationEmail({
-          ...job.emailData, user: jobUser, userCfg: jobUserCfg,
-        });
+        let info, trackRecord;
+        if (job.emailData?.isFollowUp && job.emailData?.sequenceStep > 0) {
+          // Sequence follow-up step — use follow-up email builder
+          const fuResult = await sendFollowUpEmail({
+            hrEmail: job.emailData.hrEmail,
+            hrName:  job.emailData.hrName || "",
+            company: job.emailData.company,
+            role:    job.emailData.role,
+            customNote: job.emailData.customNote || "",
+            templateType: job.emailData.templateType || "fullstack",
+            user: jobUser, userCfg: jobUserCfg,
+          });
+          info = fuResult.info; trackRecord = fuResult.trackRecord;
+        } else {
+          const result = await sendApplicationEmail({
+            ...job.emailData, user: jobUser, userCfg: jobUserCfg,
+          });
+          info = result.info; trackRecord = result.trackRecord;
+        }
         logToSheets([
           info.id, job.emailData.hrEmail, job.emailData.company || "", job.emailData.role || "",
           new Date().toISOString(), trackRecord.trackingId, "Scheduled-Sent", "",
@@ -896,6 +912,23 @@ const CRM_HIGHLIGHTS = [
 ];
 
 // ─── Core send helper ─────────────────────────────────────────────────────────
+// ── Send a follow-up email (used by scheduler for sequence steps) ─────────────
+async function sendFollowUpEmail({ hrEmail, hrName="", company, role, customNote, templateType="fullstack", user=null, userCfg=null }) {
+  const resolvedTemplateType = templateType;
+  const fuUserName = userCfg?.profileName || user?.displayName || "Anav Bansal";
+  const baseSubject = role ? `Application for ${role} Position — ${fuUserName}` : `Job Application — ${fuUserName}`;
+  const subject = `Re: ${baseSubject}`;
+  const trackRecord = createTrackingRecord({ hrEmail, hrName, company, role, subject, type: "followup" });
+  const trackUrl = `${BASE_URL}/api/track/${trackRecord.trackingId}`;
+  const html = buildFollowUpHTML({ hrName, company, role, customNote, trackUrl, userCfg, templateType: resolvedTemplateType });
+  storeEmailHtml(trackRecord.trackingId, html);
+  const auth = getUserGmailAuth(user);
+  const info = await sendViaGmailAPI({ to: hrEmail, subject, html, userConfig: userCfg, user, templateType: resolvedTemplateType, auth });
+  await saveSentEmail({ messageId: info.id, threadId: info.threadId||null, trackingId: trackRecord.trackingId,
+    type: "followup", hrEmail, hrName, company: company||"", role: role||"", subject, sentAt: new Date(), templateType: resolvedTemplateType });
+  return { info, trackRecord };
+}
+
 async function sendApplicationEmail({
   hrEmail, hrName = "", company, role, customNote,
   templateType = "fullstack", readReceipt = false,
@@ -2227,6 +2260,70 @@ app.get("/api/scheduled-emails", requireAuth, async (req, res) => {
     );
   }
   res.json({ success: true, jobs });
+});
+
+// ─── PATCH /api/scheduled-emails/:jobId — reschedule or update a job ────────
+app.patch("/api/scheduled-emails/:jobId", requireAuth, async (req, res) => {
+  try {
+    const { scheduledTime, autoSend } = req.body;
+    if (!scheduledTime) return res.status(400).json({ success: false, message: "scheduledTime required" });
+    const updates = { scheduledTime, status: autoSend === false ? "held" : "pending" };
+    if (mongoose.connection.readyState === 1) {
+      const job = await ScheduledEmail.findOne({ jobId: req.params.jobId });
+      if (!job) return res.status(404).json({ success: false, message: "Job not found" });
+      if (job.userId !== req.userId && job.userId !== "default")
+        return res.status(403).json({ success: false, message: "Not your job" });
+      await ScheduledEmail.updateOne({ jobId: req.params.jobId }, { $set: updates });
+    } else {
+      const jobs = await loadScheduled();
+      const j = jobs.find(x => x.jobId === req.params.jobId);
+      if (j) { j.scheduledTime = scheduledTime; j.status = updates.status; }
+      const fs = require("fs");
+      fs.writeFileSync(SCHEDULED_FILE, JSON.stringify(jobs, null, 2), "utf8");
+    }
+    res.json({ success: true, message: "Job rescheduled" });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── POST /api/scheduled-emails/sequence — schedule multi-step follow-up chain ─
+app.post("/api/scheduled-emails/sequence", requireAuth, async (req, res) => {
+  try {
+    const { hrEmail, company, role, hrName, templateType, customNote,
+            steps = [{ days: 0 }, { days: 5 }, { days: 12 }] } = req.body;
+    if (!hrEmail || !company) return res.status(400).json({ success: false, message: "hrEmail and company required" });
+
+    const jobIds = [];
+    const now = new Date();
+
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      const d = new Date(now);
+      d.setDate(d.getDate() + (step.days || 0));
+      d.setHours(10, 0, 0, 0);
+      // Skip weekends
+      if (d.getDay() === 6) d.setDate(d.getDate() + 2);
+      if (d.getDay() === 0) d.setDate(d.getDate() + 1);
+
+      const jobId = `${Date.now()}_seq_${i}`;
+      await addScheduledJob({
+        jobId,
+        scheduledTime: d.toISOString(),
+        status: "pending",
+        userId: req.userId || "default",
+        emailData: {
+          hrEmail, company, role: role || "", hrName: hrName || "",
+          templateType: templateType || "fullstack",
+          customNote: step.customNote || customNote || "",
+          isFollowUp: i > 0,        // Day 0 = application, rest = follow-ups
+          sequenceStep: i,
+          sequenceTotal: steps.length,
+        },
+      });
+      jobIds.push({ jobId, scheduledFor: d.toISOString(), step: i });
+    }
+
+    res.json({ success: true, message: `${steps.length}-step sequence scheduled`, jobs: jobIds });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
 app.delete("/api/scheduled-emails/:jobId", requireAuth, async (req, res) => {
