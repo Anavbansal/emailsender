@@ -4580,8 +4580,18 @@ function ScheduledPage({ addToast }) {
     return () => clearInterval(t);
   }, []);
 
+  // Parses scheduledTime whether it's a naive local string ("2026-07-05T14:30:00")
+  // or a full ISO string with timezone info ("2026-07-05T09:00:00.000Z"), matching
+  // the backend's parseScheduledTime() logic. Prevents double-appending "+05:30"/"Z".
+  const parseSchedTime = (scheduledTime) => {
+    if (!scheduledTime) return new Date(NaN);
+    return (!scheduledTime.includes("Z") && !scheduledTime.includes("+"))
+      ? new Date(scheduledTime + "+05:30")
+      : new Date(scheduledTime);
+  };
+
   const countdown = (scheduledTime) => {
-    const diff = new Date(scheduledTime + "+05:30").getTime() - now;
+    const diff = parseSchedTime(scheduledTime).getTime() - now;
     if (diff <= 0) return "🔄 Due now";
     const h = Math.floor(diff / 3600000);
     const m = Math.floor((diff % 3600000) / 60000);
@@ -4741,7 +4751,7 @@ function ScheduledPage({ addToast }) {
                     {tab==="failed" ? (
                       <span style={{ color:"#dc2626", fontSize:12 }}>❌ {job.error || "Unknown error"}</span>
                     ) : (<>
-                      <span>📅 {new Date(job.scheduledTime + "+05:30").toLocaleString("en-IN", { dateStyle:"medium", timeStyle:"short" })}</span>
+                      <span>📅 {parseSchedTime(job.scheduledTime).toLocaleString("en-IN", { dateStyle:"medium", timeStyle:"short" })}</span>
                       <span style={{ color: tab==="held" ? "#d97706" : "var(--blue)", fontWeight:600 }}>{countdown(job.scheduledTime)}</span>
                     </>)}
                   </div>
@@ -4761,7 +4771,7 @@ function ScheduledPage({ addToast }) {
                   )}
                   {tab==="pending" && (
                     <button className="btn-ghost btn-sm" style={{ marginRight:6, fontSize:11 }}
-                      onClick={() => { setRescheduleJob(job); setNewDateTime(toLocalDT(new Date(job.scheduledTime+"Z"))); }}>
+                      onClick={() => { setRescheduleJob(job); setNewDateTime(toLocalDT(parseSchedTime(job.scheduledTime))); }}>
                       📅 Reschedule
                     </button>
                   )}
