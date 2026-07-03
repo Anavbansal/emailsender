@@ -456,11 +456,18 @@ function loadCustomTemplate() {
 // Local datetime string for datetime-local input and API (no UTC conversion)
 
 // Default schedule time — tomorrow 10:00 AM IST
-function defaultScheduleTime() {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
+function nextBusinessDay(fromDate, addDays = 1) {
+  const d = new Date(fromDate);
+  d.setDate(d.getDate() + addDays);
   d.setHours(10, 0, 0, 0);
-  return toLocalDT(d);
+  // Skip Saturday (6) and Sunday (0) → jump to Monday
+  if (d.getDay() === 6) d.setDate(d.getDate() + 2); // Sat → Mon
+  if (d.getDay() === 0) d.setDate(d.getDate() + 1); // Sun → Mon
+  return d;
+}
+
+function defaultScheduleTime() {
+  return toLocalDT(nextBusinessDay(new Date(), 1));
 }
 
 function toLocalDT(date) {
@@ -2745,7 +2752,23 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
           <div className="form-group">
             <label className="form-label" htmlFor="ap-sched"><span className="lbadge">Required</span> Date &amp; Time</label>
             <input id="ap-sched" type="datetime-local" min={toLocalDT(Date.now() + 60000)}
-              value={scheduledTime} onChange={e => setSched(e.target.value)} className="form-input" />
+              value={scheduledTime}
+              onChange={e => {
+                const picked = new Date(e.target.value);
+                if (picked.getDay() === 6) { // Saturday → Monday
+                  picked.setDate(picked.getDate() + 2);
+                  setSched(toLocalDT(picked));
+                } else if (picked.getDay() === 0) { // Sunday → Monday
+                  picked.setDate(picked.getDate() + 1);
+                  setSched(toLocalDT(picked));
+                } else {
+                  setSched(e.target.value);
+                }
+              }}
+              className="form-input" />
+            <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:4 }}>
+              📅 Weekends auto-skip to Monday — HRs don't check email on weekends
+            </p>
             <div style={{ display:"flex", gap:8, marginTop:10 }}>
               <button type="button" onClick={() => setAutoSend(true)}
                 style={{ flex:1, padding:"8px 12px", borderRadius:8, fontSize:12, fontWeight:600, cursor:"pointer",
