@@ -1704,6 +1704,7 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
           threadId: { $first: "$threadId" }, replied: { $max: "$replied" },
           repliedAt: { $first: "$repliedAt" }, followupSent: { $max: "$followupSent" },
           notes: { $first: "$notes" }, totalSent: { $sum: 1 },
+          templateType: { $first: "$templateType" },
         }}
       ]);
       const contacts = rows.map(r => {
@@ -1715,7 +1716,7 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
           replied: r.replied||false, repliedAt: toMs(r.repliedAt)||null,
           followupSent: r.followupSent||false, notes: typeof r.notes==="string"?r.notes:"",
           needsFollowUp: ls>0 && (Date.now()-ls)>THREE_DAYS_MS && !r.replied,
-          lastTrackingId: null,
+          lastTrackingId: null, templateType: r.templateType || "",
         };
       }).sort((a,b) => b.lastSentAt - a.lastSentAt);
       return res.json({ success: true, contacts, fetchedAt: Date.now(), sheetError: null, sheetTab: "" });
@@ -1835,6 +1836,7 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
         followupSent: { $max:   "$followupSent" },
         notes:        { $first: "$notes" },
         totalSent:    { $sum: 1 },
+        templateType: { $first: "$templateType" },
       }}
     ]);
 
@@ -1860,6 +1862,7 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
           lastFollowupAt:   row.lastFollowupAt ? new Date(row.lastFollowupAt).getTime() : null,
           totalSent:        row.totalSent    || 1,
           followupCount:    row.followupSent ? 1 : 0,
+          templateType:     row.templateType || "",
         });
       } else {
         // Enrich existing sheet/tracking contact with DB data
@@ -1869,6 +1872,7 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
         existing.repliedAt       = row.repliedAt   || existing.repliedAt   || null;
         existing.followupSent    = row.followupSent|| existing.followupSent || false;
         existing.notes           = row.notes       || existing.notes       || "";
+        existing.templateType    = row.templateType|| existing.templateType|| "";
         if (!existing.latestSentAt && row.latestSentAt)
           existing.latestSentAt = new Date(row.latestSentAt).getTime();
       }
@@ -1913,6 +1917,7 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
       interviewRound:c.interviewRound || "",
       interviewDate: c.interviewDate  ? new Date(c.interviewDate).getTime() : null,
       callLog:       c.callLog        || "",
+      templateType:  c.templateType   || "",
       needsFollowUp,
     });
   }
