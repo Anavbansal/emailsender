@@ -4773,7 +4773,6 @@ function ScheduledPage({ addToast }) {
             ))}
           </div>
       }
-    </div>
 
     {/* ── Reschedule Modal ── */}
     {rescheduleJob && (
@@ -4878,6 +4877,7 @@ function ScheduledPage({ addToast }) {
         </div>
       </div>
     )}
+    </div>
   );
 }
 
