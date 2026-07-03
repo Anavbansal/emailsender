@@ -2272,6 +2272,11 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
 
                 {/* Row 3: Meta info chips */}
                 <div className="contact-meta" style={{ flexWrap:"wrap", gap:4 }}>
+                  {c.templateType && (
+                    <span style={{ fontSize:10, padding:"1px 6px", borderRadius:99, border:"1px solid var(--border)", color:"var(--text-muted)", background:"var(--surface)" }}>
+                      {c.templateType==="crm"?"🔗 CRM":c.templateType==="cti"?"📡 CTI":c.templateType==="formal"?"🎯 Formal":"⚡ FS"}
+                    </span>
+                  )}
                   {c.lastSentAt > 0 && (
                     <span style={{ fontSize:11, color:"var(--text-muted,#6b7280)" }}>
                       📤 {new Date(c.lastSentAt).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric" })}
@@ -4557,12 +4562,18 @@ function LinkedInConnectionsPage({ onFillApply, addToast }) {
 
 // ─── Scheduled Page ───────────────────────────────────────────────────────────
 function ScheduledPage({ addToast }) {
-  const [jobs,      setJobs]      = useState([]);
-  const [now,       setNow]       = useState(Date.now());
-  const [tab,       setTab]       = useState("pending");
-  const [retrying,  setRetrying]  = useState(false);
-  const [retryingId, setRetryingId] = useState(null);
-  const [sendingId,  setSendingId]  = useState(null);
+  const [jobs,        setJobs]        = useState([]);
+  const [now,         setNow]         = useState(Date.now());
+  const [tab,         setTab]         = useState("pending");
+  const [retrying,    setRetrying]    = useState(false);
+  const [retryingId,  setRetryingId]  = useState(null);
+  const [sendingId,   setSendingId]   = useState(null);
+  const [rescheduleJob, setRescheduleJob] = useState(null); // job being rescheduled
+  const [newDateTime,   setNewDateTime]   = useState("");
+  const [sequenceModal, setSequenceModal] = useState(false);
+  const [seqForm,       setSeqForm]       = useState({ hrEmail:"", company:"", role:"", hrName:"", templateType:"fullstack",
+    steps:[{days:0,label:"Apply"},{days:5,label:"Follow-up #1"},{days:12,label:"Follow-up #2"}] });
+  const [seqSaving,     setSeqSaving]     = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
@@ -4587,6 +4598,30 @@ function ScheduledPage({ addToast }) {
       await axios.delete(`${API}/api/scheduled-emails/${id}`);
       setJobs(p => p.filter(j => j.jobId !== id));
     } catch(e) { addToast && addToast("❌ Failed to cancel: " + (e.response?.data?.message || e.message), "error"); }
+  };
+
+  const reschedule = async () => {
+    if (!rescheduleJob || !newDateTime) return;
+    try {
+      await axios.patch(`${API}/api/scheduled-emails/${rescheduleJob.jobId}`, { scheduledTime: new Date(newDateTime).toISOString() });
+      addToast && addToast("✅ Rescheduled!");
+      setRescheduleJob(null);
+      fetchJobs();
+    } catch(e) { addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error"); }
+  };
+
+  const scheduleSequence = async () => {
+    if (!seqForm.hrEmail || !seqForm.company) { addToast && addToast("❌ HR email and company required","error"); return; }
+    setSeqSaving(true);
+    try {
+      const r = await axios.post(`${API}/api/scheduled-emails/sequence`, {
+        ...seqForm, steps: seqForm.steps,
+      });
+      addToast && addToast(`✅ ${r.data.jobs.length}-step sequence scheduled! (${seqForm.company})`);
+      setSequenceModal(false);
+      fetchJobs();
+    } catch(e) { addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error"); }
+    finally { setSeqSaving(false); }
   };
 
   const retryOne = async id => {
@@ -4643,7 +4678,12 @@ function ScheduledPage({ addToast }) {
 
   return (
     <div className="page">
-      <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap" }}>
+      <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap", alignItems:"center" }}>
+        <button onClick={() => setSequenceModal(true)}
+          style={{ padding:"7px 14px", borderRadius:99, fontSize:12, fontWeight:700, cursor:"pointer",
+            background:"linear-gradient(135deg,#7c3aed,#2563eb)", color:"#fff", border:"none", marginRight:4 }}>
+          ⚡ Schedule Sequence
+        </button>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             style={{
@@ -4719,6 +4759,12 @@ function ScheduledPage({ addToast }) {
                       {sendingId===job.jobId ? "Sending..." : "📤 Send Now"}
                     </button>
                   )}
+                  {tab==="pending" && (
+                    <button className="btn-ghost btn-sm" style={{ marginRight:6, fontSize:11 }}
+                      onClick={() => { setRescheduleJob(job); setNewDateTime(toLocalDT(new Date(job.scheduledTime+"Z"))); }}>
+                      📅 Reschedule
+                    </button>
+                  )}
                   <button className="btn-ghost btn-sm" onClick={() => remove(job.jobId)}>
                     {tab==="failed" ? "🗑 Delete" : "Cancel"}
                   </button>
@@ -4728,6 +4774,110 @@ function ScheduledPage({ addToast }) {
           </div>
       }
     </div>
+
+    {/* ── Reschedule Modal ── */}
+    {rescheduleJob && (
+      <div className="modal-overlay" onClick={() => setRescheduleJob(null)}>
+        <div className="modal-box modal-box-sm" onClick={e => e.stopPropagation()}>
+          <div className="modal-header">
+            <div className="modal-title-row"><span>📅</span><h3 className="modal-title">Reschedule Email</h3></div>
+            <button className="modal-close" onClick={() => setRescheduleJob(null)}>✕</button>
+          </div>
+          <div style={{ padding:"16px 20px" }}>
+            <p style={{ fontSize:13, color:"var(--text-muted)", marginBottom:12 }}>
+              <strong>{rescheduleJob.emailData?.company}</strong> · {rescheduleJob.emailData?.hrEmail}
+            </p>
+            <label className="form-label" style={{ fontSize:11 }}>New Date &amp; Time</label>
+            <input type="datetime-local" className="form-input"
+              value={newDateTime}
+              onChange={e => {
+                const d = new Date(e.target.value);
+                if (d.getDay()===6) d.setDate(d.getDate()+2);
+                if (d.getDay()===0) d.setDate(d.getDate()+1);
+                setNewDateTime(toLocalDT(d));
+              }} />
+            <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:4 }}>📅 Weekends auto-skip to Monday</p>
+          </div>
+          <div className="modal-footer">
+            <button className="btn-ghost" onClick={() => setRescheduleJob(null)}>Cancel</button>
+            <button className="btn-primary" onClick={reschedule}>📅 Reschedule</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Sequence Modal ── */}
+    {sequenceModal && (
+      <div className="modal-overlay" onClick={() => setSequenceModal(false)}>
+        <div className="modal-box" style={{ maxWidth:500 }} onClick={e => e.stopPropagation()}>
+          <div className="modal-header">
+            <div className="modal-title-row"><span>⚡</span><h3 className="modal-title">Schedule Follow-up Sequence</h3></div>
+            <button className="modal-close" onClick={() => setSequenceModal(false)}>✕</button>
+          </div>
+          <div className="modal-scroll">
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+              <div className="form-group" style={{ marginBottom:0 }}>
+                <label className="form-label" style={{ fontSize:11 }}>HR Email *</label>
+                <input className="form-input" style={{ fontSize:12 }} placeholder="hr@company.com"
+                  value={seqForm.hrEmail} onChange={e => setSeqForm(p => ({...p, hrEmail:e.target.value}))} />
+              </div>
+              <div className="form-group" style={{ marginBottom:0 }}>
+                <label className="form-label" style={{ fontSize:11 }}>Company *</label>
+                <input className="form-input" style={{ fontSize:12 }} placeholder="Google"
+                  value={seqForm.company} onChange={e => setSeqForm(p => ({...p, company:e.target.value}))} />
+              </div>
+              <div className="form-group" style={{ marginBottom:0 }}>
+                <label className="form-label" style={{ fontSize:11 }}>Role</label>
+                <input className="form-input" style={{ fontSize:12 }} placeholder="Senior Developer"
+                  value={seqForm.role} onChange={e => setSeqForm(p => ({...p, role:e.target.value}))} />
+              </div>
+              <div className="form-group" style={{ marginBottom:0 }}>
+                <label className="form-label" style={{ fontSize:11 }}>Template</label>
+                <select className="form-select" style={{ fontSize:12 }} value={seqForm.templateType}
+                  onChange={e => setSeqForm(p => ({...p, templateType:e.target.value}))}>
+                  <option value="fullstack">Full Stack</option>
+                  <option value="crm">CRM Expert</option>
+                  <option value="cti">CTI/Telephony</option>
+                  <option value="formal">Formal</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:10, padding:"12px 14px", marginBottom:12 }}>
+              <div style={{ fontWeight:700, fontSize:12, marginBottom:10, color:"var(--text-700,#374151)" }}>📅 Sequence Steps</div>
+              {seqForm.steps.map((step, i) => (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                  <div style={{ width:28, height:28, borderRadius:"50%", background: i===0?"#059669":"#7c3aed", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, flexShrink:0 }}>{i}</div>
+                  <input className="form-input" style={{ flex:1, fontSize:12 }} value={step.label}
+                    onChange={e => setSeqForm(p => ({ ...p, steps: p.steps.map((s,j) => j===i?{...s,label:e.target.value}:s) }))} />
+                  <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+                    <span style={{ fontSize:11, color:"var(--text-muted)" }}>Day</span>
+                    <input type="number" className="form-input" style={{ width:56, fontSize:12, padding:"6px 8px" }}
+                      value={step.days} min={i===0?0:1}
+                      onChange={e => setSeqForm(p => ({ ...p, steps: p.steps.map((s,j) => j===i?{...s,days:Number(e.target.value)}:s) }))} />
+                  </div>
+                  {seqForm.steps.length > 1 && (
+                    <button style={{ background:"none", border:"none", cursor:"pointer", color:"#dc2626", fontSize:14 }}
+                      onClick={() => setSeqForm(p => ({...p, steps:p.steps.filter((_,j)=>j!==i)}))}>✕</button>
+                  )}
+                </div>
+              ))}
+              <button className="btn-ghost btn-sm" style={{ marginTop:4 }}
+                onClick={() => setSeqForm(p => ({...p, steps:[...p.steps,{days:p.steps[p.steps.length-1].days+7,label:`Follow-up #${p.steps.length}`}]}))}>
+                + Add Step
+              </button>
+            </div>
+            <p style={{ fontSize:11, color:"var(--text-muted)" }}>Weekend dates auto-skip to Monday · Auto-stops if HR replies</p>
+          </div>
+          <div className="modal-footer">
+            <button className="btn-ghost" onClick={() => setSequenceModal(false)}>Cancel</button>
+            <button className="btn-primary" onClick={scheduleSequence} disabled={seqSaving}>
+              {seqSaving ? "Scheduling…" : `⚡ Schedule ${seqForm.steps.length} Steps`}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   );
 }
 
@@ -4858,8 +5008,9 @@ function App() {
   const [scheduledJobs, setScheduledJobs] = useState([]);
   const [fetchedAt,     setFetchedAt]     = useState(null);
   const [darkMode,      setDarkMode]      = useState(() => localStorage.getItem("darkMode") === "true");
-  const [sidebarOpen,   setSidebarOpen]   = useState(false);
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [sidebarOpen,     setSidebarOpen]     = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [profileMenuOpen,  setProfileMenuOpen]  = useState(false);
   const [modal,         setModal]         = useState(null);
   const [threadModal,       setThreadModal]       = useState(null);
   const [manualUpdateModal, setManualUpdateModal] = useState(null); // { contact }
@@ -4998,7 +5149,23 @@ function App() {
   // Flat NAV for lookups (page title etc.)
   const NAV = NAV_GROUPS.flatMap(g => g.items);
 
-  const [prefillSend, setPrefillSend] = React.useState(null);
+  const [prefillSend,    setPrefillSend]    = React.useState(null);
+  const [cmdPalette,     setCmdPalette]     = useState(false);
+  const [cmdQuery,       setCmdQuery]       = useState("");
+
+  // ── Cmd+K command palette ─────────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setCmdPalette(p => !p);
+        setCmdQuery("");
+      }
+      if (e.key === "Escape") setCmdPalette(false);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   // ── Chrome extension handoff: read ?company=&role=&hrEmail=&hrName= from URL ──
   useEffect(() => {
@@ -5053,7 +5220,7 @@ function App() {
 
   return (
     <div className="app-shell">
-      <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
+      <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""} ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
 
         {/* ── Profile dropdown (click name to logout) ── */}
         <div className="sidebar-header" style={{ position:"relative" }}>
@@ -5063,14 +5230,21 @@ function App() {
               width:"100%", display:"flex", alignItems:"center", gap:10,
               background:"none", border:"none", cursor:"pointer", padding:0, textAlign:"left"
             }}>
-            <div className="sidebar-avatar">{(authUser?.displayName||"U").slice(0,2).toUpperCase()}</div>
-            <div className="sidebar-brand" style={{ flex:1, minWidth:0 }}>
-              <span className="sidebar-name" style={{ display:"block", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                {authUser?.displayName || authUser?.username}
-              </span>
-              <span className="sidebar-role">{roleLabel}</span>
-            </div>
-            <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)", transform: profileMenuOpen?"rotate(180deg)":"none", transition:"transform 0.15s" }}>▼</span>
+            <div className="sidebar-avatar" style={{ flexShrink:0 }}>{(authUser?.displayName||"U").slice(0,2).toUpperCase()}</div>
+            {!sidebarCollapsed && <>
+              <div className="sidebar-brand" style={{ flex:1, minWidth:0 }}>
+                <span className="sidebar-name" style={{ display:"block", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                  {authUser?.displayName || authUser?.username}
+                </span>
+                <span className="sidebar-role">{roleLabel}</span>
+              </div>
+              <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)", transform: profileMenuOpen?"rotate(180deg)":"none", transition:"transform 0.15s" }}>▼</span>
+            </>}
+          </button>
+          {/* Collapse toggle */}
+          <button onClick={() => setSidebarCollapsed(c => !c)}
+            style={{ position:"absolute", right:-10, top:"50%", transform:"translateY(-50%)", width:20, height:20, borderRadius:"50%", background:"#1e293b", border:"1px solid rgba(255,255,255,0.15)", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"rgba(255,255,255,0.6)", zIndex:10 }}>
+            {sidebarCollapsed ? "▶" : "◀"}
           </button>
 
           {profileMenuOpen && (
@@ -5102,7 +5276,7 @@ function App() {
         <nav className="sidebar-nav">
           {NAV_GROUPS.map(group => (
             <div key={group.label || "main"} style={{ marginBottom:4 }}>
-              {group.label && (
+              {group.label && !sidebarCollapsed && (
                 <div style={{
                   fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.32)",
                   textTransform:"uppercase", letterSpacing:"0.07em",
@@ -5110,10 +5284,14 @@ function App() {
                 }}>{group.label}</div>
               )}
               {group.items.map(n => (
-                <button key={n.id} className={`nav-item ${page === n.id ? "nav-item-active" : ""}`} onClick={() => navigate(n.id)}>
+                <button key={n.id}
+                  className={`nav-item ${page === n.id ? "nav-item-active" : ""} ${sidebarCollapsed ? "nav-item-collapsed" : ""}`}
+                  onClick={() => { navigate(n.id); setSidebarOpen(false); }}
+                  title={sidebarCollapsed ? n.label : undefined}>
                   <span className="nav-icon">{n.icon}</span>
-                  <span className="nav-label">{n.label}</span>
-                  {n.badge ? <span className="nav-badge">{n.badge}</span> : null}
+                  {!sidebarCollapsed && <span className="nav-label">{n.label}</span>}
+                  {!sidebarCollapsed && n.badge ? <span className="nav-badge">{n.badge}</span> : null}
+                  {sidebarCollapsed && n.badge ? <span className="nav-badge-dot" /> : null}
                 </button>
               ))}
             </div>
@@ -5121,11 +5299,13 @@ function App() {
         </nav>
 
         {/* ── Mini stats ── */}
-        <div className="sidebar-stats">
-          <div className="sidebar-stat"><span className="ss-val">{contacts.length}</span><span className="ss-lbl">Applied</span></div>
-          <div className="sidebar-stat"><span className="ss-val">{openedCount}</span><span className="ss-lbl">Opened</span></div>
-          <div className="sidebar-stat"><span className="ss-val">{replyCount}</span><span className="ss-lbl">Replies</span></div>
-        </div>
+        {!sidebarCollapsed && (
+          <div className="sidebar-stats">
+            <div className="sidebar-stat"><span className="ss-val">{contacts.length}</span><span className="ss-lbl">Applied</span></div>
+            <div className="sidebar-stat"><span className="ss-val">{openedCount}</span><span className="ss-lbl">Opened</span></div>
+            <div className="sidebar-stat"><span className="ss-val">{replyCount}</span><span className="ss-lbl">Replies</span></div>
+          </div>
+        )}
 
         <div className="sidebar-footer">
           <DarkModeToggle dark={darkMode} onToggle={() => setDarkMode(d => !d)} />
@@ -5133,6 +5313,88 @@ function App() {
       </aside>
 
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
+
+      {/* ── Command Palette ── */}
+      {cmdPalette && (
+        <div style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(0,0,0,0.6)", display:"flex", alignItems:"flex-start", justifyContent:"center", paddingTop:"15vh" }}
+          onClick={() => setCmdPalette(false)}>
+          <div style={{ width:"100%", maxWidth:560, background:"var(--surface)", borderRadius:14, boxShadow:"0 24px 60px rgba(0,0,0,0.4)", overflow:"hidden", border:"1px solid var(--border)" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ padding:"14px 16px", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:10 }}>
+              <span style={{ fontSize:16, color:"var(--text-muted)" }}>⌘</span>
+              <input autoFocus placeholder="Search pages, contacts, actions…"
+                style={{ flex:1, background:"none", border:"none", outline:"none", fontSize:15, color:"var(--text-700,#374151)" }}
+                value={cmdQuery} onChange={e => setCmdQuery(e.target.value)} />
+              <kbd style={{ fontSize:10, padding:"2px 6px", borderRadius:4, border:"1px solid var(--border)", color:"var(--text-muted)", background:"var(--surface)" }}>ESC</kbd>
+            </div>
+            <div style={{ maxHeight:360, overflowY:"auto" }}>
+              {(() => {
+                const q = cmdQuery.toLowerCase();
+                const pages = NAV.filter(n => !q || n.label.toLowerCase().includes(q));
+                const matchedContacts = q.length > 1
+                  ? contacts.filter(c => c.hrEmail?.toLowerCase().includes(q) || c.company?.toLowerCase().includes(q) || c.hrName?.toLowerCase().includes(q)).slice(0,5)
+                  : [];
+                const actions = [
+                  { label:"Send Application", icon:"✉️", action:() => { navigate("send"); setCmdPalette(false); } },
+                  { label:"Sync Replies", icon:"↺", action:() => { axios.get(`${API}/api/resync-replies`).then(r => addToast(`✅ ${r.data.newReplies||0} new replies`)).catch(()=>{}); setCmdPalette(false); } },
+                  { label:"Dark Mode Toggle", icon:"🌙", action:() => { setDarkMode(d=>!d); setCmdPalette(false); } },
+                  { label:"Logout", icon:"🚪", action:() => { clearToken(); setAuthUser(null); setContacts([]); setReplies([]); setScheduledJobs([]); navigate("dashboard"); setCmdPalette(false); } },
+                ].filter(a => !q || a.label.toLowerCase().includes(q));
+
+                const Section = ({ title, items, renderItem }) => items.length > 0 ? (
+                  <div>
+                    <div style={{ padding:"8px 16px 4px", fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.06em" }}>{title}</div>
+                    {items.map(renderItem)}
+                  </div>
+                ) : null;
+
+                return (<>
+                  <Section title="Pages" items={pages} renderItem={n => (
+                    <button key={n.id} style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"10px 16px", background:"none", border:"none", cursor:"pointer", textAlign:"left", color:"var(--text-700,#374151)" }}
+                      onMouseEnter={e => e.currentTarget.style.background="var(--surface-hover,rgba(0,0,0,0.04))"}
+                      onMouseLeave={e => e.currentTarget.style.background="none"}
+                      onClick={() => { navigate(n.id); setCmdPalette(false); }}>
+                      <span style={{ fontSize:16 }}>{n.icon}</span>
+                      <span style={{ fontSize:13 }}>{n.label}</span>
+                      {n.badge ? <span style={{ marginLeft:"auto", fontSize:11, background:"#2563eb", color:"#fff", borderRadius:99, padding:"1px 7px" }}>{n.badge}</span> : null}
+                    </button>
+                  )} />
+                  <Section title="Contacts" items={matchedContacts} renderItem={c => (
+                    <button key={c.hrEmail} style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"10px 16px", background:"none", border:"none", cursor:"pointer", textAlign:"left" }}
+                      onMouseEnter={e => e.currentTarget.style.background="var(--surface-hover,rgba(0,0,0,0.04))"}
+                      onMouseLeave={e => e.currentTarget.style.background="none"}
+                      onClick={() => { goToSendPrefilled({ hrEmail:c.hrEmail, hrName:c.hrName, company:c.company, role:c.role }); setCmdPalette(false); }}>
+                      <div style={{ width:28, height:28, borderRadius:"50%", background:"#2563eb", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:"#fff", fontWeight:700, flexShrink:0 }}>
+                        {(c.company||c.hrName||"?").slice(0,2).toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ fontSize:13, color:"var(--text-700,#374151)", fontWeight:600 }}>{c.company || c.hrEmail}</div>
+                        <div style={{ fontSize:11, color:"var(--text-muted)" }}>{c.hrEmail}</div>
+                      </div>
+                      <span style={{ marginLeft:"auto", fontSize:10, color:"var(--text-muted)" }}>Send →</span>
+                    </button>
+                  )} />
+                  <Section title="Actions" items={actions} renderItem={a => (
+                    <button key={a.label} style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"10px 16px", background:"none", border:"none", cursor:"pointer", textAlign:"left", color:"var(--text-700,#374151)" }}
+                      onMouseEnter={e => e.currentTarget.style.background="var(--surface-hover,rgba(0,0,0,0.04))"}
+                      onMouseLeave={e => e.currentTarget.style.background="none"}
+                      onClick={a.action}>
+                      <span style={{ fontSize:16 }}>{a.icon}</span>
+                      <span style={{ fontSize:13 }}>{a.label}</span>
+                    </button>
+                  )} />
+                  {pages.length===0 && matchedContacts.length===0 && actions.length===0 && (
+                    <div style={{ padding:"24px 16px", textAlign:"center", color:"var(--text-muted)", fontSize:13 }}>No results for "{cmdQuery}"</div>
+                  )}
+                </>);
+              })()}
+            </div>
+            <div style={{ padding:"8px 16px", borderTop:"1px solid var(--border)", display:"flex", gap:16, fontSize:11, color:"var(--text-muted)" }}>
+              <span>↑↓ navigate</span><span>↵ select</span><span>⌘K to close</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="main-wrap">
         <header className="top-header">
