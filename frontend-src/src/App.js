@@ -7383,7 +7383,8 @@ function BulkSendPage({ addToast, contacts }) {
     setSending(true); setResult(null);
     try {
       const toSend = filtered.filter(c => selected.has(c.hrEmail)).map(c => ({
-        hrEmail: c.hrEmail, hrName: c.hrName, company: c.company, role: c.role
+        hrEmail: c.hrEmail, hrName: c.hrName, company: c.company, role: c.role,
+        templateType: c.templateType || undefined, // use their previous template if known
       }));
       const r = await axios.post(`${API}/api/bulk-send`, { contacts: toSend, templateType: templateId, customNote, useAI });
       setResult(r.data);
@@ -7400,7 +7401,9 @@ function BulkSendPage({ addToast, contacts }) {
       <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"16px 20px", marginBottom:16 }}>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
           <div className="form-group" style={{ marginBottom:0 }}>
-            <label className="form-label" style={{ fontSize:11 }}>Template</label>
+            <label className="form-label" style={{ fontSize:11 }}>
+              Default Template <span style={{ fontWeight:400, color:"var(--text-muted)" }}>(only used for contacts with no previous template)</span>
+            </label>
             <select className="form-select" style={{ fontSize:13 }} value={templateId} onChange={e => setTemplateId(e.target.value)}>
               {templates.map(t => <option key={t.id} value={t.id}>{t.icon} {t.name}</option>)}
             </select>
@@ -7461,7 +7464,18 @@ function BulkSendPage({ addToast, contacts }) {
               <div style={{ fontSize:13, fontWeight:600 }}>{c.company || "Unknown"}</div>
               <div style={{ fontSize:11, color:"var(--text-muted)" }}>{c.hrEmail} {c.hrName ? `· ${c.hrName}` : ""}</div>
             </div>
-            <div style={{ display:"flex", gap:6 }}>
+            <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+              {(() => {
+                const tid = c.templateType || templateId;
+                const t = templates.find(tt => tt.id === tid);
+                const isOwn = !!c.templateType;
+                return (
+                  <span title={isOwn ? "Same template they got before" : "Default template (no previous send)"}
+                    style={{ fontSize:10, background: isOwn ? "#ede9fe" : "#f1f5f9", color: isOwn ? "#5b21b6" : "#64748b", padding:"2px 6px", borderRadius:99, fontWeight:600 }}>
+                    {t?.icon || "⚡"} {t?.name || tid}
+                  </span>
+                );
+              })()}
               {c.sent     && <span style={{ fontSize:10, background:"#dbeafe", color:"#1e40af", padding:"2px 6px", borderRadius:99 }}>Applied</span>}
               {c.opened   && <span style={{ fontSize:10, background:"#ede9fe", color:"#5b21b6", padding:"2px 6px", borderRadius:99 }}>Opened</span>}
               {c.replied  && <span style={{ fontSize:10, background:"#d1fae5", color:"#065f46", padding:"2px 6px", borderRadius:99 }}>Replied</span>}

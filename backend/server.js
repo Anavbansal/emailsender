@@ -4858,7 +4858,7 @@ Output: just the 2 sentences, nothing else`;
         const emailData = {
           hrEmail: contact.hrEmail, hrName: contact.hrName || "",
           company: contact.company || "", role: contact.role || "",
-          customNote: personalNote, templateType,
+          customNote: personalNote, templateType: contact.templateType || templateType,
           userCfg, user: req.user
         };
         await sendApplicationEmail(emailData);
