@@ -142,6 +142,8 @@ const emailTemplateSchema = new mongoose.Schema({
   name:        { type: String, default: "" },
   icon:        { type: String, default: "⚡" },
   accent:      { type: String, default: "#2563eb" },
+  headerTheme: { type: String, default: "blue" },
+  isDefault:   { type: Boolean, default: false },
   subject:     { type: String, default: "" },
   customNote:  { type: String, default: "" },
   intro:       { type: String, default: "" },
@@ -342,7 +344,7 @@ function getGmailAPITransport() {
   return oauth2Client;
 }
 
-async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references = null, threadId = null, userConfig = null, user = null, templateType = "fullstack" }) {
+async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references = null, threadId = null, userConfig = null, user = null, templateType = "fullstack", resumeOverride = undefined, headers = null }) {
   // Use full user object if provided (has gmailRefreshToken directly from DB)
   // Fallback to userConfig, then env var
   let auth;
@@ -361,8 +363,20 @@ async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references
   const isPriyalGmail  = !!(userConfig?.profileName?.toLowerCase().includes("priyal") || user?.profileName?.toLowerCase().includes("priyal"));
   const isMohitGmail   = !!(userConfig?.profileName?.toLowerCase().includes("mohit")  || user?.profileName?.toLowerCase().includes("mohit"));
 
-  let resumeFile, resumeName;
-  if (isMohitGmail && fs.existsSync(MOHIT_RESUME_PATH)) {
+  // resumeOverride lets the caller (sendApplicationEmail / follow-up senders) decide the
+  // exact resume file — e.g. a custom template's uploaded PDF. Passing it explicitly as
+  // `null` means "no local file for this template" (e.g. a Drive-link-only resume, already
+  // linked in the HTML body) — in that case we skip attaching anything, rather than silently
+  // attaching an unrelated default resume.
+  let resumeFile, resumeName, skipResume = false;
+  if (resumeOverride !== undefined) {
+    if (resumeOverride && resumeOverride.path && fs.existsSync(resumeOverride.path)) {
+      resumeFile = resumeOverride.path;
+      resumeName = resumeOverride.filename || "Resume.pdf";
+    } else {
+      skipResume = true;
+    }
+  } else if (isMohitGmail && fs.existsSync(MOHIT_RESUME_PATH)) {
     resumeFile = MOHIT_RESUME_PATH;
     resumeName = "Mohit_Singh_CRMExpert_v3.pdf";
   } else if (isPriyalGmail && user?.resumePath && fs.existsSync(user.resumePath)) {
@@ -380,14 +394,25 @@ async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references
   }
   const senderName  = userConfig?.profileName || "Anav Bansal";
   const senderEmail = userConfig?.gmailUser   || process.env.GMAIL_USER || "";
-  const resumeData = fs.readFileSync(resumeFile).toString("base64");
+  const resumeData  = skipResume ? null : fs.readFileSync(resumeFile).toString("base64");
 
-  // Build threading headers when replying
+  // Build threading + any extra headers (e.g. read-receipt)
   const extraHeaders = [];
   if (inReplyTo)  extraHeaders.push(`In-Reply-To: ${inReplyTo}`);
   if (references) extraHeaders.push(`References: ${references}`);
+  if (headers) Object.entries(headers).forEach(([k, v]) => { if (v) extraHeaders.push(`${k}: ${v}`); });
 
-  const rawEmail = [
+  const rawEmail = skipResume ? [
+    `From: "${senderName}" <${senderEmail}>`,
+    `To: ${to}`,
+    `Subject: ${encodedSubject}`,
+    `MIME-Version: 1.0`,
+    ...extraHeaders,
+    `Content-Type: text/html; charset=utf-8`,
+    `Content-Transfer-Encoding: base64`,
+    ``,
+    Buffer.from(html).toString("base64"),
+  ].join("\r\n") : [
     `From: "${senderName}" <${senderEmail}>`,
     `To: ${to}`,
     `Subject: ${encodedSubject}`,
@@ -913,6 +938,36 @@ const CRM_HIGHLIGHTS = [
 
 // ─── Core send helper ─────────────────────────────────────────────────────────
 // ── Send a follow-up email (used by scheduler for sequence steps) ─────────────
+// ─── Shared resume resolver — used by application sends AND both follow-up paths ──
+// Custom templates (uploaded PDF or Drive link) take priority; falls back to the
+// curated per-user/per-template defaults otherwise.
+async function resolveResumeForTemplate(templateType, user, userCfg) {
+  const isPriyalUser = !!(userCfg?.profileName?.toLowerCase().includes("priyal") || user?.profileName?.toLowerCase().includes("priyal"));
+  const isMohitUser  = !!(userCfg?.profileName?.toLowerCase().includes("mohit")  || user?.profileName?.toLowerCase().includes("mohit"));
+
+  const dbTpl = (mongoose.connection.readyState === 1 && user?._id)
+    ? await EmailTemplate.findOne({ userId: String(user._id), templateId: templateType }).lean()
+    : null;
+
+  if (dbTpl?.resumeUploadPath && fs.existsSync(dbTpl.resumeUploadPath)) {
+    return { filename: dbTpl.resumeFileName || "Resume.pdf", path: dbTpl.resumeUploadPath, contentType: "application/pdf" };
+  }
+  if (dbTpl?.resumeDriveUrl) return null; // linked in HTML body, not attached
+  if (isMohitUser && fs.existsSync(MOHIT_RESUME_PATH)) {
+    return { filename: "Mohit_Singh_CRMExpert_v3.pdf", path: MOHIT_RESUME_PATH, contentType: "application/pdf" };
+  }
+  if (isPriyalUser && user?.resumePath && fs.existsSync(user.resumePath)) {
+    return { filename: user.resumeFileName || "Priyal_Goyal_Resume.pdf", path: user.resumePath, contentType: "application/pdf" };
+  }
+  if (!isPriyalUser && !isMohitUser && templateType === "cti" && fs.existsSync(CTI_RESUME_PATH)) {
+    return { filename: "Anav_Bansal_TelephonyExpert.pdf", path: CTI_RESUME_PATH, contentType: "application/pdf" };
+  }
+  if (!isPriyalUser && !isMohitUser && templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)) {
+    return { filename: "Anav_Bansal_CRMExpert.pdf", path: CRM_RESUME_PATH, contentType: "application/pdf" };
+  }
+  return { filename: "Anav_Bansal_Resume.pdf", path: RESUME_PATH, contentType: "application/pdf" };
+}
+
 async function sendFollowUpEmail({ hrEmail, hrName="", company, role, customNote, templateType="fullstack", user=null, userCfg=null }) {
   const resolvedTemplateType = templateType;
   const fuUserName = userCfg?.profileName || user?.displayName || "Anav Bansal";
@@ -920,10 +975,13 @@ async function sendFollowUpEmail({ hrEmail, hrName="", company, role, customNote
   const subject = `Re: ${baseSubject}`;
   const trackRecord = createTrackingRecord({ hrEmail, hrName, company, role, subject, type: "followup" });
   const trackUrl = `${BASE_URL}/api/track/${trackRecord.trackingId}`;
-  const html = buildFollowUpHTML({ hrName, company, role, customNote, trackUrl, userCfg, templateType: resolvedTemplateType });
+  const dbTemplate = (mongoose.connection.readyState === 1 && user?._id)
+    ? await EmailTemplate.findOne({ userId: String(user._id), templateId: resolvedTemplateType }).lean()
+    : null;
+  const html = buildFollowUpHTML({ hrName, company, role, customNote, trackUrl, userCfg, templateType: resolvedTemplateType, dbTemplate });
   storeEmailHtml(trackRecord.trackingId, html);
-  const auth = getUserGmailAuth(user);
-  const info = await sendViaGmailAPI({ to: hrEmail, subject, html, userConfig: userCfg, user, templateType: resolvedTemplateType, auth });
+  const resolvedResume = await resolveResumeForTemplate(resolvedTemplateType, user, userCfg);
+  const info = await sendViaGmailAPI({ to: hrEmail, subject, html, userConfig: userCfg, user, templateType: resolvedTemplateType, resumeOverride: resolvedResume });
   await saveSentEmail({ messageId: info.id, threadId: info.threadId||null, trackingId: trackRecord.trackingId,
     type: "followup", hrEmail, hrName, company: company||"", role: role||"", subject, sentAt: new Date(), templateType: resolvedTemplateType });
   return { info, trackRecord };
@@ -1009,38 +1067,8 @@ async function sendApplicationEmail({
 
   storeEmailHtml(trackRecord.trackingId, html);
 
-  const attachments = [];
-  // Resume selection priority:
-  // Resume: templateType decides for Anav, Priyal uses her own
-  const isPriyalUser  = !!(userCfg?.profileName?.toLowerCase().includes("priyal") ||
-                           user?.profileName?.toLowerCase().includes("priyal"));
-  const isMohitUser   = !!(userCfg?.profileName?.toLowerCase().includes("mohit") ||
-                           user?.profileName?.toLowerCase().includes("mohit"));
-
-  // Check DB template resume URL
-  const dbTplForResume = (mongoose.connection.readyState === 1 && user?._id)
-    ? await EmailTemplate.findOne({ userId: String(user._id), templateId: templateType }).lean()
-    : null;
-
-  let resolvedResume;
-  if (dbTplForResume?.resumeFileName && dbTplForResume?.resumeUrl) {
-    // DB template has custom resume — use local file path if saved, else skip attachment
-    // (URL-based resumes are linked in email body, not attached)
-    resolvedResume = null; // handled in HTML
-  } else if (isMohitUser && fs.existsSync(MOHIT_RESUME_PATH)) {
-    resolvedResume = { filename: "Mohit_Singh_CRMExpert_v3.pdf", path: MOHIT_RESUME_PATH, contentType: "application/pdf" };
-  } else if (isPriyalUser && user?.resumePath && fs.existsSync(user.resumePath)) {
-    resolvedResume = { filename: user.resumeFileName || "Priyal_Goyal_Resume.pdf", path: user.resumePath, contentType: "application/pdf" };
-  } else if (!isPriyalUser && !isMohitUser && templateType === "cti" && fs.existsSync(CTI_RESUME_PATH)) {
-    resolvedResume = { filename: "Anav_Bansal_TelephonyExpert.pdf", path: CTI_RESUME_PATH, contentType: "application/pdf" };
-  } else if (!isPriyalUser && !isMohitUser && templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)) {
-    resolvedResume = { filename: "Anav_Bansal_CRMExpert.pdf", path: CRM_RESUME_PATH, contentType: "application/pdf" };
-  } else {
-    resolvedResume = { filename: "Anav_Bansal_Resume.pdf", path: RESUME_PATH, contentType: "application/pdf" };
-  }
-  if (resolvedResume) attachments.push(resolvedResume);
-
-  const mailOpts = { to: hrEmail, subject, html, attachments, userConfig: userCfg, user, templateType };
+  const resolvedResume = await resolveResumeForTemplate(templateType, user, userCfg);
+  const mailOpts = { to: hrEmail, subject, html, resumeOverride: resolvedResume, userConfig: userCfg, user, templateType };
   if (readReceipt) {
     mailOpts.headers = {
       "Disposition-Notification-To": process.env.GMAIL_USER,
@@ -1449,7 +1477,7 @@ function buildFormalHTML({ hrName, company, role, customNote, trackUrl = "", cus
 }
 
 // ─── HTML: Follow-up ──────────────────────────────────────────────────────────
-function buildFollowUpHTML({ hrName, company, role, originalDate, customNote, trackUrl = "", userCfg = null, templateType = "fullstack" }) {
+function buildFollowUpHTML({ hrName, company, role, originalDate, customNote, trackUrl = "", userCfg = null, templateType = "fullstack", dbTemplate = null }) {
   const greeting  = hrName ? `Dear ${hrName},` : "Dear Hiring Manager,";
   const roleText  = role   ? ` for the <strong>${role}</strong> role` : "";
   const dateText  = originalDate ? ` on <strong>${originalDate}</strong>` : " recently";
@@ -1472,8 +1500,17 @@ function buildFollowUpHTML({ hrName, company, role, originalDate, customNote, tr
   let senderTitle = theme.title;
   let bodyText = `I remain very enthusiastic and confident that my <strong>4.8+ years of experience</strong> in full-stack development, Node.js, AWS serverless architectures, and enterprise CTI/Telephony integrations would be a strong fit for your team. I am currently in my notice period and available to join by late August 2026.`;
   let resumeNote = theme.resumeName;
+  const isCustomTemplate = !THEMES[templateType];
 
-  if (isMohit) {
+  if (isCustomTemplate && dbTemplate) {
+    // Custom template (created via Settings "+ Add Template") — brand the
+    // follow-up to match, instead of silently rendering as generic Full Stack.
+    const accent = dbTemplate.accent || "#2563eb";
+    theme = { gradient: `${accent} 0%,${accent} 100%`, accent };
+    senderTitle = `${dbTemplate.name || "Job Application"} · Follow-Up`;
+    if (dbTemplate.intro) bodyText = `I remain very enthusiastic about this opportunity. ${dbTemplate.intro}`;
+    resumeNote = dbTemplate.resumeFileName || resumeNote;
+  } else if (isMohit) {
     theme = { gradient: "#1e3a5f 0%,#1d4ed8 100%", accent: "#1d4ed8" };
     senderTitle = "Senior Software Developer · CRM & CTI Integration Specialist · Follow-Up";
     bodyText = `I remain very enthusiastic about this opportunity and confident that my <strong>4.8+ years</strong> in CRM & CTI integrations across MS Dynamics 365, ServiceNow, Salesforce, and Cisco Finesse would be a strong fit for your team.`;
@@ -2169,13 +2206,17 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
   const subject     = `Re: ${baseSubject}`;
   const trackRecord = createTrackingRecord({ hrEmail, hrName, company, role, subject, type: "followup" });
   const trackUrl    = `${BASE_URL}/api/track/${trackRecord.trackingId}`;
+  const fuDbTemplate = (mongoose.connection.readyState === 1)
+    ? await EmailTemplate.findOne({ userId: String(req.user._id), templateId: fuTplType }).lean()
+    : null;
   // Use the SAME branded template as the original application (theme color + resume match)
-  const html        = buildFollowUpHTML({ hrName, company, role, originalDate, customNote, trackUrl, userCfg: getUserConfig(req.user), templateType: fuTplType });
+  const html        = buildFollowUpHTML({ hrName, company, role, originalDate, customNote, trackUrl, userCfg: getUserConfig(req.user), templateType: fuTplType, dbTemplate: fuDbTemplate });
 
   storeEmailHtml(trackRecord.trackingId, html);
 
   try {
     const fuCfg  = getUserConfig(req.user);
+    const resolvedResume = await resolveResumeForTemplate(fuTplType, req.user, fuCfg);
     const info = await sendViaGmailAPI({
       to: hrEmail, subject, html,
       inReplyTo:    originalMessageId || null,
@@ -2184,6 +2225,7 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
       userConfig:   fuCfg,
       user:         req.user,
       templateType: fuTplType,
+      resumeOverride: resolvedResume,
     });
     logToSheets([info.id, hrEmail, company||"", role||"", new Date().toISOString(), trackRecord.trackingId, "FollowUp-Sent", ""]);
     await saveSentEmail({
@@ -3528,8 +3570,10 @@ app.post("/api/templates", requireAuth, async (req, res) => {
             customNote:     tpl.customNote    || "",
             intro:          tpl.intro         || "",
             highlights:     Array.isArray(tpl.highlights) ? tpl.highlights.filter(Boolean) : [],
-            resumeUrl:      tpl.resumeUrl     || "",
-            resumeFileName: tpl.resumeFileName|| "",
+            resumeType:       tpl.resumeType       || "default",
+            resumeDriveUrl:   tpl.resumeUrl || tpl.resumeDriveUrl || "",
+            resumeUploadPath: tpl.resumeUploadPath || "",
+            resumeFileName:   tpl.resumeFileName    || "",
           }},
           { upsert: true, new: true }
         );
@@ -3539,13 +3583,15 @@ app.post("/api/templates", requireAuth, async (req, res) => {
     }
 
     // Single template save (from TemplatesPage edit modal)
-    const { templateId, name, icon, accent, headerTheme, resumeUrl, resumeFileName,
+    const { templateId, name, icon, accent, headerTheme, resumeUrl, resumeUploadPath, resumeType, resumeFileName,
             subject, customNote, intro, highlights, isDefault } = req.body;
     if (!templateId) return res.status(400).json({ success: false, message: "templateId required" });
 
     const tpl = await EmailTemplate.findOneAndUpdate(
       { userId: req.userId, templateId },
-      { $set: { name, icon, accent, headerTheme, resumeUrl, resumeFileName,
+      { $set: { name, icon, accent, headerTheme,
+                resumeType: resumeType || "default",
+                resumeDriveUrl: resumeUrl || "", resumeUploadPath: resumeUploadPath || "", resumeFileName,
                 subject, customNote, intro, highlights: highlights || [], isDefault } },
       { upsert: true, new: true }
     );

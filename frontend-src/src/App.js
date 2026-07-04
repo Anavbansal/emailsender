@@ -4589,6 +4589,16 @@ function ScheduledPage({ addToast }) {
   const [seqForm,       setSeqForm]       = useState({ hrEmail:"", company:"", role:"", hrName:"", templateType:"fullstack",
     steps:[{days:0,label:"Apply"},{days:5,label:"Follow-up #1"},{days:12,label:"Follow-up #2"}] });
   const [seqSaving,     setSeqSaving]     = useState(false);
+  const [seqTemplates,  setSeqTemplates]  = useState([]);
+  useEffect(() => {
+    const base = getEmailTemplates();
+    const baseIds = new Set(base.map(t => t.id));
+    axios.get(`${API}/api/templates`)
+      .then(r => setSeqTemplates([...base, ...(r.data.templates || [])
+        .filter(t => !baseIds.has(t.templateId))
+        .map(t => ({ id: t.templateId, name: t.name || t.templateId, icon: t.icon || "⚡" }))]))
+      .catch(() => setSeqTemplates(base));
+  }, []);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
@@ -4859,10 +4869,7 @@ function ScheduledPage({ addToast }) {
                 <label className="form-label" style={{ fontSize:11 }}>Template</label>
                 <select className="form-select" style={{ fontSize:12 }} value={seqForm.templateType}
                   onChange={e => setSeqForm(p => ({...p, templateType:e.target.value}))}>
-                  <option value="fullstack">Full Stack</option>
-                  <option value="crm">CRM Expert</option>
-                  <option value="cti">CTI/Telephony</option>
-                  <option value="formal">Formal</option>
+                  {seqTemplates.map(t => <option key={t.id} value={t.id}>{t.icon} {t.name}</option>)}
                 </select>
               </div>
             </div>
@@ -6004,8 +6011,10 @@ function SettingsPage({ addToast }) {
             customNote: tpl.customNote || "",
             intro:      tpl.intro      || "",
             highlights: (tpl.highlights || []).filter(Boolean),
-            resumeUrl:      tpl.resumeDriveUrl || "",
-            resumeFileName: tpl.resumeFileName || "",
+            resumeType:       tpl.resumeType       || "default",
+            resumeUrl:        tpl.resumeDriveUrl   || "",
+            resumeUploadPath: tpl.resumeUploadPath || "",
+            resumeFileName:   tpl.resumeFileName   || "",
           });
         } else {
           // Built-in template — only save what the user actually customized
