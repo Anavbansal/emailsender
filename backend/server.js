@@ -110,10 +110,31 @@ const UserSchema = new mongoose.Schema({
   sheetTab:           { type: String, default: "Candidate_Status_Log" },
   linkedinSheetId:    { type: String, default: "" },
   resumePath:         { type: String, default: "" },
+  resumeFileName:     { type: String, default: "" },
   // Profile info
   profileName:        { type: String, default: "Anav Bansal" },
   profilePhone:       { type: String, default: "+91 7827855635" },
   profileLinkedIn:    { type: String, default: "linkedin.com/in/anavbansal-51b191162" },
+  profileEmail:       { type: String, default: "" },
+  profileLocation:    { type: String, default: "" },
+  profileTitle:       { type: String, default: "" },
+  profileSummary:     { type: String, default: "" },
+  keySkills:          { type: String, default: "" },
+  // Job details (used by AI screening replies, templates, and Settings)
+  currentCompany:     { type: String, default: "" },
+  currentCTC:         { type: String, default: "" },
+  expectedCTC:        { type: String, default: "" },
+  noticePeriod:       { type: String, default: "" },
+  currentLocation:    { type: String, default: "" },
+  preferredLocation:  { type: String, default: "" },
+  totalExp:           { type: String, default: "" },
+  relevantExp:        { type: String, default: "" },
+  reasonForChange:    { type: String, default: "Personal and professional growth" },
+  offerInHand:        { type: String, default: "No" },
+  isAdmin:            { type: Boolean, default: false },
+  // Daily Digest preferences
+  digestEnabled:      { type: Boolean, default: false },
+  digestLastSentDate: { type: String, default: "" }, // "YYYY-MM-DD" (IST) — prevents duplicate sends
 }, { timestamps: true });
 
 const User = mongoose.models.User || mongoose.model("User", UserSchema);
@@ -809,7 +830,115 @@ cron.schedule("* * * * *", async () => {
   }
 });
 
-// ─── Google Sheets ────────────────────────────────────────────────────────────
+// ─── Daily Digest — one email/day summarizing what needs attention ───────────
+function buildDigestHTML({ senderName, totalApplied, totalOpened, totalReplied, newReplies, followupDue, interviewsToday, dateLabel }) {
+  const statBlock = (label, val, color) => `
+    <div style="flex:1;text-align:center;background:#f8fafc;border-radius:10px;padding:14px 8px;">
+      <div style="font-size:24px;font-weight:800;color:${color};">${val}</div>
+      <div style="font-size:11px;color:#64748b;margin-top:2px;">${label}</div>
+    </div>`;
+
+  const followupRows = followupDue.length
+    ? followupDue.slice(0, 10).map(c => `<li style="margin-bottom:6px;"><strong>${c.company || "Unknown"}</strong> — ${c.hrEmail} ${c.role ? `(${c.role})` : ""}</li>`).join("")
+    : `<li style="color:#94a3b8;">Nothing due today 🎉</li>`;
+
+  const interviewRows = interviewsToday.length
+    ? interviewsToday.map(iv => `<li style="margin-bottom:6px;"><strong>${iv.company || "Unknown"}</strong> — ${iv.role || ""} ${iv.interviewRound ? `· ${iv.interviewRound}` : ""} at ${new Date(iv.interviewDate).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</li>`).join("")
+    : `<li style="color:#94a3b8;">No interviews scheduled today</li>`;
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif;">
+<div style="max-width:600px;margin:20px auto;background:#fff;border-radius:14px;overflow:hidden;border:1px solid #e2e8f0;">
+  <div style="background:linear-gradient(135deg,#1d4ed8 0%,#7c3aed 100%);padding:24px 28px;color:#fff;">
+    <div style="font-size:12px;opacity:0.85;letter-spacing:0.5px;text-transform:uppercase;">Daily Job Hunt Digest</div>
+    <div style="font-size:20px;font-weight:800;margin-top:4px;">Good morning, ${senderName.split(" ")[0]} 👋</div>
+    <div style="font-size:12px;opacity:0.85;margin-top:2px;">${dateLabel}</div>
+  </div>
+  <div style="padding:24px 28px;">
+    <div style="display:flex;gap:10px;margin-bottom:24px;">
+      ${statBlock("Applied", totalApplied, "#1d4ed8")}
+      ${statBlock("Opened", totalOpened, "#7c3aed")}
+      ${statBlock("Replied", totalReplied, "#059669")}
+      ${statBlock("New Replies (24h)", newReplies, "#dc2626")}
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div style="font-weight:700;font-size:14px;color:#1e293b;margin-bottom:8px;">🔁 Follow-ups Due (${followupDue.length})</div>
+      <ul style="margin:0;padding-left:18px;font-size:13px;color:#374151;line-height:1.6;">${followupRows}</ul>
+    </div>
+
+    <div>
+      <div style="font-weight:700;font-size:14px;color:#1e293b;margin-bottom:8px;">🎤 Interviews Today (${interviewsToday.length})</div>
+      <ul style="margin:0;padding-left:18px;font-size:13px;color:#374151;line-height:1.6;">${interviewRows}</ul>
+    </div>
+
+    <p style="font-size:11px;color:#94a3b8;margin-top:28px;border-top:1px solid #e2e8f0;padding-top:16px;">
+      This is your automated daily briefing from Job Mailer. Turn it off anytime in Settings → Account.
+    </p>
+  </div>
+</div>
+</body></html>`;
+}
+
+async function sendDailyDigest(user, todayIST) {
+  const userCfg  = getUserConfig(user);
+  const userId   = String(user._id);
+  const now      = Date.now();
+  const ONE_DAY   = 24 * 60 * 60 * 1000;
+  const THREE_DAYS = 3 * ONE_DAY;
+
+  const [totalApplied, totalOpened, totalReplied, newReplies, followupDue, interviewsToday] = await Promise.all([
+    SentEmailLog.countDocuments({ userId, type: "application" }),
+    SentEmailLog.countDocuments({ userId, opened: true }),
+    SentEmailLog.countDocuments({ userId, replied: true }),
+    SentEmailLog.countDocuments({ userId, replied: true, repliedAt: { $gte: new Date(now - ONE_DAY) } }),
+    SentEmailLog.aggregate([
+      { $match: { userId, type: "application", replied: { $ne: true }, followupSent: { $ne: true }, sentAt: { $lte: new Date(now - THREE_DAYS) } } },
+      { $sort: { sentAt: -1 } },
+      { $group: { _id: { $toLower: "$hrEmail" }, company: { $first: "$company" }, hrEmail: { $first: "$hrEmail" }, role: { $first: "$role" } } },
+    ]),
+    Interview.find({
+      userId,
+      interviewDate: { $gte: new Date(`${todayIST}T00:00:00+05:30`), $lte: new Date(`${todayIST}T23:59:59+05:30`) },
+    }).lean(),
+  ]);
+
+  const toEmail = user.profileEmail || user.gmailUser;
+  if (!toEmail) return; // nowhere to send this user's digest
+
+  const senderName = userCfg?.profileName || user.displayName || "there";
+  const dateLabel  = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Kolkata" });
+  const html = buildDigestHTML({ senderName, totalApplied, totalOpened, totalReplied, newReplies, followupDue, interviewsToday, dateLabel });
+  const subject = `📋 Daily Digest — ${followupDue.length} follow-ups, ${interviewsToday.length} interview${interviewsToday.length===1?"":"s"} today`;
+
+  await sendViaGmailAPI({ to: toEmail, subject, html, userConfig: userCfg, user, resumeOverride: null });
+}
+
+// Runs once daily at 8:00 AM IST for every user who has digests enabled
+cron.schedule("0 8 * * *", async () => {
+  if (mongoose.connection.readyState !== 1) return;
+  try {
+    const todayIST = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }); // YYYY-MM-DD
+    const users = await User.find({ digestEnabled: true, gmailRefreshToken: { $ne: "" } }).lean();
+    for (const user of users) {
+      if (user.digestLastSentDate === todayIST) continue; // already sent today (safety against double-fire)
+      try {
+        await sendDailyDigest(user, todayIST);
+        await User.updateOne({ _id: user._id }, { $set: { digestLastSentDate: todayIST } });
+        console.log(`📋 Daily digest sent to ${user.username}`);
+      } catch (e) { console.error(`Digest failed for ${user.username}:`, e.message); }
+    }
+  } catch (e) { console.error("Digest cron error:", e.message); }
+}, { timezone: "Asia/Kolkata" });
+
+// ─── POST /api/digest/send-now — manually trigger your own digest (testing) ──
+app.post("/api/digest/send-now", requireAuth, async (req, res) => {
+  try {
+    const todayIST = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+    await sendDailyDigest(req.user, todayIST);
+    res.json({ success: true, message: "Digest sent! Check your inbox." });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
 const SHEET_HEADERS = ["Mail ID","HR Email","Company","Role","Sent At","Tracking ID","Status","Opened At"];
 const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID || "1Ctdcf2D-DnWH0kfkKtPtobH-g_pNBs9tvHdf_gvS2WQ";
 const SHEET_TAB = process.env.SHEET_TAB || "Candidate_Status_Log";
@@ -3521,6 +3650,7 @@ app.post("/api/auth/login", async (req, res) => {
         hasGmail:       !!(user.gmailRefreshToken || (isOwner && process.env.GMAIL_REFRESH_TOKEN)),
         hasSheet:       !!(user.googleSheetId || process.env.GOOGLE_SHEET_ID),
         isAdmin:        !!(user.isAdmin || isAdminUser),
+        digestEnabled:  !!user.digestEnabled,
         userTemplates:  user.userTemplates  || [],
         resumePath:     user.resumePath     || "",
         resumeFileName: user.resumeFileName || "",
@@ -3552,6 +3682,7 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
       hasGmail:       !!(u.gmailRefreshToken || (u.username===(process.env.OWNER_USERNAME||"anav") && process.env.GMAIL_REFRESH_TOKEN)),
       hasSheet:       !!(u.googleSheetId || process.env.GOOGLE_SHEET_ID),
       isAdmin:        !!(u.isAdmin || u.username===(process.env.ADMIN_USERNAME||"superadmin")),
+      digestEnabled:  !!u.digestEnabled,
       userTemplates:  u.userTemplates  || [],
       resumePath:     u.resumePath     || "",
       resumeFileName: u.resumeFileName || "",
@@ -3568,7 +3699,7 @@ app.patch("/api/auth/settings", requireAuth, async (req, res) => {
                      "currentCompany","currentCTC","expectedCTC","noticePeriod","currentLocation",
                      "preferredLocation","totalExp","relevantExp","resumePath","resumeFileName",
                      "reasonForChange","offerInHand","profileSummary","profileTitle",
-                     "profilePhone","profileEmail","profileLinkedIn","profileLocation"];
+                     "profilePhone","profileEmail","profileLinkedIn","profileLocation","digestEnabled"];
     const updates = {};
     for (const k of allowed) { if (req.body[k] !== undefined) updates[k] = req.body[k]; }
     await User.updateOne({ _id: req.userId }, { $set: updates });

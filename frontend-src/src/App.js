@@ -6223,6 +6223,7 @@ function SettingsPage({ addToast }) {
   const [activeTab, setActiveTab] = useState("profile");
   const [np,        setNp]        = useState("");
   const [changing,  setChanging]  = useState(false);
+  const [digestEnabled, setDigestEnabled] = useState(currentUser?.digestEnabled || false);
 
   const [profile, setProfile] = useState({
     // Basic
@@ -6861,6 +6862,36 @@ ${profile.displayName || currentUser?.displayName || "Your Name"}`}
                 target="_blank" rel="noreferrer" className="btn-ghost btn-sm" style={{ fontSize:12 }}>
                 🔄 {currentUser?.hasGmail ? "Reconnect Gmail" : "Connect Gmail"}
               </a>
+            </div>
+          </Section>
+
+          <Section title="📋 Daily Digest">
+            <div style={{ fontSize:12, color:"var(--text-muted)", marginBottom:12 }}>
+              One email every morning at 8:00 AM — how many applied/opened/replied, follow-ups due today, and interviews today. Sent to your profile email.
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+              <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", fontSize:13, fontWeight:600 }}>
+                <input type="checkbox" checked={digestEnabled}
+                  onChange={async e => {
+                    const val = e.target.checked;
+                    setDigestEnabled(val);
+                    try {
+                      await axios.patch(`${API}/api/auth/settings`, { digestEnabled: val });
+                      setUser({ ...getUser(), digestEnabled: val });
+                      addToast && addToast(val ? "✅ Daily Digest enabled" : "Digest disabled");
+                    } catch(e) { addToast && addToast("❌ Failed to update", "error"); }
+                  }} />
+                {digestEnabled ? "Enabled" : "Disabled"}
+              </label>
+              <button className="btn-ghost btn-sm" style={{ fontSize:12 }}
+                onClick={async () => {
+                  try {
+                    await axios.post(`${API}/api/digest/send-now`);
+                    addToast && addToast("✅ Test digest sent — check your inbox!");
+                  } catch(e) { addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error"); }
+                }}>
+                📤 Send Test Digest Now
+              </button>
             </div>
           </Section>
         </div>
