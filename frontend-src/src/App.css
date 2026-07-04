@@ -1129,7 +1129,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 
 .thread-msg-body { border-top: 1px solid var(--border); }
 .thread-msg-snippet { padding: 12px 14px; font-size: 13px; color: var(--text-500); line-height: 1.6; }
-.thread-iframe { width: 100%; border: none; background: #fff; min-height: 280px; max-height: 600px; display: block; }
+.thread-iframe { width: 100%; border: none; background: #fff; min-height: 280px; display: block; }
 
 /* ─── Thread Reply ────────────────────────────────────────────────────────────── */
 .thread-reply-area {

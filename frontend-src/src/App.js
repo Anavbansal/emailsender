@@ -112,6 +112,20 @@ const SCREENING_KEYWORDS = [
   // Generic screening triggers
   "screening", "pre-screen", "shortlisted", "interested in your profile",
   "thank you for applying", "thank you for your application",
+  // Application status / next steps
+  "next steps", "move forward", "moving forward", "update on your application",
+  "application status", "reviewed your application", "reviewed your resume",
+  "your application for", "regarding your application", "your candidature",
+  // Interview / assessment scheduling
+  "schedule a call", "schedule an interview", "would like to schedule", "technical round",
+  "hr round", "telephonic round", "virtual interview", "assessment", "coding test",
+  "coding assignment", "online test", "hackerrank", "assignment", "task submission",
+  // Recruiter / HR sign-offs & teams
+  "hiring manager", "talent acquisition", "recruitment team", "hr team", "hr manager",
+  "recruiter", "talent partner", "people team",
+  // Common ATS platforms (screening emails often come from these domains)
+  "greenhouse.io", "lever.co", "workday", "icims", "smartrecruiters", "taleo", "myworkday",
+  "bamboohr", "zoho recruit", "freshteam",
 ];
 
 // Broad Gmail search combining every screening keyword — used by the dedicated
@@ -3009,7 +3023,14 @@ function ThreadView({ threadId, onBack }) {
               {isOpen && (
                 <div className="thread-msg-body">
                   {msg.body
-                    ? <iframe srcDoc={msg.body} className="thread-iframe" title={`msg-${msg.id}`} sandbox="allow-same-origin" />
+                    ? <iframe srcDoc={msg.body} className="thread-iframe" title={`msg-${msg.id}`} sandbox="allow-same-origin"
+                        onLoad={e => {
+                          try {
+                            const doc = e.target.contentWindow.document;
+                            const h = Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight);
+                            e.target.style.height = (h + 24) + "px";
+                          } catch {}
+                        }} />
                     : <p className="thread-msg-snippet">{msg.snippet}</p>
                   }
                 </div>
@@ -3321,18 +3342,19 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
 
   const baseQ = (tab) => tab === "sent" ? "in:sent" : tab === "screening" ? SCREENING_DEEP_QUERY : "in:inbox";
 
-  const doFetch = useCallback(async (q, pageToken, append) => {
+  const doFetch = useCallback(async (q, pageToken, append, tabForSize) => {
     if (append) setLoadingMore(true);
     else { setLoading(true); setMessages([]); setNextPage(null); }
     try {
-      const params = { q: q || baseQ(activeTab), max: 30 };
+      const params = { q: q || baseQ(activeTab), max: (tabForSize || activeTab) === "screening" ? 100 : 30 };
       if (pageToken) params.pageToken = pageToken;
       const r = await axios.get(`${API}/api/gmail/inbox`, { params });
       const msgs = r.data.messages || [];
       setNextPage(r.data.nextPageToken || null);
       if (append) setMessages(prev => [...prev, ...msgs]);
       else        setMessages(msgs);
-    } catch {}
+      return r.data.nextPageToken || null;
+    } catch { return null; }
     finally {
       if (append) setLoadingMore(false);
       else        setLoading(false);
@@ -3343,7 +3365,16 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
   useEffect(() => {
     setSearchQuery("");
     setNextPage(null);
-    doFetch(baseQ(activeTab));
+    (async () => {
+      let token = await doFetch(baseQ(activeTab), null, false, activeTab);
+      if (activeTab === "screening") {
+        // Deep search: auto-fetch a few more pages so a genuine screening email
+        // isn't missed just because it wasn't in the first 100 results scanned.
+        for (let i = 0; i < 4 && token; i++) {
+          token = await doFetch(baseQ(activeTab), token, true, "screening");
+        }
+      }
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -3456,15 +3487,26 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
       )}
 
       {/* Email list */}
-      {messages.length === 0 ? (
+      {(() => {
+        // The Screening tab's Gmail query is intentionally broad (to catch emails
+        // from senders outside the original thread) — filter results client-side
+        // with the same isScreeningEmail() classifier so only genuine matches show,
+        // instead of every email that happened to contain a generic word like
+        // "location" or "phone" somewhere in its body.
+        const displayMessages = isScreeningTab
+          ? messages.filter(m => isScreeningEmail(m.subject, m.snippet, extractEmail(m.from || ""), trackedEmails))
+          : messages;
+        return displayMessages.length === 0 ? (
         <div className="empty-state">
-          <span className="empty-icon">{isSent ? "📤" : "📥"}</span>
-          <p>{loading ? "Loading…" : `No ${isSent ? "sent" : ""} messages found. Connect Gmail or try a different search.`}</p>
+          <span className="empty-icon">{isScreeningTab ? "🤖" : isSent ? "📤" : "📥"}</span>
+          <p>{loading ? "Loading…" : isScreeningTab
+            ? "No screening emails found in the last 180 days."
+            : `No ${isSent ? "sent" : ""} messages found. Connect Gmail or try a different search.`}</p>
         </div>
       ) : (
         <>
           <div className="inbox-list">
-            {messages.map((m, i) => {
+            {displayMessages.map((m, i) => {
               const name = isSent ? displayName(m.to) : displayName(m.from);
               return (
                 <div key={i} className={`inbox-row ${!m.isRead && !isSent ? "inbox-row-unread" : ""}`} style={{ position: "relative" }}>
@@ -3480,7 +3522,7 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
                     <p className="inbox-row-snippet">{m.snippet}</p>
                   </div>
                   <div className="inbox-row-actions" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {!isSent && isScreeningEmail(m.subject, m.snippet, m.fromEmail, trackedEmails) && (
+                    {!isSent && isScreeningEmail(m.subject, m.snippet, extractEmail(m.from || ""), trackedEmails) && (
                       <button
                         className="btn-primary btn-sm"
                         title="AI will read their email and reply to exactly what they asked"
@@ -3509,7 +3551,7 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
                     </button>
                   </div>
                   {!m.isRead && !isSent && <span className="inbox-unread-dot" />}
-                  {!isSent && isScreeningEmail(m.subject, m.snippet, m.fromEmail, trackedEmails) && (
+                  {!isSent && isScreeningEmail(m.subject, m.snippet, extractEmail(m.from || ""), trackedEmails) && (
                     <span style={{
                       position: "absolute", top: 6, left: 6,
                       background: "#0d9488", color: "#fff",
@@ -3524,7 +3566,10 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
 
           {/* Load more / pagination */}
           <div className="inbox-footer">
-            <span className="inbox-count">{messages.length} message{messages.length !== 1 ? "s" : ""} loaded</span>
+            <span className="inbox-count">
+              {displayMessages.length} message{displayMessages.length !== 1 ? "s" : ""}
+              {isScreeningTab && messages.length !== displayMessages.length ? ` (of ${messages.length} scanned)` : ""} loaded
+            </span>
             {nextPageToken && (
               <button className="btn-ghost btn-sm" onClick={loadMore} disabled={loadingMore}>
                 {loadingMore ? <><span className="spinner" /> Loading…</> : "Load More ↓"}
@@ -3532,7 +3577,8 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
             )}
           </div>
         </>
-      )}
+      );
+      })()}
 
       {/* Interview Schedule Modal */}
       {interviewModal && (
@@ -5823,7 +5869,7 @@ function App() {
         </header>
 
         <main className="main-content">
-          {page !== "ai" && (
+          {page !== "ai" && page !== "settings" && page !== "admin" && (
             <div className="page-header">
               <h2 className="page-title">{NAV.find(n => n.id === page)?.icon} {NAV.find(n => n.id === page)?.label}</h2>
             </div>
