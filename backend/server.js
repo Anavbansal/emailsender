@@ -2631,6 +2631,61 @@ app.post("/api/auto-pipeline/run", requireAuth, async (req, res) => {
 });
 
 // ─── POST /api/preview-email ──────────────────────────────────────────────────
+// ─── POST /api/whatsapp/message — build a personalized WhatsApp text ─────────
+app.post("/api/whatsapp/message", requireAuth, async (req, res) => {
+  try {
+    const { hrName = "", company = "", role = "", templateType = "fullstack" } = req.body;
+    const userCfg    = getUserConfig(req.user);
+    const senderName = userCfg?.profileName || req.user?.displayName || "Anav Bansal";
+    const isMohit    = !!(userCfg?.profileName?.toLowerCase().includes("mohit"));
+    const isPriyal   = !!(userCfg?.profileName?.toLowerCase().includes("priyal"));
+
+    const BUILTIN_IDS = isMohit  ? ["backend", "crm", "java", "formal"]
+                       : isPriyal ? ["finance", "credit", "formal", "genai"]
+                       :            ["fullstack", "cti", "crm", "formal"];
+    const isCustom = !BUILTIN_IDS.includes(templateType);
+
+    let dbTemplate = null;
+    if (mongoose.connection.readyState === 1 && req.user?._id) {
+      dbTemplate = await EmailTemplate.findOne({ userId: String(req.user._id), templateId: templateType }).lean();
+    }
+
+    const roleLine = role ? `the *${role}* opening` : "an opening";
+    let introLine = `I'm ${senderName}, and I came across ${roleLine}${company ? ` at *${company}*` : ""}. I'd love to apply!`;
+    let highlights = [];
+
+    if (isCustom && dbTemplate) {
+      if (dbTemplate.intro) introLine = dbTemplate.intro.replace(/<[^>]+>/g, "").trim();
+      highlights = (dbTemplate.highlights || []).filter(Boolean).slice(0, 4);
+    } else {
+      highlights = templateType === "cti" ? CTI_HIGHLIGHTS.slice(0, 4)
+                 : templateType === "crm" ? CRM_HIGHLIGHTS.slice(0, 4)
+                 : DEFAULT_HIGHLIGHTS.slice(0, 4);
+      // Respect any saved override for the built-in template too
+      const override = req.user?._id ? await EmailTemplate.findOne({
+        userId: String(req.user._id), templateId: templateType, isOverride: true
+      }).lean().catch(() => null) : null;
+      if (override?.intro)             introLine  = override.intro.replace(/<[^>]+>/g, "").trim();
+      if (override?.highlights?.length) highlights = override.highlights.filter(Boolean).slice(0, 4);
+    }
+
+    const bulletBlock = highlights.map(h => `✅ ${h}`).join("\n");
+    const text = [
+      hrName ? `Hi ${hrName},` : "Hi,",
+      "",
+      introLine,
+      "",
+      bulletBlock,
+      "",
+      `I've also sent my resume over email — would love to connect and discuss further. Thank you! 🙏`,
+      "",
+      `— ${senderName}`,
+    ].join("\n");
+
+    res.json({ success: true, text });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 app.post("/api/preview-email", requireAuth, async (req, res) => {
   const { hrName, company, role, customNote, templateType = "fullstack", customIntro, customHighlights, headerTheme } = req.body;
   const opts     = { hrName, company, role, customNote, customIntro, customHighlights, headerTheme };

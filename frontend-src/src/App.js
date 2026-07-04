@@ -3608,6 +3608,115 @@ function FindJobsPage({ onFillApply }) {
   );
 }
 
+// ─── WhatsApp — build a personalized message, then open WhatsApp to send it ───
+// (Click-to-Chat via wa.me — you still tap Send in WhatsApp yourself, which
+// keeps this 100% ToS-safe with zero ban risk, unlike automated senders.)
+function WhatsAppPage({ addToast }) {
+  const [mobile,   setMobile]   = useState("");
+  const [hrName,   setHrName]   = useState("");
+  const [company,  setCompany]  = useState("");
+  const [role,     setRole]     = useState("");
+  const [templateId, setTemplateId] = useState("fullstack");
+  const [message,  setMessage]  = useState("");
+  const [generating, setGenerating] = useState(false);
+
+  const [templates, setTemplates] = useState(getEmailTemplates());
+  useEffect(() => {
+    const base = getEmailTemplates();
+    const baseIds = new Set(base.map(t => t.id));
+    axios.get(`${API}/api/templates`)
+      .then(r => setTemplates([...base, ...(r.data.templates || [])
+        .filter(t => !baseIds.has(t.templateId))
+        .map(t => ({ id: t.templateId, name: t.name || t.templateId, icon: t.icon || "⚡" }))]))
+      .catch(() => {});
+  }, []);
+
+  const generate = async () => {
+    setGenerating(true);
+    try {
+      const r = await axios.post(`${API}/api/whatsapp/message`, { hrName, company, role, templateType: templateId });
+      setMessage(r.data.text || "");
+    } catch(e) { addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error"); }
+    finally { setGenerating(false); }
+  };
+
+  const cleanNumber = () => {
+    let digits = mobile.replace(/\D/g, "");
+    if (digits.length === 10) digits = "91" + digits;          // assume Indian number
+    if (digits.length === 11 && digits.startsWith("0")) digits = "91" + digits.slice(1);
+    return digits;
+  };
+
+  const openWhatsApp = () => {
+    const digits = cleanNumber();
+    if (digits.length < 11) { addToast && addToast("❌ Enter a valid mobile number", "error"); return; }
+    if (!message.trim()) { addToast && addToast("❌ Generate a message first", "error"); return; }
+    window.open(`https://wa.me/${digits}?text=${encodeURIComponent(message)}`, "_blank");
+  };
+
+  return (
+    <div className="page">
+      <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:10, padding:"14px 16px", marginBottom:16, fontSize:12, color:"var(--text-muted)" }}>
+        📱 Fill in the details, generate a personalized message from your template, then <strong style={{ color:"var(--text)" }}>Open in WhatsApp</strong> — it opens with the message ready, you just tap Send. This keeps your number 100% safe from bans (no auto-sending bots involved).
+      </div>
+
+      <div className="app-form">
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Mobile Number</label>
+            <input className="form-input" value={mobile} onChange={e => setMobile(e.target.value)}
+              placeholder="e.g. 9876543210 or +91 98765 43210" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">HR Name</label>
+            <input className="form-input" value={hrName} onChange={e => setHrName(e.target.value)} placeholder="Optional" />
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Company</label>
+            <input className="form-input" value={company} onChange={e => setCompany(e.target.value)} placeholder="e.g. Acme Corp" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Role</label>
+            <input className="form-input" value={role} onChange={e => setRole(e.target.value)} placeholder="e.g. Senior Developer" />
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Template</label>
+          <div className="template-grid">
+            {templates.map(t => (
+              <button key={t.id} type="button"
+                className={`template-card ${templateId === t.id ? "template-card-active" : ""}`}
+                onClick={() => setTemplateId(t.id)}>
+                <span className="tcard-icon">{t.icon}</span>
+                <span className="tcard-name">{t.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button className={`btn-ghost ${generating?"loading":""}`} onClick={generate} disabled={generating} style={{ marginTop:4 }}>
+          {generating ? "Generating…" : "✨ Generate Message"}
+        </button>
+
+        {message && (
+          <div className="form-group" style={{ marginTop:12 }}>
+            <label className="form-label">Message (editable)</label>
+            <textarea className="form-input" rows={10} style={{ fontFamily:"inherit", resize:"vertical" }}
+              value={message} onChange={e => setMessage(e.target.value)} />
+          </div>
+        )}
+
+        <button className="btn-primary" onClick={openWhatsApp} disabled={!message.trim()} style={{ marginTop:8, background:"#25D366", borderColor:"#25D366" }}>
+          📱 Open in WhatsApp
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Auto Pipeline — search jobs, auto-find HR emails, review, then send/queue ─
 function AutoPipelinePage({ addToast }) {
   const [keywords,  setKeywords]  = useState("Node.js Developer");
@@ -5324,6 +5433,7 @@ function App() {
         { id: "send",       icon: "✉️", label: "Send Application" },
         { id: "bulk",        icon: "⚡", label: "Bulk Send" },
         { id: "scheduled",   icon: "🗓️", label: "Scheduled",  badge: scheduledCount || null },
+        { id: "whatsapp",    icon: "📱", label: "WhatsApp" },
       ]},
       { label: "Pipeline", items: [
         { id: "contacts",    icon: "👥", label: "HR Contacts", badge: reminderCount || null },
@@ -5673,6 +5783,7 @@ function App() {
 
           {page === "prospect"  && <ProspectPage onFillApply={goToSendPrefilled} addToast={addToast} />}
           {page === "jobs"      && <FindJobsPage onFillApply={goToSendPrefilled} />}
+          {page === "whatsapp"  && <WhatsAppPage addToast={addToast} />}
           {page === "autopipeline" && <AutoPipelinePage addToast={addToast} />}
           {page === "scheduled" && <ScheduledPage onRefresh={fetchScheduled} addToast={addToast} />}
           {page === "settings"   && <SettingsPage addToast={addToast} />}
