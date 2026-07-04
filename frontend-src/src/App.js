@@ -114,6 +114,12 @@ const SCREENING_KEYWORDS = [
   "thank you for applying", "thank you for your application",
 ];
 
+// Broad Gmail search combining every screening keyword — used by the dedicated
+// "Screening" inbox tab to surface emails that the default recent-30 inbox view
+// would otherwise bury (screening/ATS emails often come from addresses that
+// were never part of the original applied-to thread).
+const SCREENING_DEEP_QUERY = `(${[...new Set(SCREENING_KEYWORDS)].map(k => `"${k}"`).join(" OR ")}) newer_than:180d`;
+
 function buildScreeningReply(hrName = "") {
   const profile = getHRProfile();
   const user    = getUser();
@@ -2920,6 +2926,21 @@ function ThreadView({ threadId, onBack }) {
   const [replyBody,setReplyBody]= useState("");
   const [sending,  setSending]  = useState(false);
   const [sendStatus, setSendStatus] = useState(null);
+  const [aiDrafting, setAiDrafting] = useState(false);
+
+  const draftWithAI = async () => {
+    const last = messages[messages.length - 1];
+    if (!last) return;
+    setAiDrafting(true);
+    try {
+      const fromName = (last.from || "").replace(/<[^>]+>/, "").trim();
+      const r = await axios.post(`${API}/api/ai/inbox-reply`, {
+        emailBody: last.snippet || "", subject, fromName,
+      });
+      if (r.data.success && r.data.reply) setReplyBody(r.data.reply);
+    } catch(e) { setSendStatus({ type: "error", text: "AI draft failed — try again" }); }
+    finally { setAiDrafting(false); }
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -3009,6 +3030,12 @@ function ThreadView({ threadId, onBack }) {
             <div className="thread-compose-to">
               To: <strong>{messages[messages.length - 1]?.from || ""}</strong>
             </div>
+            <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:6 }}>
+              <button className="btn-ghost btn-sm" style={{ fontSize:11, color:"#7c3aed", borderColor:"#7c3aed" }}
+                onClick={draftWithAI} disabled={aiDrafting}>
+                {aiDrafting ? "✨ Drafting…" : "✨ AI Draft"}
+              </button>
+            </div>
             <textarea
               className="form-textarea thread-compose-body"
               rows={5}
@@ -3055,6 +3082,8 @@ function ScreeningReplyModal({ message, contacts, onClose, addToast }) {
   const [sent,      setSent]      = useState(false);
   const [profile,   setProfile]   = useState({ ...getHRProfile() });
   const [editProfile, setEditProfile] = useState(false);
+  const [scheduleMode, setScheduleMode] = useState(false);
+  const [scheduledAt,  setScheduledAt]  = useState("");
   useLockBodyScroll();
 
   // ── Auto-generate AI reply on modal open ─────────────────────────────────
@@ -3135,6 +3164,24 @@ Write a professional reply that ONLY answers what the HR specifically asked for.
       setTimeout(onClose, 1500);
     } catch {
       addToast && addToast("❌ Failed to send", "error");
+    } finally { setLoading(false); }
+  };
+
+  const schedule = async () => {
+    if (!replyText.trim() || !scheduledAt) { addToast && addToast("❌ Pick a date/time first", "error"); return; }
+    setLoading(true);
+    try {
+      const html = replyText.split("\n").map(l => l || "&nbsp;").join("<br/>");
+      await axios.post(`${API}/api/schedule-reply`, {
+        to: fromEmail, subject: message.subject?.startsWith("Re:") ? message.subject : `Re: ${message.subject || ""}`,
+        html, threadId: message.threadId, inReplyTo: message.id, references: message.id,
+        scheduledTime: new Date(scheduledAt).toISOString(),
+      });
+      setSent(true);
+      addToast && addToast(`✅ Reply scheduled for ${new Date(scheduledAt).toLocaleString("en-IN")}!`);
+      setTimeout(onClose, 1500);
+    } catch(e) {
+      addToast && addToast("❌ " + (e.response?.data?.message || "Failed to schedule"), "error");
     } finally { setLoading(false); }
   };
 
@@ -3226,13 +3273,32 @@ Write a professional reply that ONLY answers what the HR specifically asked for.
               )}
             </>
           )}
+          {!aiLoading && (
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:4 }}>
+              <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:"var(--text-muted)", cursor:"pointer" }}>
+                <input type="checkbox" checked={scheduleMode} onChange={e => setScheduleMode(e.target.checked)} />
+                📅 Schedule for later instead of sending now
+              </label>
+              {scheduleMode && (
+                <input type="datetime-local" className="form-input" style={{ fontSize:12, maxWidth:220 }}
+                  value={scheduledAt} min={toLocalDT(Date.now() + 60000)}
+                  onChange={e => setScheduledAt(e.target.value)} />
+              )}
+            </div>
+          )}
         </div>
 
         <div className="modal-footer">
           <button className="btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={send} disabled={loading || aiLoading || sent || !replyText.trim()}>
-            {sent ? "✅ Sent!" : loading ? "Sending…" : "📤 Send Reply"}
-          </button>
+          {scheduleMode ? (
+            <button className="btn-primary" onClick={schedule} disabled={loading || aiLoading || sent || !replyText.trim() || !scheduledAt}>
+              {sent ? "✅ Scheduled!" : loading ? "Scheduling…" : "📅 Schedule Reply"}
+            </button>
+          ) : (
+            <button className="btn-primary" onClick={send} disabled={loading || aiLoading || sent || !replyText.trim()}>
+              {sent ? "✅ Sent!" : loading ? "Sending…" : "📤 Send Reply"}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -3253,7 +3319,7 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
   const [screeningModal,  setScreeningModal]   = useState(null); // message to auto-reply
   const [interviewModal,  setInterviewModal]   = useState(null); // contact for interview scheduling
 
-  const baseQ = (tab) => tab === "sent" ? "in:sent" : "in:inbox";
+  const baseQ = (tab) => tab === "sent" ? "in:sent" : tab === "screening" ? SCREENING_DEEP_QUERY : "in:inbox";
 
   const doFetch = useCallback(async (q, pageToken, append) => {
     if (append) setLoadingMore(true);
@@ -3325,18 +3391,27 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
   }
 
   const isSent = activeTab === "sent";
+  const isScreeningTab = activeTab === "screening";
 
   return (
     <div className="page">
-      {/* Inbox / Sent tabs */}
+      {/* Inbox / Sent / Screening tabs */}
       <div className="inbox-tab-bar">
-        <button className={`inbox-tab-btn ${!isSent ? "inbox-tab-active" : ""}`} onClick={() => setActiveTab("inbox")}>
+        <button className={`inbox-tab-btn ${activeTab==="inbox" ? "inbox-tab-active" : ""}`} onClick={() => setActiveTab("inbox")}>
           📥 Inbox
         </button>
         <button className={`inbox-tab-btn ${isSent ? "inbox-tab-active" : ""}`} onClick={() => setActiveTab("sent")}>
           📤 Sent
         </button>
+        <button className={`inbox-tab-btn ${isScreeningTab ? "inbox-tab-active" : ""}`} onClick={() => setActiveTab("screening")}>
+          🤖 Screening
+        </button>
       </div>
+      {isScreeningTab && (
+        <div style={{ fontSize:12, color:"var(--text-muted)", marginTop:-8 }}>
+          Deep search across the last 180 days for screening/HR keywords — catches emails from senders outside your original applied-to thread.
+        </div>
+      )}
 
       {/* Search bar */}
       <form onSubmit={search} className="inbox-search-form">
@@ -6239,17 +6314,23 @@ function SettingsPage({ addToast }) {
             name: t.name || t.templateId, icon: t.icon || "⚡", accent: t.accent || "#2563eb",
             subject: t.subject || "", customNote: t.customNote || "", intro: t.intro || "",
             highlights: t.highlights?.length ? t.highlights : ["", "", "", ""],
-            resumeType: t.resumeUrl ? "drive" : (t.resumeFileName ? "upload" : "default"),
-            resumeDriveUrl: t.resumeUrl || "", resumeFileName: t.resumeFileName || "",
+            resumeType: t.resumeType || (t.resumeUploadPath ? "upload" : t.resumeDriveUrl ? "drive" : "default"),
+            resumeDriveUrl: t.resumeDriveUrl || "", resumeUploadPath: t.resumeUploadPath || "", resumeFileName: t.resumeFileName || "",
             isCustom: true,
           }));
         if (custom.length) setTemplates(prev => [...prev, ...custom]);
       }).catch(() => {});
   }, []);
 
-  const addTemplate = () => {
+  const addTemplate = (aiData = null) => {
     const newId = `custom_${Date.now()}`;
-    const newTpl = {
+    const newTpl = aiData ? {
+      id: newId, templateId: newId,
+      name: aiData.name || "New Template", icon: aiData.icon || "⚡", accent: "#2563eb",
+      subject: aiData.subject || "", customNote: "", intro: aiData.intro || "",
+      highlights: (aiData.highlights?.length ? aiData.highlights : ["", "", "", ""]).slice(0, 4),
+      resumeType: "default", resumeDriveUrl: "", resumeFileName: "", isCustom: true,
+    } : {
       id: newId, templateId: newId, name: "New Template", icon: "⚡", accent: "#2563eb",
       subject: "", customNote: "", intro: "", highlights: ["", "", "", ""],
       resumeType: "default", resumeDriveUrl: "", resumeFileName: "", isCustom: true,
@@ -6259,6 +6340,25 @@ function SettingsPage({ addToast }) {
       setEditIdx(next.length - 1);
       return next;
     });
+  };
+
+  const [showAiTplBox, setShowAiTplBox] = useState(false);
+  const [aiTplDesc,    setAiTplDesc]    = useState("");
+  const [aiTplLoading, setAiTplLoading] = useState(false);
+  const generateTemplateWithAI = async () => {
+    if (!aiTplDesc.trim()) { addToast && addToast("❌ Describe the template first", "error"); return; }
+    setAiTplLoading(true);
+    try {
+      const r = await axios.post(`${API}/api/ai/generate-template`, { description: aiTplDesc });
+      if (r.data.success) {
+        addTemplate(r.data);
+        setShowAiTplBox(false); setAiTplDesc("");
+        addToast && addToast("✨ Template generated — review and save!");
+      } else {
+        addToast && addToast("❌ " + (r.data.message || "Generation failed"), "error");
+      }
+    } catch(e) { addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error"); }
+    finally { setAiTplLoading(false); }
   };
 
   const deleteTemplate = async (idx) => {
@@ -6494,7 +6594,7 @@ ${profile.displayName || currentUser?.displayName || "Your Name"}`}
               </div>
             </div>
             <div style={{ display:"flex", gap:8 }}>
-              <button className="btn-ghost btn-sm" onClick={addTemplate} style={{ fontSize:12 }}>
+              <button className="btn-ghost btn-sm" onClick={() => setShowAiTplBox(s => !s)} style={{ fontSize:12 }}>
                 ➕ Add Template
               </button>
               <button className={`btn-primary ${tplSaving?"loading":""}`}
@@ -6503,6 +6603,23 @@ ${profile.displayName || currentUser?.displayName || "Your Name"}`}
               </button>
             </div>
           </div>
+
+          {showAiTplBox && (
+            <div style={{ background:"var(--surface)", border:"1.5px solid var(--blue-light)", borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
+              <div style={{ fontWeight:700, fontSize:12, marginBottom:8, color:"var(--blue)" }}>✨ Describe the new template (optional)</div>
+              <textarea className="form-textarea" rows={2} style={{ fontSize:13 }}
+                placeholder="e.g. Backend Java Developer role, emphasizing Spring Boot, microservices, and AWS"
+                value={aiTplDesc} onChange={e => setAiTplDesc(e.target.value)} />
+              <div style={{ display:"flex", gap:8, marginTop:10 }}>
+                <button className={`btn-primary btn-sm ${aiTplLoading?"loading":""}`} onClick={generateTemplateWithAI} disabled={aiTplLoading}>
+                  {aiTplLoading ? "Generating…" : "✨ Generate with AI"}
+                </button>
+                <button className="btn-ghost btn-sm" onClick={() => { addTemplate(); setShowAiTplBox(false); setAiTplDesc(""); }}>
+                  Skip — start blank
+                </button>
+              </div>
+            </div>
+          )}
 
           {templates.map((tpl, idx) => (
             <div key={tpl.id} style={{
@@ -6652,6 +6769,11 @@ ${profile.displayName || currentUser?.displayName || "Your Name"}`}
                       </div>
                     )}
                   </div>
+
+                  <button className={`btn-primary ${tplSaving?"loading":""}`}
+                    onClick={saveTemplates} disabled={tplSaving} style={{ alignSelf:"flex-start", fontSize:13 }}>
+                    {tplSaving ? "Saving..." : "💾 Save Template"}
+                  </button>
                 </div>
               )}
             </div>

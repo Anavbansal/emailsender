@@ -520,6 +520,26 @@ input, textarea, select { font-family: var(--font); }
 .form-input:disabled, .form-textarea:disabled { opacity: 0.55; cursor: not-allowed; }
 .form-textarea { resize: vertical; min-height: 80px; line-height: 1.6; }
 
+/* ─── datetime-local inputs (scheduler, reschedule, etc.) ──────────────────────
+   Native date/time pickers ignore most CSS, but color-scheme + accent-color
+   make the popup calendar itself match the app theme instead of always
+   rendering a plain white popup that clashes with dark mode. */
+input[type="datetime-local"] { accent-color: var(--amber); }
+[data-theme="dark"]  input[type="datetime-local"] { color-scheme: dark; }
+[data-theme="light"] input[type="datetime-local"] { color-scheme: light; }
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  border-radius: 5px;
+  padding: 3px;
+  margin-right: -4px;
+  transition: background var(--t);
+  filter: var(--dt-icon-filter, none);
+}
+[data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.75) brightness(1.3);
+}
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { background: var(--surface-3); }
+
 /* ─── Template Grid ──────────────────────────────────────────────────────────── */
 .template-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 

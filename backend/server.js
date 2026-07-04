@@ -738,7 +738,7 @@ cron.schedule("* * * * *", async () => {
         // If this hrEmail was already applied to since this job was scheduled,
         // DON'T auto-send — instead hold the job and notify the user so they
         // can review and send manually if they still want to.
-        if (mongoose.connection.readyState === 1 && job.emailData?.hrEmail) {
+        if (mongoose.connection.readyState === 1 && job.emailData?.hrEmail && job.emailData?.jobType !== "reply") {
           const escapedDup = job.emailData.hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
           const existing = await SentEmailLog.findOne({
             hrEmail: new RegExp("^" + escapedDup + "$", "i"),
@@ -755,7 +755,19 @@ cron.schedule("* * * * *", async () => {
         }
 
         let info, trackRecord;
-        if (job.emailData?.isFollowUp && job.emailData?.sequenceStep > 0) {
+        if (job.emailData?.jobType === "reply") {
+          // Scheduled reply to an existing thread (e.g. a screening answer) — no
+          // resume attachment, no tracking record, just goes back into the thread.
+          info = await sendViaGmailAPI({
+            to: job.emailData.to, subject: job.emailData.subject, html: job.emailData.html,
+            inReplyTo: job.emailData.inReplyTo || null, references: job.emailData.references || null,
+            threadId: job.emailData.threadId || null,
+            userConfig: jobUserCfg, user: jobUser, resumeOverride: null,
+          });
+          await deleteJob(job.jobId);
+          console.log(`✅ Scheduled reply sent to ${job.emailData?.to}`);
+          continue;
+        } else if (job.emailData?.isFollowUp && job.emailData?.sequenceStep > 0) {
           // Sequence follow-up step — use follow-up email builder
           const fuResult = await sendFollowUpEmail({
             hrEmail: job.emailData.hrEmail,
@@ -2252,6 +2264,21 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
 });
 
 // ─── POST /api/schedule-email ─────────────────────────────────────────────────
+// ─── POST /api/schedule-reply — schedule a reply (e.g. screening answer) ──────
+app.post("/api/schedule-reply", requireAuth, async (req, res) => {
+  try {
+    const { to, subject, html, threadId, inReplyTo, references, scheduledTime } = req.body;
+    if (!to || !html || !scheduledTime)
+      return res.status(400).json({ success: false, message: "to, html, scheduledTime required." });
+    const jobId = Date.now().toString();
+    await addScheduledJob({
+      jobId, scheduledTime, status: "pending", userId: req.userId || "default",
+      emailData: { jobType: "reply", to, subject: subject || "Re:", html, threadId: threadId || null, inReplyTo: inReplyTo || null, references: references || null },
+    });
+    res.json({ success: true, message: `Reply scheduled for ${new Date(scheduledTime).toLocaleString("en-IN")}`, jobId });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 app.post("/api/schedule-email", requireAuth, async (req, res) => {
   try {
     const { hrEmail, company, scheduledTime, autoSend = true, ...rest } = req.body;
@@ -4512,7 +4539,76 @@ Rules:
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// ─── 4. AI Screening Reply ────────────────────────────────────────────────────
+// ─── POST /api/ai/inbox-reply — AI drafts a reply to ANY inbox email ──────────
+// (Screening Reply above is Q&A-focused; this is for general correspondence —
+// interview scheduling notes, recruiter follow-ups, casual back-and-forth, etc.)
+app.post("/api/ai/inbox-reply", requireAuth, async (req, res) => {
+  try {
+    const { emailBody = "", subject = "", fromName = "", tone = "professional" } = req.body;
+    if (!process.env.GROQ_API_KEY) return res.status(400).json({ success: false, message: "GROQ_API_KEY not configured" });
+    const userCfg  = getUserConfig(req.user);
+    const userName = userCfg.profileName || req.user.displayName || "Anav Bansal";
+
+    const reply = await groqChat([{
+      role: "user", content:
+`You are ${userName}, replying to an email from ${fromName || "a recruiter/HR contact"}.
+
+Subject: ${subject}
+Their message:
+"""
+${emailBody.slice(0, 2000)}
+"""
+
+Write a ${tone} reply. Address exactly what they asked or said — don't invent unrelated details.
+Keep it natural and concise (under 120 words unless the message needs more).
+Sign off with just the first name: ${userName.split(" ")[0]}.
+Return ONLY the reply text, no subject line, no preamble.`
+    }], 400, 0.7);
+
+    res.json({ success: true, reply });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── POST /api/ai/generate-template — AI drafts a full new email template ─────
+app.post("/api/ai/generate-template", requireAuth, async (req, res) => {
+  try {
+    const { description = "" } = req.body;
+    if (!description.trim()) return res.status(400).json({ success: false, message: "description required" });
+    if (!process.env.GROQ_API_KEY) return res.status(400).json({ success: false, message: "GROQ_API_KEY not configured" });
+
+    const userCfg  = getUserConfig(req.user);
+    const userName = userCfg.profileName || req.user.displayName || "Anav Bansal";
+    const skills   = userCfg.keySkills   || req.user.keySkills   || "";
+    const exp      = userCfg.totalExp    || req.user.totalExp    || "";
+
+    const raw = await groqChat([{
+      role: "user", content:
+`You are helping ${userName} (skills: ${skills}; experience: ${exp}) create a new job-application email template.
+
+Template purpose, as described by the user: "${description}"
+
+Return ONLY valid JSON, no markdown fences, no preamble, in exactly this shape:
+{
+  "name": "short template name, 2-4 words",
+  "icon": "one single emoji that fits the template's theme",
+  "subject": "email subject line, include a [Company] placeholder",
+  "intro": "2-3 sentence opening paragraph for the application email, written in first person as ${userName}, specific to the description given",
+  "highlights": ["highlight 1", "highlight 2", "highlight 3", "highlight 4"]
+}
+Each highlight should be one short, specific, resume-style bullet (under 15 words) relevant to the description.`
+    }], 500, 0.8);
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw.replace(/^```json\s*|\s*```$/g, "").trim());
+    } catch {
+      return res.status(500).json({ success: false, message: "AI returned an unexpected format — try again" });
+    }
+    res.json({ success: true, ...parsed });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+
 
 // ─── 5. AI LinkedIn Connection Message ────────────────────────────────────────
 app.post("/api/ai/linkedin-msg", requireAuth, async (req, res) => {
