@@ -3761,7 +3761,9 @@ function AutoPipelinePage({ addToast }) {
                       )}
                     </div>
                   ) : (
-                    <span style={{ fontSize:11, color:"#dc2626" }}>No HR email found for this company — skipped automatically</span>
+                    <span style={{ fontSize:11, color:"#dc2626" }}>
+                      {row.reason || "No HR email found for this company"} — skipped automatically
+                    </span>
                   )}
                 </div>
               </div>

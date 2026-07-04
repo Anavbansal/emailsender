@@ -2507,8 +2507,10 @@ async function findHrEmailsForCompany(company, domain, filter = "hr") {
 
     const result = await hunterSearch(params.toString());
     if (result.errors) {
+      console.error(`❌ Hunter API error for "${company || domain}":`, JSON.stringify(result.errors));
       return { success: false, message: result.errors[0]?.details || "Hunter API error", emails: [] };
     }
+    console.log(`🔎 Hunter lookup "${company || domain}" → ${(result.data?.emails || []).length} emails found`);
 
     let emails = (result.data?.emails || []).map(e => ({
       email:     e.value,
@@ -2600,7 +2602,7 @@ app.post("/api/auto-pipeline/run", requireAuth, async (req, res) => {
       const company = job.company || "";
       let hrResult;
       try { hrResult = await findHrEmailsForCompany(company, ""); }
-      catch { hrResult = { emails: [] }; }
+      catch (e) { console.error(`❌ Pipeline HR lookup failed for "${company}":`, e.message); hrResult = { emails: [] }; }
 
       const best = (hrResult.emails || [])[0] || null;
       results.push({
@@ -2612,6 +2614,7 @@ app.post("/api/auto-pipeline/run", requireAuth, async (req, res) => {
         confidence: best?.confidence || 0,
         templateType: guessTemplateFromRole(job.title || ""),
         found: !!best,
+        reason: !best ? (hrResult.message || (hrResult.success === false ? "Lookup failed" : "No emails on file for this company")) : null,
       });
       // Hunter free tier is heavily rate-limited — small delay between calls
       await new Promise(r => setTimeout(r, 300));
