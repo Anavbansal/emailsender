@@ -29,9 +29,9 @@ function getEmailHtml(trackingId) {
   return fs.existsSync(p) ? fs.readFileSync(p, "utf8") : null;
 }
 
-function createTrackingRecord({ hrEmail, hrName = "", company, role, subject = "", sentAt = Date.now(), type = "application" }) {
+function createTrackingRecord({ hrEmail, hrName = "", company, role, subject = "", sentAt = Date.now(), type = "application", username = null }) {
   const trackingId = randomUUID();
-  const record = { trackingId, type, hrEmail, hrName, company, role, subject, sentAt, opened: false, openedAt: null };
+  const record = { trackingId, type, hrEmail, hrName, company, role, subject, sentAt, opened: false, openedAt: null, username };
   const records = loadTrackingData();
   records.push(record);
   saveTrackingData(records);

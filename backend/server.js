@@ -785,7 +785,7 @@ cron.schedule("* * * * *", async () => {
           });
           info = result.info; trackRecord = result.trackRecord;
         }
-        logToSheets([
+        if (isOwnerUser(jobUser)) logToSheets([
           info.id, job.emailData.hrEmail, job.emailData.company || "", job.emailData.role || "",
           new Date().toISOString(), trackRecord.trackingId, "Scheduled-Sent", "",
         ]);
@@ -851,6 +851,14 @@ async function ensureSheetHeaders(sheets) {
     console.log(`✅ Headers written to ${SHEET_TAB}!A1:H1`);
   }
   sheetsInitialized = true;
+}
+
+// The Google Sheet + tracking.json are legacy, single-shared-file mechanisms that
+// pre-date multi-user support and are ONLY ever read back by the owner's (Anav's)
+// own /api/contacts merge logic. Other users' sends must never be written into
+// them, or the owner's dashboard would show other users' activity mixed into his.
+function isOwnerUser(user) {
+  return (user?.username || "") === (process.env.OWNER_USERNAME || "anav");
 }
 
 async function logToSheets(row) {
@@ -985,7 +993,7 @@ async function sendFollowUpEmail({ hrEmail, hrName="", company, role, customNote
   const fuUserName = userCfg?.profileName || user?.displayName || "Anav Bansal";
   const baseSubject = role ? `Application for ${role} Position — ${fuUserName}` : `Job Application — ${fuUserName}`;
   const subject = `Re: ${baseSubject}`;
-  const trackRecord = createTrackingRecord({ hrEmail, hrName, company, role, subject, type: "followup" });
+  const trackRecord = createTrackingRecord({ hrEmail, hrName, company, role, subject, type: "followup", username: user?.username });
   const trackUrl = `${BASE_URL}/api/track/${trackRecord.trackingId}`;
   const dbTemplate = (mongoose.connection.readyState === 1 && user?._id)
     ? await EmailTemplate.findOne({ userId: String(user._id), templateId: resolvedTemplateType }).lean()
@@ -1015,7 +1023,7 @@ async function sendApplicationEmail({
       ? `Job Application — ${userName} (Senior CRM & ServiceNow Expert)${companyStr}`
       : `Job Application — ${userName}${companyStr}`;
 
-  const trackRecord = createTrackingRecord({ hrEmail, hrName, company, role, subject, type: "application" });
+  const trackRecord = createTrackingRecord({ hrEmail, hrName, company, role, subject, type: "application", username: user?.username });
   const trackUrl    = `${BASE_URL}/api/track/${trackRecord.trackingId}`;
   const tplOpts     = { hrName, company, role, customNote, trackUrl, customIntro, customHighlights, headerTheme };
 
@@ -1090,7 +1098,7 @@ async function sendApplicationEmail({
   const info = await sendViaGmailAPI(mailOpts);
   console.log(`📤 Sent → ${hrEmail} | ${info.id}`);
   updateTrackingMessageId(trackRecord.trackingId, info.id);
-  logToSheets([info.id, hrEmail, company||"", role||"", new Date().toISOString(), trackRecord.trackingId, "Sent", ""]);
+  if (isOwnerUser(user)) logToSheets([info.id, hrEmail, company||"", role||"", new Date().toISOString(), trackRecord.trackingId, "Sent", ""]);
   await saveSentEmail({
     messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
     type: "application", hrEmail, hrName: hrName||"", company: company||"", role: role||"",
@@ -1608,7 +1616,7 @@ app.post("/api/send-referral", requireAuth, async (req, res) => {
     return res.status(400).json({ success: false, message: "employeeEmail, company, and role are required." });
 
   const subject    = `Referral Request — ${role} at ${company}`;
-  const trackRecord = createTrackingRecord({ hrEmail: employeeEmail, hrName: employeeName, company, role, subject, type: "referral" });
+  const trackRecord = createTrackingRecord({ hrEmail: employeeEmail, hrName: employeeName, company, role, subject, type: "referral", username: req.user?.username });
   const trackUrl   = `${BASE_URL}/api/track/${trackRecord.trackingId}`;
   const html       = buildReferralHTML({ employeeName, company, role, customNote, trackUrl });
 
@@ -1616,7 +1624,7 @@ app.post("/api/send-referral", requireAuth, async (req, res) => {
 
   try {
     const info = await sendViaGmailAPI({ to: employeeEmail, subject, html, userConfig: getUserConfig(req.user), user: req.user });
-    logToSheets([info.id, employeeEmail, company, role, new Date().toISOString(), trackRecord.trackingId, "Referral-Sent", ""]);
+    if (isOwnerUser(req.user)) logToSheets([info.id, employeeEmail, company, role, new Date().toISOString(), trackRecord.trackingId, "Referral-Sent", ""]);
     await saveSentEmail({
       messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
       type: "referral", hrEmail: employeeEmail, hrName: employeeName||"", company: company||"", role: role||"",
@@ -1723,8 +1731,12 @@ app.get("/api/track/:trackingId", (req, res) => {
           { $set: { opened: true, openedAt: new Date() } }
         ).catch(() => {});
       }
-      logToSheets([record.trackingId, record.hrEmail, record.company||"", record.role||"",
-        new Date(record.sentAt).toISOString(), record.trackingId, "Opened", new Date(record.openedAt).toISOString()]);
+      // Only the owner's own opens go into the shared Sheet (legacy record with no
+      // username tag = pre-multi-user, also treated as the owner's for backward compat)
+      if (!record.username || record.username === (process.env.OWNER_USERNAME || "anav")) {
+        logToSheets([record.trackingId, record.hrEmail, record.company||"", record.role||"",
+          new Date(record.sentAt).toISOString(), record.trackingId, "Opened", new Date(record.openedAt).toISOString()]);
+      }
       console.log(`👁 Open tracked: ${record.company} | ${record.hrEmail} | UA: ${ua.slice(0,60)}`);
     }
   } else {
@@ -1835,7 +1847,10 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
   }
 
   // ── Merge tracking.json records ──────────────────────────────────────────────
-  const records = getTrackingRecords();
+  // Only the owner's own records (or legacy ones with no username tag, from
+  // before multi-user existed) belong in the owner's dashboard — other users'
+  // tagged sends must not leak into here.
+  const records = getTrackingRecords().filter(r => !r.username || r.username === req.user.username);
   const missingFromSheet = [];
   for (const r of records) {
     const key = r.hrEmail.toLowerCase();
@@ -2157,7 +2172,7 @@ app.post("/api/send-application", requireAuth, async (req, res) => {
     // Fallback to in-memory tracking (covers same-session sends before DB write completes)
     if (!prev) {
       const fallback = getTrackingRecords()
-        .filter(r => r.hrEmail.toLowerCase() === hrEmail.toLowerCase())
+        .filter(r => r.hrEmail.toLowerCase() === hrEmail.toLowerCase() && (!r.username || r.username === req.user.username))
         .sort((a, b) => b.sentAt - a.sentAt)[0];
       if (fallback) prev = { sentAt: fallback.sentAt, company: fallback.company };
     }
@@ -2216,7 +2231,7 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
   const baseSubject = originalSubject ||
     (role ? `Application for ${role} Position — ${fuUserName}` : `Job Application — ${fuUserName}`);
   const subject     = `Re: ${baseSubject}`;
-  const trackRecord = createTrackingRecord({ hrEmail, hrName, company, role, subject, type: "followup" });
+  const trackRecord = createTrackingRecord({ hrEmail, hrName, company, role, subject, type: "followup", username: req.user?.username });
   const trackUrl    = `${BASE_URL}/api/track/${trackRecord.trackingId}`;
   const fuDbTemplate = (mongoose.connection.readyState === 1)
     ? await EmailTemplate.findOne({ userId: String(req.user._id), templateId: fuTplType }).lean()
@@ -2239,7 +2254,7 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
       templateType: fuTplType,
       resumeOverride: resolvedResume,
     });
-    logToSheets([info.id, hrEmail, company||"", role||"", new Date().toISOString(), trackRecord.trackingId, "FollowUp-Sent", ""]);
+    if (isOwnerUser(req.user)) logToSheets([info.id, hrEmail, company||"", role||"", new Date().toISOString(), trackRecord.trackingId, "FollowUp-Sent", ""]);
     await saveSentEmail({
       messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
       type: "followup", hrEmail, hrName: hrName||"", company: company||"", role: role||"",
@@ -2436,7 +2451,7 @@ app.post("/api/scheduled-emails/:jobId/retry", requireAuth, async (req, res) => 
       ...job.emailData, user: jobUser, userCfg: jobUserCfg,
     });
 
-    logToSheets([
+    if (isOwnerUser(jobUser)) logToSheets([
       info.id, job.emailData.hrEmail, job.emailData.company || "", job.emailData.role || "",
       new Date().toISOString(), trackRecord.trackingId, "Retry-Sent", "",
     ]);
