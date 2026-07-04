@@ -2909,7 +2909,7 @@ app.post("/api/import-contacts", requireAuth, async (req, res) => {
   for (const c of contacts) {
     if (!c.hrEmail) { skipped++; continue; }
     try {
-      const existing = await SentEmailLog.findOne({ hrEmail: new RegExp(`^${c.hrEmail}$`, "i") }).lean();
+      const existing = await SentEmailLog.findOne({ hrEmail: new RegExp(`^${c.hrEmail}$`, "i"), userId: req.userId }).lean();
       if (existing) {
         // Update replied/notes if new info available
         const updates = {};
@@ -2922,6 +2922,7 @@ app.post("/api/import-contacts", requireAuth, async (req, res) => {
         } else { skipped++; }
       } else {
         await SentEmailLog.create({
+          userId:     req.userId,
           hrEmail:    c.hrEmail,
           hrName:     c.hrName   || "",
           company:    c.company  || "",
