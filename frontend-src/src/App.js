@@ -3608,7 +3608,170 @@ function FindJobsPage({ onFillApply }) {
   );
 }
 
-// ─── Schedule Apply Modal (from Prospect/Referral page) ──────────────────────
+// ─── Auto Pipeline — search jobs, auto-find HR emails, review, then send/queue ─
+function AutoPipelinePage({ addToast }) {
+  const [keywords,  setKeywords]  = useState("Node.js Developer");
+  const [location,  setLocation]  = useState("India");
+  const [maxCompanies, setMaxCompanies] = useState(8);
+  const [running,   setRunning]   = useState(false);
+  const [results,   setResults]   = useState(null);   // null = not run yet
+  const [selected,  setSelected]  = useState(new Set());
+  const [sending,   setSending]   = useState(false);
+  const [meta,      setMeta]      = useState(null);
+
+  const [customTemplates, setCustomTemplates] = useState([]);
+  useEffect(() => {
+    const base = getEmailTemplates();
+    const baseIds = new Set(base.map(t => t.id));
+    axios.get(`${API}/api/templates`)
+      .then(r => setCustomTemplates([...base, ...(r.data.templates || [])
+        .filter(t => !baseIds.has(t.templateId))
+        .map(t => ({ id: t.templateId, name: t.name || t.templateId, icon: t.icon || "⚡" }))]))
+      .catch(() => setCustomTemplates(base));
+  }, []);
+
+  const run = async () => {
+    if (!keywords.trim()) { addToast && addToast("❌ Enter keywords / role", "error"); return; }
+    setRunning(true); setResults(null); setSelected(new Set());
+    try {
+      const r = await axios.post(`${API}/api/auto-pipeline/run`, { keywords, location, maxCompanies });
+      if (r.data.noKey || r.data.jobsNoKey) {
+        addToast && addToast("⚠️ " + (r.data.message || "API key missing"), "error");
+        setResults([]);
+      } else {
+        setResults(r.data.results || []);
+        setMeta({ searched: r.data.searched, checked: r.data.companiesChecked, matched: r.data.matched });
+        // pre-select every row where an HR email was actually found
+        const foundIdx = [];
+        (r.data.results || []).forEach((x, i) => { if (x.found) foundIdx.push(i); });
+        setSelected(new Set(foundIdx));
+      }
+    } catch(e) {
+      addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error");
+    } finally { setRunning(false); }
+  };
+
+  const updateRow = (idx, field, val) => {
+    setResults(prev => prev.map((r, i) => i === idx ? { ...r, [field]: val } : r));
+  };
+
+  const toggle = (idx) => setSelected(prev => {
+    const next = new Set(prev);
+    next.has(idx) ? next.delete(idx) : next.add(idx);
+    return next;
+  });
+
+  const sendSelected = async () => {
+    const rows = results.filter((_, i) => selected.has(i)).filter(r => r.hrEmail);
+    if (!rows.length) { addToast && addToast("❌ No rows with an HR email selected", "error"); return; }
+    setSending(true);
+    try {
+      const r = await axios.post(`${API}/api/bulk-send`, {
+        contacts: rows.map(row => ({
+          hrEmail: row.hrEmail, hrName: row.hrName, company: row.company, role: row.role,
+          templateType: row.templateType,
+        })),
+        useAI: false,
+      });
+      addToast && addToast(`✅ Sent to ${r.data.sent ?? rows.length} contacts!`);
+      setResults(prev => prev.filter((_, i) => !selected.has(i)));
+      setSelected(new Set());
+    } catch(e) {
+      addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error");
+    } finally { setSending(false); }
+  };
+
+  return (
+    <div className="page">
+      <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:10, padding:"14px 16px", marginBottom:16, fontSize:12, color:"var(--text-muted)" }}>
+        🚀 <strong style={{ color:"var(--text)" }}>Auto Pipeline</strong> searches live job listings, then automatically looks up an HR/recruiter email for each company found.
+        It never sends anything on its own — review the results below, then pick who to send to.
+        <br/>Needs <code>JOOBLE_API_KEY</code> (job search) and <code>HUNTER_API_KEY</code> (email lookup) set on the backend — both have free tiers, but Hunter's free tier is limited (~25/month), so keep "Companies to check" small.
+      </div>
+
+      <div className="app-form">
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Keywords / Role</label>
+            <input className="form-input" value={keywords} onChange={e => setKeywords(e.target.value)}
+              placeholder="e.g. Node.js Developer, CTI, Avaya" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Location</label>
+            <input className="form-input" value={location} onChange={e => setLocation(e.target.value)} placeholder="India, Bangalore, Remote" />
+          </div>
+          <div className="form-group" style={{ maxWidth:160 }}>
+            <label className="form-label">Companies to check</label>
+            <input type="number" min={1} max={20} className="form-input" value={maxCompanies}
+              onChange={e => setMaxCompanies(Math.max(1, Math.min(20, parseInt(e.target.value)||1)))} />
+          </div>
+        </div>
+        <button className={`btn-primary ${running?"loading":""}`} onClick={run} disabled={running} style={{ marginTop:8 }}>
+          {running ? "Running pipeline…" : "🚀 Run Pipeline"}
+        </button>
+      </div>
+
+      {results === null && !running && (
+        <div className="empty-state" style={{ marginTop:24 }}>
+          <span className="empty-icon">🚀</span>
+          <p>Run the pipeline to search jobs and auto-discover HR contacts.</p>
+        </div>
+      )}
+
+      {results && results.length === 0 && !running && (
+        <div className="empty-state" style={{ marginTop:24 }}><span className="empty-icon">🔍</span><p>No results. Try different keywords, or fewer/more companies.</p></div>
+      )}
+
+      {results && results.length > 0 && (
+        <>
+          {meta && (
+            <div style={{ fontSize:12, color:"var(--text-muted)", margin:"16px 0 8px" }}>
+              {meta.searched} jobs found · {meta.checked} companies checked · <strong style={{ color:"var(--text)" }}>{meta.matched} HR emails matched</strong>
+            </div>
+          )}
+          <div className="page-toolbar" style={{ justifyContent:"space-between", marginBottom:8 }}>
+            <span className="page-section-title">{selected.size} selected</span>
+            <button className={`btn-primary ${sending?"loading":""}`} onClick={sendSelected} disabled={sending || !selected.size}>
+              {sending ? "Sending…" : `📤 Send Now to ${selected.size} Selected`}
+            </button>
+          </div>
+
+          {results.map((row, idx) => (
+            <div key={idx} className={`contact-card ${!row.found ? "contact-card-reminder" : ""}`} style={{ opacity: row.found ? 1 : 0.7 }}>
+              <div style={{ display:"flex", alignItems:"flex-start", gap:12, width:"100%" }}>
+                <input type="checkbox" checked={selected.has(idx)} disabled={!row.hrEmail}
+                  onChange={() => toggle(idx)} style={{ marginTop:4 }} />
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:700, fontSize:13 }}>{row.company || "Unknown company"}</div>
+                  <div style={{ fontSize:11, color:"var(--text-muted)", marginBottom:6 }}>
+                    {row.role} {row.jobUrl && <>· <a href={row.jobUrl} target="_blank" rel="noreferrer">listing ↗</a></>}
+                  </div>
+                  {row.found ? (
+                    <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                      <input className="form-input" style={{ fontSize:12, maxWidth:220 }} value={row.hrEmail}
+                        onChange={e => updateRow(idx, "hrEmail", e.target.value)} placeholder="HR email" />
+                      <input className="form-input" style={{ fontSize:12, maxWidth:160 }} value={row.hrName}
+                        onChange={e => updateRow(idx, "hrName", e.target.value)} placeholder="HR name (optional)" />
+                      <select className="form-select" style={{ fontSize:12, maxWidth:160 }} value={row.templateType}
+                        onChange={e => updateRow(idx, "templateType", e.target.value)}>
+                        {customTemplates.map(t => <option key={t.id} value={t.id}>{t.icon} {t.name}</option>)}
+                      </select>
+                      {row.confidence > 0 && (
+                        <span style={{ fontSize:10, alignSelf:"center", color:"var(--text-muted)" }}>~{row.confidence}% confidence</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span style={{ fontSize:11, color:"#dc2626" }}>No HR email found for this company — skipped automatically</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
 function ScheduleApplyModal({ data, onClose, onSendNow }) {
   const [mode, setMode]               = useState("now");
   const [scheduledTime, setSched]     = useState("");
@@ -5168,6 +5331,7 @@ function App() {
         { id: "linkedin",    icon: "🔗", label: "Connections" },
         { id: "prospect",    icon: "🎯", label: "Find HR Emails" },
         { id: "jobs",        icon: "🔍", label: "Find Jobs" },
+        { id: "autopipeline",icon: "🚀", label: "Auto Pipeline" },
       ]},
       { label: "Communication", items: [
         { id: "inbox",       icon: "📥", label: "Inbox",     badge: replyCount || null },
@@ -5507,6 +5671,7 @@ function App() {
 
           {page === "prospect"  && <ProspectPage onFillApply={goToSendPrefilled} addToast={addToast} />}
           {page === "jobs"      && <FindJobsPage onFillApply={goToSendPrefilled} />}
+          {page === "autopipeline" && <AutoPipelinePage addToast={addToast} />}
           {page === "scheduled" && <ScheduledPage onRefresh={fetchScheduled} addToast={addToast} />}
           {page === "settings"   && <SettingsPage addToast={addToast} />}
           {page === "ai"         && <AIAssistantPage addToast={addToast} />}

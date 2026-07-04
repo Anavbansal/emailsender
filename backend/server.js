@@ -2495,30 +2495,19 @@ app.get("/api/jobs/search", async (req, res) => {
   }
 });
 
-// ─── GET /api/prospect ────────────────────────────────────────────────────────
-app.get("/api/prospect", async (req, res) => {
-  const { company = "", domain = "", filter = "hr" } = req.query;
-  if (!company && !domain) return res.status(400).json({ success: false, message: "company or domain required" });
-
-  const linkedinUrl = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent((company || domain) + " HR Recruiter Talent")}&title=HR%20Recruiter%20Talent`;
-
+// ─── Shared HR-email lookup (used by /api/prospect and Auto Pipeline) ─────────
+async function findHrEmailsForCompany(company, domain, filter = "hr") {
   if (!process.env.HUNTER_API_KEY) {
-    return res.json({
-      success: true, emails: [], pattern: null, organization: company,
-      noKey: true, linkedinUrl,
-      message: "Add HUNTER_API_KEY to .env for email discovery. Free at hunter.io",
-    });
+    return { success: true, emails: [], pattern: null, organization: company, noKey: true };
   }
-
   try {
     const params = new URLSearchParams({ api_key: process.env.HUNTER_API_KEY });
-    if (domain)  params.set("domain", domain);
-    else         params.set("company", company);
+    if (domain) params.set("domain", domain);
+    else        params.set("company", company);
 
     const result = await hunterSearch(params.toString());
-
     if (result.errors) {
-      return res.json({ success: false, message: result.errors[0]?.details || "Hunter API error", emails: [], linkedinUrl });
+      return { success: false, message: result.errors[0]?.details || "Hunter API error", emails: [] };
     }
 
     let emails = (result.data?.emails || []).map(e => ({
@@ -2538,16 +2527,103 @@ app.get("/api/prospect", async (req, res) => {
       if (hrEmails.length > 0) emails = hrEmails;
     }
 
-    return res.json({
+    return {
       success: true, emails,
       pattern:      result.data?.pattern || null,
       organization: result.data?.organization || company,
       domain:       result.data?.domain || domain,
       total:        result.data?.meta?.results || emails.length,
-      linkedinUrl,
+    };
+  } catch (e) {
+    return { success: false, message: e.message, emails: [] };
+  }
+}
+
+// ─── GET /api/prospect ────────────────────────────────────────────────────────
+app.get("/api/prospect", async (req, res) => {
+  const { company = "", domain = "", filter = "hr" } = req.query;
+  if (!company && !domain) return res.status(400).json({ success: false, message: "company or domain required" });
+
+  const linkedinUrl = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent((company || domain) + " HR Recruiter Talent")}&title=HR%20Recruiter%20Talent`;
+
+  const result = await findHrEmailsForCompany(company, domain, filter);
+  if (result.noKey) {
+    return res.json({ ...result, linkedinUrl, message: "Add HUNTER_API_KEY to .env for email discovery. Free at hunter.io" });
+  }
+  return res.json({ ...result, linkedinUrl });
+});
+
+// ─── Simple keyword → templateType matcher for Auto Pipeline ──────────────────
+function guessTemplateFromRole(title = "") {
+  const t = title.toLowerCase();
+  if (/\b(crm|servicenow|salesforce|dynamics)\b/.test(t)) return "crm";
+  if (/\b(cti|telephony|avaya|genesys|contact.?center|ivr|webex)\b/.test(t)) return "cti";
+  return "fullstack";
+}
+
+// ─── POST /api/auto-pipeline/run — search jobs, then auto-find HR emails ──────
+// Discovers candidate contacts only — never sends anything by itself. Results
+// are returned for review; the person picks which ones to queue/send.
+app.post("/api/auto-pipeline/run", requireAuth, async (req, res) => {
+  try {
+    const { keywords, location = "India", datePosted = "0", employment = "any", maxCompanies = 8 } = req.body;
+    if (!keywords) return res.status(400).json({ success: false, message: "keywords required" });
+    if (!process.env.HUNTER_API_KEY) {
+      return res.json({ success: true, results: [], searched: 0, noKey: true,
+        message: "Add HUNTER_API_KEY to .env for HR email discovery. Free tier at hunter.io" });
+    }
+
+    const joobleBody = { keywords, location };
+    if (employment && employment !== "any") joobleBody.employment = employment;
+    if (datePosted  && datePosted  !== "0") joobleBody.datePosted = parseInt(datePosted);
+
+    const data = await joobleSearch(joobleBody);
+    const jobs = data.jobs || [];
+    if (data.noKey) {
+      return res.json({ success: true, results: [], searched: 0, jobsNoKey: true,
+        message: "Add JOOBLE_API_KEY to .env for job search. Free tier at jooble.org/api/about" });
+    }
+
+    // De-dupe by company — no point hitting Hunter twice for the same employer
+    const seen = new Set();
+    const uniqueJobs = [];
+    for (const j of jobs) {
+      const key = (j.company || "").trim().toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      uniqueJobs.push(j);
+      if (uniqueJobs.length >= Math.min(maxCompanies, 20)) break;
+    }
+
+    const results = [];
+    for (const job of uniqueJobs) {
+      const company = job.company || "";
+      let hrResult;
+      try { hrResult = await findHrEmailsForCompany(company, ""); }
+      catch { hrResult = { emails: [] }; }
+
+      const best = (hrResult.emails || [])[0] || null;
+      results.push({
+        company, role: job.title || keywords, jobUrl: job.link || job.url || "",
+        source: job.source || "Jooble",
+        hrEmail:  best?.email || "",
+        hrName:   best?.name && best.name !== "Unknown" ? best.name : "",
+        position: best?.position || "",
+        confidence: best?.confidence || 0,
+        templateType: guessTemplateFromRole(job.title || ""),
+        found: !!best,
+      });
+      // Hunter free tier is heavily rate-limited — small delay between calls
+      await new Promise(r => setTimeout(r, 300));
+    }
+
+    res.json({
+      success: true, results,
+      searched: jobs.length, companiesChecked: uniqueJobs.length,
+      matched: results.filter(r => r.found).length,
     });
   } catch (e) {
-    return res.status(500).json({ success: false, message: e.message, emails: [], linkedinUrl });
+    res.status(500).json({ success: false, message: e.message });
   }
 });
 
