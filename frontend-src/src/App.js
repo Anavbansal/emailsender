@@ -1892,7 +1892,7 @@ function ActionMenu({ items, size = "sm" }) {
   if (!visibleItems.length) return null;
 
   return (
-    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
+    <div ref={ref} style={{ position: "relative", display: "inline-block", zIndex: open ? 100 : "auto" }}>
       <button type="button" className="btn-ghost btn-sm" title="More actions"
         onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
         style={{ fontSize: size === "sm" ? 15 : 17, padding: "3px 9px", lineHeight: 1, fontWeight: 700 }}>
