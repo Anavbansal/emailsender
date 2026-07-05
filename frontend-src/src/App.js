@@ -1957,6 +1957,58 @@ function ActionMenu({ items, size = "sm" }) {
   );
 }
 
+// ─── Popover — generic portal-based dropdown for custom content (not a list of
+// clickable actions like ActionMenu — e.g. the scheduled-by-date breakdown) ───
+function Popover({ trigger, children, align = "left" }) {
+  const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const btnRef = useRef(null);
+  const popRef = useRef(null);
+
+  const reposition = useCallback(() => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    setCoords({ top: r.bottom + 6, left: align === "right" ? Math.max(8, r.right - 280) : r.left });
+  }, [align]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleOutside = (e) => {
+      if (btnRef.current?.contains(e.target)) return;
+      if (popRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    const close = () => setOpen(false);
+    document.addEventListener("mousedown", handleOutside);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <span ref={btnRef} onClick={(e) => { e.stopPropagation(); if (!open) reposition(); setOpen(o => !o); }}>
+        {trigger}
+      </span>
+      {open && createPortal(
+        <div ref={popRef} onClick={e => e.stopPropagation()} style={{
+          position: "fixed", top: coords.top, left: coords.left, zIndex: 9999,
+          background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10,
+          boxShadow: "var(--shadow-lg, var(--shadow))", minWidth: 220, maxWidth: 300,
+          maxHeight: 320, overflowY: "auto", padding: 8,
+        }}>
+          {children}
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
 function DropdownSelect({ value, onChange, options=[], placeholder, width="auto", size="md" }) {
   const h = size==="sm" ? 30 : 36;
   const fs = size==="sm" ? 12 : 13;
@@ -5208,6 +5260,21 @@ function ScheduledPage({ addToast }) {
 
   const list = tab === "pending" ? pending : tab === "held" ? held : failed;
 
+  // Group scheduled (auto-send) jobs by calendar date for the "By Date" breakdown
+  const byDateCounts = useMemo(() => {
+    const map = new Map(); // sortKey (YYYY-MM-DD) -> { label, count }
+    pending.forEach(j => {
+      const d = parseSchedTime(j.scheduledTime);
+      if (isNaN(d)) return;
+      const sortKey = d.toLocaleDateString("en-CA"); // YYYY-MM-DD, unambiguous
+      const label   = d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+      const entry = map.get(sortKey) || { label, count: 0 };
+      entry.count++;
+      map.set(sortKey, entry);
+    });
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, v]) => v);
+  }, [pending]);
+
   return (
     <div className="page">
       <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap", alignItems:"center" }}>
@@ -5216,6 +5283,32 @@ function ScheduledPage({ addToast }) {
             background:"linear-gradient(135deg,#7c3aed,#2563eb)", color:"#fff", border:"none", marginRight:4 }}>
           ⚡ Schedule Sequence
         </button>
+        <Popover trigger={
+          <button style={{ padding:"7px 14px", borderRadius:99, fontSize:12, fontWeight:600, cursor:"pointer",
+            border:"1.5px solid var(--border)", background:"var(--surface)", color:"var(--text-900)" }}>
+            📅 By Date {pending.length > 0 && `(${byDateCounts.length} days)`}
+          </button>
+        }>
+          <div style={{ fontSize:11, fontWeight:700, color:"var(--text-muted)", padding:"4px 6px 8px", textTransform:"uppercase", letterSpacing:0.3 }}>
+            Scheduled per day
+          </div>
+          {byDateCounts.length === 0 ? (
+            <div style={{ fontSize:13, color:"var(--text-muted)", padding:"6px 6px" }}>No auto-send emails scheduled.</div>
+          ) : byDateCounts.map((d, i) => (
+            <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
+              padding:"7px 8px", borderRadius:7, fontSize:13 }}>
+              <span style={{ color:"var(--text-900)" }}>{d.label}</span>
+              <span style={{ background:"var(--blue-light)", color:"var(--blue)", fontWeight:700, fontSize:11,
+                padding:"2px 9px", borderRadius:99, minWidth:22, textAlign:"center" }}>{d.count}</span>
+            </div>
+          ))}
+          {byDateCounts.length > 0 && (
+            <div style={{ display:"flex", justifyContent:"space-between", marginTop:6, paddingTop:8,
+              borderTop:"1px solid var(--border)", fontSize:12, fontWeight:700, padding:"8px 8px 2px" }}>
+              <span>Total</span><span>{pending.length}</span>
+            </div>
+          )}
+        </Popover>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             style={{
