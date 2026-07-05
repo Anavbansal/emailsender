@@ -2079,6 +2079,21 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
   const [bulkModal,  setBulkModal]  = useState(false);
 
   const [syncModal,  setSyncModal]  = useState(false);
+  const [recovering, setRecovering] = useState(false);
+  const recoverFromGmail = async () => {
+    setRecovering(true);
+    try {
+      const r = await axios.post(`${API}/api/contacts/recover-from-gmail`);
+      if (r.data.success) {
+        addToast && addToast(`✅ Scanned ${r.data.scanned} — recovered ${r.data.recovered} missing contacts! (${r.data.alreadyTracked} already tracked)`);
+        onRefresh && onRefresh();
+      } else {
+        addToast && addToast("❌ " + (r.data.message || "Recovery failed"), "error");
+      }
+    } catch(e) {
+      addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error");
+    } finally { setRecovering(false); }
+  };
   const [syncParams, setSyncParams] = useState({
     after: new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10),
     before: new Date().toISOString().slice(0,10),
@@ -2284,6 +2299,15 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
             style={{ background: "#0d9488", fontSize: 12 }}
           >
             {syncing ? <><span className="spinner" /> Syncing…</> : "📥 Sync Gmail"}
+          </button>
+          <button
+            className={`btn-ghost btn-sm ${recovering ? "loading" : ""}`}
+            onClick={recoverFromGmail}
+            disabled={recovering}
+            title="Scans your Gmail Sent folder for job applications missing from Contacts, and adds them back"
+            style={{ fontSize: 12, color: "#0d9488", borderColor: "#0d9488" }}
+          >
+            {recovering ? <><span className="spinner" /> Scanning Sent folder…</> : "🔄 Recover Missing"}
           </button>
           <button className="btn-ghost btn-sm" style={{ fontSize:12 }}
             title="Export contacts as CSV"

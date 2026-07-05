@@ -1900,6 +1900,80 @@ app.get("/api/track/:trackingId", (req, res) => {
 });
 
 // ─── GET /api/contacts ────────────────────────────────────────────────────────
+// Best-effort company/role extraction from this app's own subject-line formats,
+// used only when recovering a historical send that has no DB record at all.
+function parseSubjectForRecovery(subject = "") {
+  let m = subject.match(/^Application for (.+?) Position(?: at (.+?))? — /i);
+  if (m) return { role: (m[1] || "").trim(), company: (m[2] || "").trim() };
+  m = subject.match(/^Job Application — .+? at (.+)$/i);
+  if (m) return { role: "", company: (m[1] || "").trim() };
+  m = subject.match(/^Re: Application for (.+?) Position(?: at (.+?))? — /i);
+  if (m) return { role: (m[1] || "").trim(), company: (m[2] || "").trim() };
+  return { role: "", company: "" };
+}
+
+// ─── POST /api/contacts/recover-from-gmail — backfill missing contacts ────────
+// Gmail's own Sent folder is the ultimate source of truth for "did I actually
+// send this application" — scans it and creates any SentEmailLog record that's
+// missing (e.g. from the duplicate-save/wrong-userId bug fixed earlier, or any
+// other historical gap), without ever touching or duplicating what's already
+// tracked.
+app.post("/api/contacts/recover-from-gmail", requireAuth, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1)
+      return res.status(503).json({ success: false, message: "MongoDB not connected" });
+
+    const auth  = getUserGmailAuth(req.user);
+    const gmail = google.gmail({ version: "v1", auth });
+
+    const query = 'in:sent (subject:"Application for" OR subject:"Job Application") newer_than:730d';
+    let pageToken = null, scanned = 0, recovered = 0, alreadyTracked = 0, skipped = 0;
+    const maxPages = 15; // up to ~1500 messages per run — re-run if you have more history
+
+    for (let page = 0; page < maxPages; page++) {
+      const list = await gmail.users.messages.list({ userId: "me", q: query, maxResults: 100, pageToken });
+      const msgs = list.data.messages || [];
+      if (!msgs.length) break;
+
+      for (const m of msgs) {
+        scanned++;
+        const existing = await SentEmailLog.findOne({ messageId: m.id, userId: req.userId }).lean();
+        if (existing) { alreadyTracked++; continue; }
+
+        try {
+          const full = await gmail.users.messages.get({
+            userId: "me", id: m.id, format: "metadata", metadataHeaders: ["To", "Subject", "Date"],
+          });
+          const headers = full.data.payload?.headers || [];
+          const getH = (name) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value || "";
+          const toRaw   = getH("To");
+          const subject = getH("Subject");
+          const dateStr = getH("Date");
+          const hrEmailMatch = toRaw.match(/<([^>]+)>/);
+          const hrEmail = (hrEmailMatch ? hrEmailMatch[1] : toRaw).trim().toLowerCase();
+          if (!hrEmail || !hrEmail.includes("@")) { skipped++; continue; }
+
+          const { role, company } = parseSubjectForRecovery(subject);
+          const sentAt = dateStr ? new Date(dateStr) : new Date(Number(full.data.internalDate) || Date.now());
+
+          await SentEmailLog.create({
+            messageId: m.id, threadId: full.data.threadId || null,
+            type: "application", hrEmail, company, role, subject,
+            sentAt, source: "gmail-recovery", userId: req.userId,
+          });
+          recovered++;
+        } catch (e) { skipped++; }
+      }
+      pageToken = list.data.nextPageToken;
+      if (!pageToken) break;
+    }
+
+    res.json({ success: true, scanned, recovered, alreadyTracked, skipped });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 app.get("/api/contacts", requireAuth, async (req, res) => {
   try {
   const isOwner = req.user.username === (process.env.OWNER_USERNAME || "anav");
