@@ -2527,7 +2527,11 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
                 <div className="contact-meta" style={{ flexWrap:"wrap", gap:4 }}>
                   {c.templateType && (
                     <span style={{ fontSize:10, padding:"1px 6px", borderRadius:99, border:"1px solid var(--border)", color:"var(--text-muted)", background:"var(--surface)" }}>
-                      {c.templateType==="crm"?"🔗 CRM":c.templateType==="cti"?"📡 CTI":c.templateType==="formal"?"🎯 Formal":"⚡ FS"}
+                      {c.templateType==="crm" ? "🔗 CRM"
+                        : c.templateType==="cti" ? "📡 CTI"
+                        : c.templateType==="formal" ? "🎯 Formal"
+                        : c.templateType==="fullstack" ? "⚡ FS"
+                        : `${allTemplatesForLabel.get(c.templateType)?.icon || "🏷️"} ${allTemplatesForLabel.get(c.templateType)?.name || c.templateType}`}
                     </span>
                   )}
                   {c.lastSentAt > 0 && (
