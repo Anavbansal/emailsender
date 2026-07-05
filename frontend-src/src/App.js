@@ -5163,6 +5163,26 @@ function ScheduledPage({ addToast }) {
     } finally { setSendingId(null); }
   };
 
+  const [followingUpId, setFollowingUpId] = useState(null);
+  const sendFollowUpForJob = async (job) => {
+    setFollowingUpId(job.jobId);
+    try {
+      const { hrEmail, hrName, company, role } = job.emailData || {};
+      // templateType/thread aren't sent — backend auto-looks-up the original
+      // application to this hrEmail and reuses its template, resume, and thread.
+      const r = await axios.post(`${API}/api/send-followup`, { hrEmail, hrName, company, role });
+      if (r.data.success) {
+        addToast && addToast("✅ Follow-up sent on the original thread!");
+        await axios.delete(`${API}/api/scheduled-emails/${job.jobId}`).catch(() => {});
+        setJobs(p => p.filter(j => j.jobId !== job.jobId));
+      } else {
+        addToast && addToast("❌ " + (r.data.message || "Failed"), "error");
+      }
+    } catch(e) {
+      addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error");
+    } finally { setFollowingUpId(null); }
+  };
+
   const retryAllFailed = async () => {
     setRetrying(true);
     try {
@@ -5269,6 +5289,13 @@ function ScheduledPage({ addToast }) {
                     <button className="btn-primary btn-sm" style={{ marginRight:6, background:"linear-gradient(135deg,#d97706,#f59e0b)" }}
                       onClick={() => sendNow(job.jobId)} disabled={sendingId===job.jobId}>
                       {sendingId===job.jobId ? "Sending..." : "📤 Send Now"}
+                    </button>
+                  )}
+                  {tab==="held" && job.holdReason==="duplicate" && (
+                    <button className="btn-ghost btn-sm" style={{ marginRight:6, color:"#0d9488", borderColor:"#0d9488" }}
+                      title="Sends a follow-up on the SAME thread you already emailed them on — with the same template and resume, instead of resending the full application"
+                      onClick={() => sendFollowUpForJob(job)} disabled={followingUpId===job.jobId}>
+                      {followingUpId===job.jobId ? "Sending..." : "🔁 Follow-up Instead"}
                     </button>
                   )}
                   <ActionMenu items={[
