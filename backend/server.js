@@ -1956,6 +1956,42 @@ function parseSubjectForRecovery(subject = "") {
 // missing (e.g. from the duplicate-save/wrong-userId bug fixed earlier, or any
 // other historical gap), without ever touching or duplicating what's already
 // tracked.
+// Recursively extract text from a Gmail message payload (handles multipart)
+function extractGmailBodyText(payload) {
+  if (!payload) return "";
+  if (payload.body?.data) {
+    try { return Buffer.from(payload.body.data, "base64").toString("utf8"); } catch { return ""; }
+  }
+  if (Array.isArray(payload.parts)) {
+    // Prefer HTML part (templates are HTML-rich with distinctive content), else plain text
+    const html = payload.parts.find(p => p.mimeType === "text/html");
+    if (html) return extractGmailBodyText(html);
+    const text = payload.parts.find(p => p.mimeType === "text/plain");
+    if (text) return extractGmailBodyText(text);
+    for (const p of payload.parts) {
+      const r = extractGmailBodyText(p);
+      if (r) return r;
+    }
+  }
+  return "";
+}
+
+// Best-effort template detection from the actual email content — used only
+// for historical recovery, where subject/metadata alone can't tell us which
+// template (CRM/CTI/Full Stack/Formal) was originally sent.
+function detectTemplateFromBody(bodyText = "") {
+  const t = bodyText.toLowerCase();
+  const scores = { crm: 0, cti: 0, fullstack: 0 };
+  ["servicenow", "salesforce", "freshdesk", "zendesk", "crm integration", "ms dynamics", "gliderecord"]
+    .forEach(k => { if (t.includes(k)) scores.crm++; });
+  ["avaya", "genesys", "webex contact center", "amazon connect cti", "cti integration", "telephony integration", "ivr"]
+    .forEach(k => { if (t.includes(k)) scores.cti++; });
+  ["node.js", "angularjs", "aws lambda", "full-stack developer", "full stack developer", "express.js"]
+    .forEach(k => { if (t.includes(k)) scores.fullstack++; });
+  const [topType, topScore] = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
+  return topScore > 0 ? topType : ""; // inconclusive → leave blank, editable manually
+}
+
 app.post("/api/contacts/recover-from-gmail", requireAuth, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1)
@@ -1977,11 +2013,22 @@ app.post("/api/contacts/recover-from-gmail", requireAuth, async (req, res) => {
     for (const m of msgs) {
       scanned++;
       const existing = await SentEmailLog.findOne({ messageId: m.id, userId: req.userId }).lean();
-      if (existing) { alreadyTracked++; continue; }
+      if (existing) {
+        // Already tracked — but if it came from a previous recovery run before
+        // template-detection existed, backfill just the templateType (no duplicate).
+        if (!existing.templateType && existing.source === "gmail-recovery") {
+          try {
+            const full = await gmail.users.messages.get({ userId: "me", id: m.id, format: "full" });
+            const detected = detectTemplateFromBody(extractGmailBodyText(full.data.payload));
+            if (detected) await SentEmailLog.updateOne({ _id: existing._id }, { $set: { templateType: detected } });
+          } catch {}
+        }
+        alreadyTracked++; continue;
+      }
 
       try {
         const full = await gmail.users.messages.get({
-          userId: "me", id: m.id, format: "metadata", metadataHeaders: ["To", "Subject", "Date"],
+          userId: "me", id: m.id, format: "full",
         });
         const headers = full.data.payload?.headers || [];
         const getH = (name) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value || "";
@@ -1994,10 +2041,12 @@ app.post("/api/contacts/recover-from-gmail", requireAuth, async (req, res) => {
 
         const { role, company } = parseSubjectForRecovery(subject);
         const sentAt = dateStr ? new Date(dateStr) : new Date(Number(full.data.internalDate) || Date.now());
+        const bodyText = extractGmailBodyText(full.data.payload);
+        const templateType = detectTemplateFromBody(bodyText);
 
         await SentEmailLog.create({
           messageId: m.id, threadId: full.data.threadId || null,
-          type: "application", hrEmail, company, role, subject,
+          type: "application", hrEmail, company, role, subject, templateType,
           sentAt, source: "gmail-recovery", userId: req.userId,
         });
         recovered++;
