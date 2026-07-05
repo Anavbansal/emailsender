@@ -1927,48 +1927,46 @@ app.post("/api/contacts/recover-from-gmail", requireAuth, async (req, res) => {
     const gmail = google.gmail({ version: "v1", auth });
 
     const query = 'in:sent (subject:"Application for" OR subject:"Job Application") newer_than:730d';
-    let pageToken = null, scanned = 0, recovered = 0, alreadyTracked = 0, skipped = 0;
-    const maxPages = 15; // up to ~1500 messages per run — re-run if you have more history
+    // Process ONE page per request (small, ~50 messages) — keeps each HTTP call
+    // well under Render's request timeout. The frontend chains calls using
+    // nextPageToken until the whole mailbox has been scanned.
+    const { pageToken: incomingPageToken } = req.body || {};
+    let scanned = 0, recovered = 0, alreadyTracked = 0, skipped = 0;
 
-    for (let page = 0; page < maxPages; page++) {
-      const list = await gmail.users.messages.list({ userId: "me", q: query, maxResults: 100, pageToken });
-      const msgs = list.data.messages || [];
-      if (!msgs.length) break;
+    const list = await gmail.users.messages.list({ userId: "me", q: query, maxResults: 50, pageToken: incomingPageToken || undefined });
+    const msgs = list.data.messages || [];
 
-      for (const m of msgs) {
-        scanned++;
-        const existing = await SentEmailLog.findOne({ messageId: m.id, userId: req.userId }).lean();
-        if (existing) { alreadyTracked++; continue; }
+    for (const m of msgs) {
+      scanned++;
+      const existing = await SentEmailLog.findOne({ messageId: m.id, userId: req.userId }).lean();
+      if (existing) { alreadyTracked++; continue; }
 
-        try {
-          const full = await gmail.users.messages.get({
-            userId: "me", id: m.id, format: "metadata", metadataHeaders: ["To", "Subject", "Date"],
-          });
-          const headers = full.data.payload?.headers || [];
-          const getH = (name) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value || "";
-          const toRaw   = getH("To");
-          const subject = getH("Subject");
-          const dateStr = getH("Date");
-          const hrEmailMatch = toRaw.match(/<([^>]+)>/);
-          const hrEmail = (hrEmailMatch ? hrEmailMatch[1] : toRaw).trim().toLowerCase();
-          if (!hrEmail || !hrEmail.includes("@")) { skipped++; continue; }
+      try {
+        const full = await gmail.users.messages.get({
+          userId: "me", id: m.id, format: "metadata", metadataHeaders: ["To", "Subject", "Date"],
+        });
+        const headers = full.data.payload?.headers || [];
+        const getH = (name) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value || "";
+        const toRaw   = getH("To");
+        const subject = getH("Subject");
+        const dateStr = getH("Date");
+        const hrEmailMatch = toRaw.match(/<([^>]+)>/);
+        const hrEmail = (hrEmailMatch ? hrEmailMatch[1] : toRaw).trim().toLowerCase();
+        if (!hrEmail || !hrEmail.includes("@")) { skipped++; continue; }
 
-          const { role, company } = parseSubjectForRecovery(subject);
-          const sentAt = dateStr ? new Date(dateStr) : new Date(Number(full.data.internalDate) || Date.now());
+        const { role, company } = parseSubjectForRecovery(subject);
+        const sentAt = dateStr ? new Date(dateStr) : new Date(Number(full.data.internalDate) || Date.now());
 
-          await SentEmailLog.create({
-            messageId: m.id, threadId: full.data.threadId || null,
-            type: "application", hrEmail, company, role, subject,
-            sentAt, source: "gmail-recovery", userId: req.userId,
-          });
-          recovered++;
-        } catch (e) { skipped++; }
-      }
-      pageToken = list.data.nextPageToken;
-      if (!pageToken) break;
+        await SentEmailLog.create({
+          messageId: m.id, threadId: full.data.threadId || null,
+          type: "application", hrEmail, company, role, subject,
+          sentAt, source: "gmail-recovery", userId: req.userId,
+        });
+        recovered++;
+      } catch (e) { skipped++; }
     }
 
-    res.json({ success: true, scanned, recovered, alreadyTracked, skipped });
+    res.json({ success: true, scanned, recovered, alreadyTracked, skipped, nextPageToken: list.data.nextPageToken || null });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }

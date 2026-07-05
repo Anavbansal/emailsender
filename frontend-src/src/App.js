@@ -2082,14 +2082,21 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
   const [recovering, setRecovering] = useState(false);
   const recoverFromGmail = async () => {
     setRecovering(true);
+    let pageToken = null, totalScanned = 0, totalRecovered = 0, totalTracked = 0, totalSkipped = 0, round = 0;
     try {
-      const r = await axios.post(`${API}/api/contacts/recover-from-gmail`);
-      if (r.data.success) {
-        addToast && addToast(`✅ Scanned ${r.data.scanned} — recovered ${r.data.recovered} missing contacts! (${r.data.alreadyTracked} already tracked)`);
-        onRefresh && onRefresh();
-      } else {
-        addToast && addToast("❌ " + (r.data.message || "Recovery failed"), "error");
-      }
+      do {
+        round++;
+        const r = await axios.post(`${API}/api/contacts/recover-from-gmail`, pageToken ? { pageToken } : {});
+        if (!r.data.success) { addToast && addToast("❌ " + (r.data.message || "Recovery failed"), "error"); break; }
+        totalScanned   += r.data.scanned;
+        totalRecovered += r.data.recovered;
+        totalTracked   += r.data.alreadyTracked;
+        totalSkipped   += r.data.skipped;
+        pageToken = r.data.nextPageToken;
+        addToast && addToast(`🔄 Scanned ${totalScanned} so far — recovered ${totalRecovered}...`);
+      } while (pageToken && round < 40); // safety cap: ~2000 messages max per click
+      addToast && addToast(`✅ Done! Scanned ${totalScanned} — recovered ${totalRecovered} missing contacts (${totalTracked} already tracked)`);
+      onRefresh && onRefresh();
     } catch(e) {
       addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error");
     } finally { setRecovering(false); }
