@@ -1976,9 +1976,16 @@ function extractGmailBodyText(payload) {
   return "";
 }
 
-// Best-effort template detection from the actual email content — used only
-// for historical recovery, where subject/metadata alone can't tell us which
-// template (CRM/CTI/Full Stack/Formal) was originally sent.
+// Best-effort template detection — subject line first (100% reliable when it
+// applies — the CRM template is the only one that stamps a marker into the
+// subject: "(Senior CRM & ServiceNow Expert)"), falling back to body-content
+// keywords only when the subject gives no signal (which is most role-based
+// subjects, since CTI/Full Stack/Formal all share the same generic subject
+// format when a role is specified).
+function detectTemplateFromSubject(subject = "") {
+  if (/\(Senior CRM & ServiceNow Expert\)/i.test(subject)) return "crm";
+  return "";
+}
 function detectTemplateFromBody(bodyText = "") {
   const t = bodyText.toLowerCase();
   const scores = { crm: 0, cti: 0, fullstack: 0 };
@@ -1990,6 +1997,9 @@ function detectTemplateFromBody(bodyText = "") {
     .forEach(k => { if (t.includes(k)) scores.fullstack++; });
   const [topType, topScore] = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
   return topScore > 0 ? topType : ""; // inconclusive → leave blank, editable manually
+}
+function detectTemplateType(subject, bodyText) {
+  return detectTemplateFromSubject(subject) || detectTemplateFromBody(bodyText);
 }
 
 app.post("/api/contacts/recover-from-gmail", requireAuth, async (req, res) => {
@@ -2019,7 +2029,7 @@ app.post("/api/contacts/recover-from-gmail", requireAuth, async (req, res) => {
         if (!existing.templateType && existing.source === "gmail-recovery") {
           try {
             const full = await gmail.users.messages.get({ userId: "me", id: m.id, format: "full" });
-            const detected = detectTemplateFromBody(extractGmailBodyText(full.data.payload));
+            const detected = detectTemplateType(existing.subject || "", extractGmailBodyText(full.data.payload));
             if (detected) await SentEmailLog.updateOne({ _id: existing._id }, { $set: { templateType: detected } });
           } catch {}
         }
@@ -2042,7 +2052,7 @@ app.post("/api/contacts/recover-from-gmail", requireAuth, async (req, res) => {
         const { role, company } = parseSubjectForRecovery(subject);
         const sentAt = dateStr ? new Date(dateStr) : new Date(Number(full.data.internalDate) || Date.now());
         const bodyText = extractGmailBodyText(full.data.payload);
-        const templateType = detectTemplateFromBody(bodyText);
+        const templateType = detectTemplateType(subject, bodyText);
 
         await SentEmailLog.create({
           messageId: m.id, threadId: full.data.threadId || null,
