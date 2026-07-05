@@ -1256,7 +1256,7 @@ Write a short custom note (1-2 sentences) that fits naturally in a "${tplName}" 
   );
 }
 
-function BulkFollowUpModal({ contacts, onClose, addToast }) {
+function BulkFollowUpModal({ contacts, onClose, addToast, isFiltered = false }) {
   // Only show contacts that are due for followup or haven't been followed up
   const eligible = contacts.filter(c =>
     !c.replied && c.lastSentAt > 0 &&
@@ -1269,6 +1269,17 @@ function BulkFollowUpModal({ contacts, onClose, addToast }) {
   const [sending,   setSending]   = useState(false);
   const [progress,  setProgress]  = useState({ done: 0, total: 0, errors: [] });
   const [done,      setDone]      = useState(false);
+  const [templateOverride, setTemplateOverride] = useState(""); // "" = keep each contact's own template
+  const [templates, setTemplates] = useState(getEmailTemplates());
+  useEffect(() => {
+    const base = getEmailTemplates();
+    const baseIds = new Set(base.map(t => t.id));
+    axios.get(`${API}/api/templates`)
+      .then(r => setTemplates([...base, ...(r.data.templates || [])
+        .filter(t => !baseIds.has(t.templateId))
+        .map(t => ({ id: t.templateId, name: t.name || t.templateId, icon: t.icon || "⚡" }))]))
+      .catch(() => {});
+  }, []);
   useLockBodyScroll();
 
   const toggle = (email) => setSelected(prev => {
@@ -1300,6 +1311,9 @@ function BulkFollowUpModal({ contacts, onClose, addToast }) {
           originalMessageId: c.lastMessageId  || "",
           originalThreadId:  c.lastThreadId   || "",
           originalDate:      c.lastSentAt > 0 ? new Date(c.lastSentAt).toLocaleDateString("en-IN") : "",
+          // Empty = backend auto-detects each contact's own original template.
+          // Non-empty = force this one template for every selected contact.
+          templateType:      templateOverride || undefined,
         };
 
         if (schedTime) {
@@ -1343,6 +1357,17 @@ function BulkFollowUpModal({ contacts, onClose, addToast }) {
             </span>
           </div>
           <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        {isFiltered && (
+          <div style={{ padding:"8px 20px", fontSize:11, color:"var(--blue)", background:"var(--blue-light)" }}>
+            🔎 Using your current Contacts page filter — only contacts matching it are shown here.
+          </div>
+        )}
+        <div style={{ padding:"12px 20px 0" }}>
+          <label className="form-label" style={{ fontSize:11 }}>Template for these follow-ups</label>
+          <DropdownSelect value={templateOverride} onChange={setTemplateOverride}
+            placeholder="Keep each contact's own original template" width="100%"
+            options={templates.map(t => ({ value: t.id, label: `${t.icon} ${t.name}` }))} />
         </div>
 
         <div className="modal-scroll" style={{ maxHeight: 520 }}>
@@ -1526,7 +1551,18 @@ function FollowUpModal({ contact, onClose, onSent }) {
     originalMessageId: contact.lastMessageId || contact.originalMessageId || "",
     originalThreadId:  contact.lastThreadId  || contact.originalThreadId  || "",
     originalSubject:   contact.originalSubject || "",
+    templateType:      contact.templateType || "fullstack",
   });
+  const [templates, setTemplates] = useState(getEmailTemplates());
+  useEffect(() => {
+    const base = getEmailTemplates();
+    const baseIds = new Set(base.map(t => t.id));
+    axios.get(`${API}/api/templates`)
+      .then(r => setTemplates([...base, ...(r.data.templates || [])
+        .filter(t => !baseIds.has(t.templateId))
+        .map(t => ({ id: t.templateId, name: t.name || t.templateId, icon: t.icon || "⚡" }))]))
+      .catch(() => {});
+  }, []);
   const [mode, setMode]           = useState("now");
   const [scheduledTime, setSched] = useState(() => defaultScheduleTime());
   const [loading, setLoading]     = useState(false);
@@ -1586,6 +1622,22 @@ function FollowUpModal({ contact, onClose, onSent }) {
                 <button type="button" className={`chip ${mode === "now" ? "chip-active" : ""}`} onClick={() => setMode("now")}>⚡ Send Now</button>
                 <button type="button" className={`chip ${mode === "schedule" ? "chip-active" : ""}`} onClick={() => setMode("schedule")}>🗓 Schedule</button>
               </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Template</label>
+              <div className="template-grid">
+                {templates.map(t => (
+                  <button key={t.id} type="button"
+                    className={`template-card ${form.templateType === t.id ? "template-card-active" : ""}`}
+                    onClick={() => setForm(p => ({ ...p, templateType: t.id }))}>
+                    <span className="tcard-icon">{t.icon}</span>
+                    <span className="tcard-name">{t.name}</span>
+                  </button>
+                ))}
+              </div>
+              <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:4 }}>
+                Defaults to the template originally sent to this contact — change it to send this follow-up with a different one.
+              </p>
             </div>
             {mode === "schedule" && (
               <div className="form-group">
@@ -2074,7 +2126,8 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
   const [perPage,     setPerPage]     = useState(25);
   const [sortBy,      setSortBy]      = useState("recent");
   const [companyFilter, setCompanyFilter] = useState("");
-  useEffect(() => { setContactPage(1); }, [search, activeTab, sortBy, companyFilter]);
+  const [templateFilter, setTemplateFilter] = useState("");
+  useEffect(() => { setContactPage(1); }, [search, activeTab, sortBy, companyFilter, templateFilter]);
   const [syncResult, setSyncResult]= useState(null);
   const [bulkModal,  setBulkModal]  = useState(false);
 
@@ -2163,7 +2216,18 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
     return Array.from(s).sort();
   }, [contacts]);
 
-  // ── Apply search + tab + company filter + sort ────────────────────────────
+  // ── Template list for dropdown (label from templates config where known) ──
+  const allTemplatesForLabel = useMemo(() => {
+    const base = getEmailTemplates();
+    const map = new Map(base.map(t => [t.id, t]));
+    return map;
+  }, []);
+  const templateList = useMemo(() => {
+    const s = new Set(contacts.map(c => c.templateType).filter(Boolean));
+    return Array.from(s).sort();
+  }, [contacts]);
+
+  // ── Apply search + tab + company filter + template filter + sort ─────────
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     let list = contacts.filter(c => {
@@ -2171,6 +2235,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
         || c.hrEmail?.toLowerCase().includes(q) || c.role?.toLowerCase().includes(q)
         || c.hrName?.toLowerCase().includes(q);
       const matchCompany = !companyFilter || c.company === companyFilter;
+      const matchTemplate = !templateFilter || c.templateType === templateFilter;
       const matchTab = (() => {
         if (activeTab === "all")                return true;
         if (activeTab === "replied")            return c.replied || replyEmails.has(c.hrEmail.toLowerCase());
@@ -2181,14 +2246,14 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
         if (activeTab === "opened")             return c.opened;
         return true;
       })();
-      return matchSearch && matchCompany && matchTab;
+      return matchSearch && matchCompany && matchTemplate && matchTab;
     });
     if (sortBy === "company") list = [...list].sort((a,b)=>(a.company||"").localeCompare(b.company||""));
     else if (sortBy === "opened")  list = [...list].sort((a,b)=>(b.opened?1:0)-(a.opened?1:0));
     else if (sortBy === "replied") list = [...list].sort((a,b)=>(b.replied?1:0)-(a.replied?1:0));
     else list = [...list].sort((a,b)=>new Date(b.lastSentAt||0)-new Date(a.lastSentAt||0));
     return list;
-  }, [contacts, search, activeTab, replyEmails, companyFilter, sortBy]);
+  }, [contacts, search, activeTab, replyEmails, companyFilter, templateFilter, sortBy]);
 
   const totalFiltered = filtered.length;
   const paginated = filtered.slice((contactPage-1)*perPage, contactPage*perPage);
@@ -2274,12 +2339,15 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
         <DropdownSelect value={companyFilter} onChange={v=>{setCompanyFilter(v);setContactPage(1);}}
           placeholder="All Companies" width="160px"
           options={companyList.slice(0,150).map(c=>({value:c,label:c.length>22?c.slice(0,22)+"…":c}))} />
+        <DropdownSelect value={templateFilter} onChange={v=>{setTemplateFilter(v);setContactPage(1);}}
+          placeholder="All Templates" width="150px"
+          options={templateList.map(t=>({value:t, label:`${allTemplatesForLabel.get(t)?.icon||"⚡"} ${allTemplatesForLabel.get(t)?.name||t}`}))} />
         <DropdownSelect value={sortBy} onChange={setSortBy} width="130px"
           options={[{value:"recent",label:"↓ Recent"},{value:"company",label:"A–Z Company"},{value:"opened",label:"👁 Opened"},{value:"replied",label:"↩ Replied"}]} />
         <DropdownSelect value={String(perPage)} onChange={v=>{setPerPage(Number(v));setContactPage(1);}} width="88px"
           options={[{value:"10",label:"10 / pg"},{value:"25",label:"25 / pg"},{value:"50",label:"50 / pg"},{value:"100",label:"100 / pg"}]} />
-        {(search||companyFilter) && (
-          <button onClick={()=>{setSearch("");setCompanyFilter("");}} className="btn-ghost btn-sm" style={{fontSize:11,whiteSpace:"nowrap"}}>✕ Clear</button>
+        {(search||companyFilter||templateFilter) && (
+          <button onClick={()=>{setSearch("");setCompanyFilter("");setTemplateFilter("");}} className="btn-ghost btn-sm" style={{fontSize:11,whiteSpace:"nowrap"}}>✕ Clear</button>
         )}
       </div>
 
@@ -2540,7 +2608,8 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
 
     {bulkModal && (
       <BulkFollowUpModal
-        contacts={contacts}
+        contacts={(companyFilter || templateFilter || search) ? filtered : contacts}
+        isFiltered={!!(companyFilter || templateFilter || search)}
         onClose={() => setBulkModal(false)}
         addToast={addToast}
       />

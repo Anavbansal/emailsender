@@ -815,6 +815,22 @@ cron.schedule("* * * * *", async () => {
             user: jobUser, userCfg: jobUserCfg,
           });
           info = fuResult.info; trackRecord = fuResult.trackRecord;
+        } else if (job.emailData?.type === "followup") {
+          // Single/bulk-scheduled follow-up (from FollowUpModal / BulkFollowUpModal) —
+          // must reply into the ORIGINAL thread, not go out as a fresh application.
+          const fuResult = await sendFollowUpEmail({
+            hrEmail: job.emailData.hrEmail,
+            hrName:  job.emailData.hrName || "",
+            company: job.emailData.company,
+            role:    job.emailData.role,
+            customNote: job.emailData.customNote || "",
+            templateType: job.emailData.templateType || undefined,
+            originalMessageId: job.emailData.originalMessageId || null,
+            originalThreadId:  job.emailData.originalThreadId  || null,
+            originalSubject:   job.emailData.originalSubject   || null,
+            user: jobUser, userCfg: jobUserCfg,
+          });
+          info = fuResult.info; trackRecord = fuResult.trackRecord;
         } else {
           const result = await sendApplicationEmail({
             ...job.emailData, user: jobUser, userCfg: jobUserCfg,
@@ -1132,11 +1148,30 @@ async function resolveResumeForTemplate(templateType, user, userCfg) {
   return { filename: "Anav_Bansal_Resume.pdf", path: RESUME_PATH, contentType: "application/pdf" };
 }
 
-async function sendFollowUpEmail({ hrEmail, hrName="", company, role, customNote, templateType="fullstack", user=null, userCfg=null }) {
+async function sendFollowUpEmail({ hrEmail, hrName="", company, role, customNote, templateType="fullstack", user=null, userCfg=null, originalMessageId=null, originalThreadId=null, originalSubject=null }) {
   const resolvedTemplateType = templateType;
   const fuUserName = userCfg?.profileName || user?.displayName || "Anav Bansal";
-  const baseSubject = role ? `Application for ${role} Position — ${fuUserName}` : `Job Application — ${fuUserName}`;
-  const subject = `Re: ${baseSubject}`;
+  const baseSubject = originalSubject || (role ? `Application for ${role} Position — ${fuUserName}` : `Job Application — ${fuUserName}`);
+  const subject = baseSubject.toLowerCase().startsWith("re:") ? baseSubject : `Re: ${baseSubject}`;
+
+  // Resolve thread: use what was passed, else look up from the original application
+  let resolvedThreadId = originalThreadId || null;
+  if (!resolvedThreadId && originalMessageId && mongoose.connection.readyState === 1) {
+    const prev = await SentEmailLog.findOne({ messageId: originalMessageId }).lean();
+    if (prev?.threadId) resolvedThreadId = prev.threadId;
+  }
+  if (!resolvedThreadId && !originalMessageId && hrEmail && mongoose.connection.readyState === 1) {
+    // No thread info at all — look up the most recent application to this hrEmail
+    const escaped = hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const prevApp = await SentEmailLog.findOne({
+      hrEmail: { $regex: new RegExp("^" + escaped + "$", "i") },
+      userId: user?._id ? String(user._id) : undefined,
+      type: "application",
+    }).sort({ sentAt: -1 }).lean();
+    if (prevApp?.threadId) resolvedThreadId = prevApp.threadId;
+    if (prevApp?.messageId && !originalMessageId) originalMessageId = prevApp.messageId;
+  }
+
   const trackRecord = createTrackingRecord({ hrEmail, hrName, company, role, subject, type: "followup", username: user?.username });
   const trackUrl = `${BASE_URL}/api/track/${trackRecord.trackingId}`;
   const dbTemplate = (mongoose.connection.readyState === 1 && user?._id)
@@ -1145,7 +1180,10 @@ async function sendFollowUpEmail({ hrEmail, hrName="", company, role, customNote
   const html = buildFollowUpHTML({ hrName, company, role, customNote, trackUrl, userCfg, templateType: resolvedTemplateType, dbTemplate });
   storeEmailHtml(trackRecord.trackingId, html);
   const resolvedResume = await resolveResumeForTemplate(resolvedTemplateType, user, userCfg);
-  const info = await sendViaGmailAPI({ to: hrEmail, subject, html, userConfig: userCfg, user, templateType: resolvedTemplateType, resumeOverride: resolvedResume });
+  const info = await sendViaGmailAPI({
+    to: hrEmail, subject, html, userConfig: userCfg, user, templateType: resolvedTemplateType, resumeOverride: resolvedResume,
+    inReplyTo: originalMessageId || null, references: originalMessageId || null, threadId: resolvedThreadId,
+  });
   await saveSentEmail({ messageId: info.id, threadId: info.threadId||null, trackingId: trackRecord.trackingId,
     type: "followup", hrEmail, hrName, company: company||"", role: role||"", subject, sentAt: new Date(), templateType: resolvedTemplateType },
     user?._id ? String(user._id) : "default");
