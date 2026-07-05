@@ -1875,6 +1875,59 @@ function SearchBar({ value, onChange, placeholder="Search...", width="100%", aut
   );
 }
 
+// ─── ActionMenu — "⋯" dropdown for secondary actions (modern UI pattern:
+// only the ONE primary action stays always-visible; everything else lives
+// behind a click, instead of a row of buttons shown at all times) ────────────
+function ActionMenu({ items, size = "sm" }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const visibleItems = items.filter(Boolean);
+  if (!visibleItems.length) return null;
+
+  return (
+    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
+      <button type="button" className="btn-ghost btn-sm" title="More actions"
+        onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+        style={{ fontSize: size === "sm" ? 15 : 17, padding: "3px 9px", lineHeight: 1, fontWeight: 700 }}>
+        ⋯
+      </button>
+      {open && (
+        <div onClick={e => e.stopPropagation()} style={{
+          position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 60,
+          background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10,
+          boxShadow: "var(--shadow-lg, var(--shadow))", minWidth: 180, padding: 5,
+          display: "flex", flexDirection: "column", gap: 1,
+        }}>
+          {visibleItems.map((it, i) => it.divider ? (
+            <div key={i} style={{ height: 1, background: "var(--border)", margin: "4px 2px" }} />
+          ) : (
+            <button key={i} type="button" disabled={it.disabled}
+              onClick={() => { setOpen(false); it.onClick(); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", borderRadius: 7,
+                background: "transparent", border: "none", textAlign: "left", fontSize: 13, fontWeight: 500,
+                color: it.disabled ? "var(--text-muted)" : it.danger ? "var(--red)" : "var(--text-900)",
+                cursor: it.disabled ? "not-allowed" : "pointer", transition: "background 0.12s",
+              }}
+              onMouseEnter={e => !it.disabled && (e.currentTarget.style.background = "var(--surface-2)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+              <span style={{ width: 16, textAlign: "center" }}>{it.icon}</span>
+              <span>{it.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DropdownSelect({ value, onChange, options=[], placeholder, width="auto", size="md" }) {
   const h = size==="sm" ? 30 : 36;
   const fs = size==="sm" ? 12 : 13;
@@ -2329,8 +2382,8 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
                 </div>
               </div>
 
-              {/* Action buttons — vertical stack */}
-              <div className="contact-actions" style={{ flexDirection:"column", gap:4, minWidth:90 }}>
+              {/* Action buttons — one primary action + everything else in a menu */}
+              <div className="contact-actions" style={{ flexDirection:"row", alignItems:"flex-start", gap:6, minWidth:0 }}>
                 {/* Primary action based on status */}
                 {c.replied ? (
                   <button className="btn-followup btn-sm"
@@ -2351,35 +2404,19 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
                   </button>
                 )}
 
-                {/* Thread button — shows reply count / status */}
-                {c.lastMessageId && (
-                  <button className="btn-ghost btn-sm"
-                    style={{ fontSize:11, color: c.replied ? "#0d9488" : undefined, fontWeight: c.replied ? 600 : 400 }}
-                    onClick={() => onViewThread(c)}
-                    title="View full conversation thread">
-                    🧵 {c.replied ? "View Reply" : "Thread"}
-                  </button>
-                )}
-
-                {/* Secondary actions */}
-                <div style={{ display:"flex", gap:3 }}>
-                  {c.lastTrackingId && (
-                    <button className="btn-ghost btn-sm" style={{ fontSize:10, padding:"2px 6px" }}
-                      onClick={() => onViewEmail(c.lastTrackingId)} title="View sent email">
-                      📧
-                    </button>
-                  )}
-                  <button className="btn-ghost btn-sm" style={{ fontSize:10, padding:"2px 6px" }}
-                    onClick={() => onMessage(c)} title="Generate message">
-                    💬
-                  </button>
-                  <button className="btn-ghost btn-sm"
-                    style={{ fontSize:10, padding:"2px 6px", color: "#6366f1" }}
-                    onClick={() => onManualUpdate(c)}
-                    title="Manually update — mark replied, add notes">
-                    ✏️
-                  </button>
-                </div>
+                {/* Everything else — Thread, sent email, generate message, manual edit — behind ⋯ */}
+                <ActionMenu items={[
+                  c.lastMessageId && {
+                    icon: "🧵", label: c.replied ? "View Reply" : "View Thread",
+                    onClick: () => onViewThread(c),
+                  },
+                  c.lastTrackingId && {
+                    icon: "📧", label: "View Sent Email",
+                    onClick: () => onViewEmail(c.lastTrackingId),
+                  },
+                  { icon: "💬", label: "Generate Message", onClick: () => onMessage(c) },
+                  { icon: "✏️", label: "Edit / Mark Replied", onClick: () => onManualUpdate(c) },
+                ]} />
               </div>
             </div>
           ))}
@@ -5208,15 +5245,14 @@ function ScheduledPage({ addToast }) {
                       {sendingId===job.jobId ? "Sending..." : "📤 Send Now"}
                     </button>
                   )}
-                  {tab==="pending" && (
-                    <button className="btn-ghost btn-sm" style={{ marginRight:6, fontSize:11 }}
-                      onClick={() => { setRescheduleJob(job); setNewDateTime(toLocalDT(parseSchedTime(job.scheduledTime))); }}>
-                      📅 Reschedule
-                    </button>
-                  )}
-                  <button className="btn-ghost btn-sm" onClick={() => remove(job.jobId)}>
-                    {tab==="failed" ? "🗑 Delete" : "Cancel"}
-                  </button>
+                  <ActionMenu items={[
+                    tab==="pending" && {
+                      icon: "📅", label: "Reschedule",
+                      onClick: () => { setRescheduleJob(job); setNewDateTime(toLocalDT(parseSchedTime(job.scheduledTime))); },
+                    },
+                    { icon: tab==="failed" ? "🗑" : "🚫", label: tab==="failed" ? "Delete" : "Cancel",
+                      danger: true, onClick: () => remove(job.jobId) },
+                  ]} />
                 </div>
               </div>
             ))}
