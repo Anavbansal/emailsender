@@ -131,6 +131,14 @@ const UserSchema = new mongoose.Schema({
   relevantExp:        { type: String, default: "" },
   reasonForChange:    { type: String, default: "Personal and professional growth" },
   offerInHand:        { type: String, default: "No" },
+  // Education & personal (used by AI for accurate screening-question answers)
+  dateOfBirth:        { type: String, default: "" },
+  yearOfPassing:      { type: String, default: "" },
+  university:         { type: String, default: "" },
+  // Deeper technical grounding for AI replies — condensed resume highlights,
+  // beyond the short keySkills field, so screening/interview answers can cite
+  // specifics (platforms, metrics, achievements) instead of staying generic.
+  resumeHighlights:   { type: String, default: "" },
   isAdmin:            { type: Boolean, default: false },
   // Daily Digest preferences
   digestEnabled:      { type: Boolean, default: false },
@@ -334,6 +342,13 @@ function getUserConfig(user) {
     preferredLocation:user.preferredLocation|| (isOwner ? "PAN India" : ""),
     totalExp:         user.totalExp         || (isOwner ? "4.8+ Years" : ""),
     relevantExp:         user.relevantExp         || (isOwner ? "4.8+ Years" : ""),
+    offerInHand:      user.offerInHand      || (isOwner ? "Yes — ₹12 LPA" : "No"),
+    dateOfBirth:      user.dateOfBirth      || (isOwner ? "06 October 1999" : ""),
+    yearOfPassing:    user.yearOfPassing    || (isOwner ? "2021" : ""),
+    university:       user.university       || (isOwner ? "Rajasthan Technical University, Kota" : ""),
+    resumeHighlights: user.resumeHighlights || (isOwner
+      ? "6+ enterprise CRM integrations across ServiceNow, Salesforce, Freshdesk, Zendesk, CDK Global, COX Automotive — each cutting manual agent effort 30-40%. Published & own 3 marketplace apps (ServiceNow Store, Freshdesk Marketplace, Webex App Hub). ServiceNow: Flow Designer, Scripted REST APIs, IntegrationHub, Virtual Agent, Business Rules, ACLs. CTI/Telephony: Avaya (AACC/AES/IPO), Genesys Cloud, Webex Contact Center, Amazon Connect, Zoom — real-time screen-pop and CTI-to-CRM sync for Fortune 500 contact centers. Backend: Node.js, Express.js, AWS Lambda, DynamoDB, MySQL, WebSockets. Frontend: AngularJS, ReactJS. Salesforce Open CTI adapter with Lightning; Zendesk Talk Integration; MS Dynamics 365 telephony middleware. 3x 'Pat on the Back' awards; nominated for Performance of the Year at NovelVox."
+      : ""),
     // Gmail credentials — critical for sending emails
     gmailRefreshToken:   user.gmailRefreshToken   || (isOwner ? process.env.GMAIL_REFRESH_TOKEN : ""),
     gmailAccessToken:    user.gmailAccessToken    || "",
@@ -3654,6 +3669,20 @@ app.post("/api/auth/login", async (req, res) => {
         userTemplates:  user.userTemplates  || [],
         resumePath:     user.resumePath     || "",
         resumeFileName: user.resumeFileName || "",
+        profileLocation:   user.profileLocation   || "",
+        profileSummary:    user.profileSummary    || "",
+        currentCTC:        user.currentCTC        || "",
+        expectedCTC:       user.expectedCTC        || "",
+        noticePeriod:      user.noticePeriod       || "",
+        currentLocation:   user.currentLocation    || "",
+        preferredLocation: user.preferredLocation  || "",
+        relevantExp:       user.relevantExp        || "",
+        reasonForChange:   user.reasonForChange    || "Personal and professional growth",
+        offerInHand:       user.offerInHand        || "No",
+        dateOfBirth:       user.dateOfBirth        || "",
+        yearOfPassing:     user.yearOfPassing      || "",
+        university:        user.university         || "",
+        resumeHighlights:  user.resumeHighlights   || "",
       }
     });
   } catch (e) {
@@ -3686,6 +3715,20 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
       userTemplates:  u.userTemplates  || [],
       resumePath:     u.resumePath     || "",
       resumeFileName: u.resumeFileName || "",
+      profileLocation:   u.profileLocation   || "",
+      profileSummary:    u.profileSummary    || "",
+      currentCTC:        u.currentCTC        || "",
+      expectedCTC:       u.expectedCTC        || "",
+      noticePeriod:      u.noticePeriod       || "",
+      currentLocation:   u.currentLocation    || "",
+      preferredLocation: u.preferredLocation  || "",
+      relevantExp:       u.relevantExp        || "",
+      reasonForChange:   u.reasonForChange    || "Personal and professional growth",
+      offerInHand:       u.offerInHand        || "No",
+      dateOfBirth:       u.dateOfBirth        || "",
+      yearOfPassing:     u.yearOfPassing      || "",
+      university:        u.university         || "",
+      resumeHighlights:  u.resumeHighlights   || "",
     }
   });
 });
@@ -3699,7 +3742,8 @@ app.patch("/api/auth/settings", requireAuth, async (req, res) => {
                      "currentCompany","currentCTC","expectedCTC","noticePeriod","currentLocation",
                      "preferredLocation","totalExp","relevantExp","resumePath","resumeFileName",
                      "reasonForChange","offerInHand","profileSummary","profileTitle",
-                     "profilePhone","profileEmail","profileLinkedIn","profileLocation","digestEnabled"];
+                     "profilePhone","profileEmail","profileLinkedIn","profileLocation","digestEnabled",
+                     "dateOfBirth","yearOfPassing","university","resumeHighlights"];
     const updates = {};
     for (const k of allowed) { if (req.body[k] !== undefined) updates[k] = req.body[k]; }
     await User.updateOne({ _id: req.userId }, { $set: updates });
@@ -4229,6 +4273,11 @@ app.post("/api/ai/chat", requireAuth, async (req, res) => {
       expCTC:    userCfg?.expectedCTC    || "",
       location:  userCfg?.currentLocation|| "Delhi NCR",
       reason:    userCfg?.reasonForChange|| "Growth & better opportunity",
+      offer:     userCfg?.offerInHand    || req.user.offerInHand    || "No",
+      dob:       userCfg?.dateOfBirth    || req.user.dateOfBirth    || "",
+      passing:   userCfg?.yearOfPassing  || req.user.yearOfPassing  || "",
+      university:userCfg?.university     || req.user.university     || "",
+      highlights:userCfg?.resumeHighlights || req.user.resumeHighlights || "",
     };
     const PROFILE = `
 CANDIDATE PROFILE:
@@ -4241,6 +4290,7 @@ CANDIDATE PROFILE:
 - Expected CTC: ${pf.expCTC}
 - Location: ${pf.location}
 - Reason for Change: ${pf.reason}
+- Offer in Hand: ${pf.offer}${pf.dob ? `\n- Date of Birth: ${pf.dob}` : ""}${pf.passing ? `\n- Year of Passing: ${pf.passing}` : ""}${pf.university ? `\n- University: ${pf.university}` : ""}${pf.highlights ? `\n\nRESUME HIGHLIGHTS (use these for specific/technical questions — cite platforms, metrics, and achievements exactly, don't invent new ones):\n${pf.highlights}` : ""}
 `.trim();
 
     // Model selection: heavy reasoning tasks get 70B, fast tasks get 8B
@@ -4278,9 +4328,12 @@ STRICT RULES — read and follow every one:
 2. Answer ONLY those specific items. Nothing more.
 3. One question = one line answer. Multiple questions = bullet list.
 4. NEVER dump all profile fields unprompted.
-5. If they ask CTC: give current + expected. If they ask notice: give exactly that. 
-6. Tone: warm, direct, confident. No "as per your request", no corporate speak.
-7. End with name + phone number only.
+5. If they ask CTC: give current + expected. If they ask notice: give exactly that.
+6. If they ask about an offer/competing offer: answer using "Offer in Hand" above honestly — don't hide it, but don't volunteer the exact figure unless asked for a number.
+7. If they ask DOB, year of passing, or university: answer directly and exactly from the profile above — these are factual, don't paraphrase or approximate.
+8. If they ask a technical/skill-specific question (e.g. "have you worked with X"): answer using RESUME HIGHLIGHTS above if relevant content exists there — cite the real platform/project, don't invent one that isn't listed.
+9. Tone: warm, direct, confident. No "as per your request", no corporate speak.
+10. End with name + phone number only.
 Output ONLY the reply body.`,
 
       linkedin: `You are a LinkedIn outreach expert. ${PROFILE}
@@ -4696,17 +4749,31 @@ app.post("/api/ai/inbox-reply", requireAuth, async (req, res) => {
     const userCfg  = getUserConfig(req.user);
     const userName = userCfg.profileName || req.user.displayName || "Anav Bansal";
 
+    const profileBlock = [
+      userCfg.totalExp        && `Experience: ${userCfg.totalExp} years`,
+      userCfg.keySkills       && `Key Skills: ${userCfg.keySkills}`,
+      userCfg.currentCompany  && `Current Company: ${userCfg.currentCompany}`,
+      userCfg.noticePeriod    && `Notice Period: ${userCfg.noticePeriod}`,
+      userCfg.currentCTC      && `Current CTC: ${userCfg.currentCTC}`,
+      userCfg.expectedCTC     && `Expected CTC: ${userCfg.expectedCTC}`,
+      (userCfg.offerInHand || req.user.offerInHand) && `Offer in Hand: ${userCfg.offerInHand || req.user.offerInHand}`,
+      (userCfg.dateOfBirth || req.user.dateOfBirth) && `Date of Birth: ${userCfg.dateOfBirth || req.user.dateOfBirth}`,
+      (userCfg.yearOfPassing || req.user.yearOfPassing) && `Year of Passing: ${userCfg.yearOfPassing || req.user.yearOfPassing}`,
+      (userCfg.university || req.user.university) && `University: ${userCfg.university || req.user.university}`,
+    ].filter(Boolean).join("\n");
+    const highlights = userCfg.resumeHighlights || req.user.resumeHighlights || "";
+
     const reply = await groqChat([{
       role: "user", content:
 `You are ${userName}, replying to an email from ${fromName || "a recruiter/HR contact"}.
-
+${profileBlock ? `\nYour profile (use ONLY if the email actually asks for this info — don't volunteer it unprompted):\n${profileBlock}\n` : ""}${highlights ? `\nYour resume highlights (cite these exactly for any technical/skill questions — don't invent details not listed here):\n${highlights}\n` : ""}
 Subject: ${subject}
 Their message:
 """
 ${emailBody.slice(0, 2000)}
 """
 
-Write a ${tone} reply. Address exactly what they asked or said — don't invent unrelated details.
+Write a ${tone} reply. Address exactly what they asked or said — don't invent unrelated details, and don't dump profile info they didn't ask about.
 Keep it natural and concise (under 120 words unless the message needs more).
 Sign off with just the first name: ${userName.split(" ")[0]}.
 Return ONLY the reply text, no subject line, no preamble.`

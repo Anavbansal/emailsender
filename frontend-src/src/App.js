@@ -6256,6 +6256,11 @@ function SettingsPage({ addToast }) {
     // Reason for change
     reasonForChange:  currentUser?.reasonForChange  || "Personal and professional growth",
     offerInHand:      currentUser?.offerInHand      || "No",
+    // Education & personal
+    dateOfBirth:      currentUser?.dateOfBirth      || "",
+    yearOfPassing:    currentUser?.yearOfPassing    || "",
+    university:       currentUser?.university       || "",
+    resumeHighlights: currentUser?.resumeHighlights || "",
   });
   const handle = (k, v) => setProfile(p => ({ ...p, [k]: v }));
 
@@ -6584,14 +6589,10 @@ function SettingsPage({ addToast }) {
           <Section title="🔄 HR Screening Answers">
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
               <Field k="reasonForChange" label="Reason for Change" ph="Personal and professional growth" />
-              <div className="form-group" style={{ marginBottom:0 }}>
-                <label className="form-label" style={{ fontSize:11 }}>Offer in Hand</label>
-                <select className="form-select" style={{ fontSize:13 }}
-                  value={profile.offerInHand} onChange={e=>handle("offerInHand",e.target.value)}>
-                  <option>No</option>
-                  <option>Yes</option>
-                </select>
-              </div>
+              <Field k="offerInHand" label="Offer in Hand" ph="No, or e.g. Yes — ₹12 LPA" />
+              <Field k="dateOfBirth"   label="Date of Birth"   ph="06 October 1999" />
+              <Field k="yearOfPassing" label="Year of Passing" ph="2021" />
+              <Field k="university"    label="University"      ph="Rajasthan Technical University, Kota" />
             </div>
             <SaveBtn />
           </Section>
@@ -6607,6 +6608,17 @@ function SettingsPage({ addToast }) {
             </p>
             <Field k="keySkills" label="Key Skills (comma separated)" area
               ph="Node.js, Angular, AWS Lambda, CTI Integrations, ServiceNow, REST APIs..." />
+            <SaveBtn />
+          </Section>
+
+          <Section title="📄 Resume Highlights (for AI)">
+            <p style={{ fontSize:11, color:"var(--text-muted)", marginBottom:10 }}>
+              Paste specific achievements, metrics, platforms, and projects from your resume here. The AI uses this
+              to answer technical screening questions accurately (e.g. "have you worked with X") instead of
+              guessing or staying generic.
+            </p>
+            <Field k="resumeHighlights" label="Resume Highlights" area
+              ph="e.g. 6+ enterprise CRM integrations across ServiceNow, Salesforce, Freshdesk... Published 3 marketplace apps... Architected real-time screen-pop for Fortune 500 contact centers..." />
             <SaveBtn />
           </Section>
 
