@@ -361,7 +361,7 @@ async function saveSentEmail(data, userId = "default") {
       await SentEmailLog.create({ ...data, userId });
     }
   } catch (e) {
-    console.warn("⚠️ saveSentEmail failed:", e.message);
+    console.error(`❌ saveSentEmail FAILED for ${data?.hrEmail || "unknown"} (userId: ${userId}):`, e.message, JSON.stringify(data));
   }
 }
 
@@ -825,12 +825,12 @@ cron.schedule("* * * * *", async () => {
           info.id, job.emailData.hrEmail, job.emailData.company || "", job.emailData.role || "",
           new Date().toISOString(), trackRecord.trackingId, "Scheduled-Sent", "",
         ]);
-        await saveSentEmail({
-          messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
-          type: "scheduled", hrEmail: job.emailData.hrEmail, hrName: job.emailData.hrName||"",
-          company: job.emailData.company||"", role: job.emailData.role||"",
-          subject: trackRecord.subject, sentAt: new Date(),
-        });
+        // NOTE: sendApplicationEmail()/sendFollowUpEmail() above already saved their
+        // own SentEmailLog record (correct type/userId/templateType) — do NOT save
+        // again here. A redundant second save used to happen right here, creating a
+        // duplicate record tagged type:"scheduled" with no templateType and
+        // userId:"default", which the /api/contacts $group aggregation could pick
+        // over the correct one — causing missing templates / inconsistent contacts.
         await deleteJob(job.jobId);
         // ✅ Auto-sent silently — no email notification for successful sends
         console.log(`✅ Scheduled email sent to ${job.emailData?.hrEmail} (${job.emailData?.company})`);
@@ -1147,7 +1147,8 @@ async function sendFollowUpEmail({ hrEmail, hrName="", company, role, customNote
   const resolvedResume = await resolveResumeForTemplate(resolvedTemplateType, user, userCfg);
   const info = await sendViaGmailAPI({ to: hrEmail, subject, html, userConfig: userCfg, user, templateType: resolvedTemplateType, resumeOverride: resolvedResume });
   await saveSentEmail({ messageId: info.id, threadId: info.threadId||null, trackingId: trackRecord.trackingId,
-    type: "followup", hrEmail, hrName, company: company||"", role: role||"", subject, sentAt: new Date(), templateType: resolvedTemplateType });
+    type: "followup", hrEmail, hrName, company: company||"", role: role||"", subject, sentAt: new Date(), templateType: resolvedTemplateType },
+    user?._id ? String(user._id) : "default");
   return { info, trackRecord };
 }
 
@@ -1247,7 +1248,7 @@ async function sendApplicationEmail({
     messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
     type: "application", hrEmail, hrName: hrName||"", company: company||"", role: role||"",
     subject: trackRecord.subject, sentAt: new Date(), templateType: templateType || "fullstack",
-  });
+  }, user?._id ? String(user._id) : "default");
   return { info, trackRecord };
 }
 
@@ -1773,7 +1774,7 @@ app.post("/api/send-referral", requireAuth, async (req, res) => {
       messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
       type: "referral", hrEmail: employeeEmail, hrName: employeeName||"", company: company||"", role: role||"",
       subject: trackRecord.subject, sentAt: new Date(),
-    });
+    }, req.userId);
     return res.status(200).json({
       success: true,
       message: `Referral request sent to ${employeeEmail}!`,
@@ -2403,7 +2404,7 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
       messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
       type: "followup", hrEmail, hrName: hrName||"", company: company||"", role: role||"",
       subject, sentAt: new Date(), inReplyTo: originalMessageId || null, templateType: fuTplType,
-    });
+    }, req.userId);
     // Mark followupSent, clear needsFollowUp and followupScheduled
     if (mongoose.connection.readyState === 1) {
       await SentEmailLog.updateMany(
@@ -2474,12 +2475,7 @@ app.post("/api/scheduled-emails/:jobId/send-now", requireAuth, async (req, res) 
     const { info, trackRecord } = await sendApplicationEmail({
       ...job.emailData, user: req.user, userCfg,
     });
-    await saveSentEmail({
-      messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
-      type: "scheduled", hrEmail: job.emailData.hrEmail, hrName: job.emailData.hrName||"",
-      company: job.emailData.company||"", role: job.emailData.role||"",
-      subject: trackRecord.subject, sentAt: new Date(),
-    });
+    // sendApplicationEmail() already saved the SentEmailLog record — don't duplicate it
     await deleteJob(job.jobId);
     res.json({ success: true, message: `Sent to ${job.emailData.hrEmail}!` });
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
@@ -2599,12 +2595,7 @@ app.post("/api/scheduled-emails/:jobId/retry", requireAuth, async (req, res) => 
       info.id, job.emailData.hrEmail, job.emailData.company || "", job.emailData.role || "",
       new Date().toISOString(), trackRecord.trackingId, "Retry-Sent", "",
     ]);
-    await saveSentEmail({
-      messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
-      type: "scheduled", hrEmail: job.emailData.hrEmail, hrName: job.emailData.hrName || "",
-      company: job.emailData.company || "", role: job.emailData.role || "",
-      subject: trackRecord.subject, sentAt: new Date(),
-    });
+    // sendApplicationEmail() already saved the SentEmailLog record — don't duplicate it
     await deleteJob(job.jobId);
 
     res.json({ success: true, message: "Email sent successfully!" });
@@ -2633,12 +2624,7 @@ app.post("/api/scheduled-emails/retry-all-failed", requireAuth, async (req, res)
         const { info, trackRecord } = await sendApplicationEmail({
           ...job.emailData, user: jobUser, userCfg: jobUserCfg,
         });
-        await saveSentEmail({
-          messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
-          type: "scheduled", hrEmail: job.emailData.hrEmail, hrName: job.emailData.hrName || "",
-          company: job.emailData.company || "", role: job.emailData.role || "",
-          subject: trackRecord.subject, sentAt: new Date(),
-        });
+        // sendApplicationEmail() already saved the SentEmailLog record — don't duplicate it
         await deleteJob(job.jobId);
         sent++;
         await new Promise(r => setTimeout(r, 300)); // gentle rate limit
