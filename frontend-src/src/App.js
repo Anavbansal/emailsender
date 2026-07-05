@@ -723,10 +723,10 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
   const recent = [...contacts].sort((a, b) => b.lastSentAt - a.lastSentAt).slice(0, 6);
 
   const QUICK = [
-    { icon: "✉",  label: "Send Application", id: "send",     cls: "qb-blue"   },
+    { icon: "✉",  label: "Apply",              id: "send",     cls: "qb-blue"   },
     { icon: "📥", label: "Check Inbox",        id: "inbox",    cls: "qb-purple" },
-    { icon: "🎯", label: "Find HR Emails",     id: "prospect", cls: "qb-green"  },
-    { icon: "🔍", label: "Find Jobs",           id: "jobs",     cls: "qb-amber"  },
+    { icon: "🎯", label: "HR Finder",          id: "prospect", cls: "qb-green"  },
+    { icon: "🔍", label: "Job Search",         id: "jobs",     cls: "qb-amber"  },
   ];
 
 
@@ -833,7 +833,7 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
           ? { icon:"💡", msg:"No replies yet? Try personalizing your email subject line.", action:"ai", btn:"AI Intelligence" }
           : replyCount > 0
           ? { icon:"🎯", msg:`${replyCount} companies replied — follow up now while you're fresh!`, action:"inbox", btn:"Check Inbox" }
-          : { icon:"🚀", msg:"Start strong — send 5 applications today to build momentum.", action:"send", btn:"Send Application" };
+          : { icon:"🚀", msg:"Start strong — send 5 applications today to build momentum.", action:"send", btn:"Apply Now" };
         return (
           <div style={{
             background:"linear-gradient(135deg,#fef3c7,#fffbeb)", border:"1px solid #fde68a",
@@ -2943,7 +2943,7 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
         )}
         <div className="form-footer">
           <button type="submit" className={`btn-primary ${loading ? "loading" : ""}`} disabled={loading || !valid}>
-            {loading ? <><span className="spinner" /> Sending…</> : <><span className="btn-arrow">↑</span> {mode === "schedule" ? "Schedule Email" : "Send Application"}</>}
+            {loading ? <><span className="spinner" /> Sending…</> : <><span className="btn-arrow">↑</span> {mode === "schedule" ? "Schedule Email" : "Apply Now"}</>}
           </button>
           <button type="button" className="btn-ghost" disabled={loading}
             onClick={() => { setForm({ hrEmail: "", hrName: "", company: "", role: "", customNote: "" }); setStatus(null); }}>
@@ -5603,20 +5603,22 @@ function App() {
         { id: "analytics",  icon: "📊", label: "Analytics" },
       ]},
       { label: "Outreach", items: [
-        { id: "send",       icon: "✉️", label: "Send Application" },
-        { id: "bulk",        icon: "⚡", label: "Bulk Send" },
+        { id: "send",       icon: "✉️", label: "Apply" },
+        { id: "bulk",        icon: "⚡", label: "Bulk Apply" },
         { id: "scheduled",   icon: "🗓️", label: "Scheduled",  badge: scheduledCount || null },
         { id: "whatsapp",    icon: "📱", label: "WhatsApp" },
       ]},
       { label: "Pipeline", items: [
-        { id: "contacts",    icon: "👥", label: "HR Contacts", badge: reminderCount || null },
+        { id: "contacts",    icon: "👥", label: "Contacts", badge: reminderCount || null },
         { id: "interviews",  icon: "🎤", label: "Interviews" },
+      ]},
+      { label: "Discovery", items: [
+        { id: "jobs",        icon: "🔍", label: "Job Search" },
+        { id: "prospect",    icon: "🎯", label: "HR Finder" },
+        { id: "autopipeline",icon: "🚀", label: "Auto Pipeline" },
       ]},
       { label: "Network", items: [
         { id: "linkedin",    icon: "🔗", label: "Connections" },
-        { id: "prospect",    icon: "🎯", label: "Find HR Emails" },
-        { id: "jobs",        icon: "🔍", label: "Find Jobs" },
-        { id: "autopipeline",icon: "🚀", label: "Auto Pipeline" },
       ]},
       { label: "Communication", items: [
         { id: "inbox",       icon: "📥", label: "Inbox",     badge: replyCount || null },
@@ -5816,7 +5818,7 @@ function App() {
                   ? contacts.filter(c => c.hrEmail?.toLowerCase().includes(q) || c.company?.toLowerCase().includes(q) || c.hrName?.toLowerCase().includes(q)).slice(0,5)
                   : [];
                 const actions = [
-                  { label:"Send Application", icon:"✉️", action:() => { navigate("send"); setCmdPalette(false); } },
+                  { label:"Apply", icon:"✉️", action:() => { navigate("send"); setCmdPalette(false); } },
                   { label:"Sync Replies", icon:"↺", action:() => { axios.get(`${API}/api/resync-replies`).then(r => addToast(`✅ ${r.data.newReplies||0} new replies`)).catch(()=>{}); setCmdPalette(false); } },
                   { label:"Dark Mode Toggle", icon:"🌙", action:() => { setDarkMode(d=>!d); setCmdPalette(false); } },
                   { label:"Logout", icon:"🚪", action:() => { clearToken(); setAuthUser(null); setContacts([]); setReplies([]); setScheduledJobs([]); navigate("dashboard"); setCmdPalette(false); } },
