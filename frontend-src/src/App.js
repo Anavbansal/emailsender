@@ -1,5 +1,6 @@
 /* eslint-disable */
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import axios from "axios";
 import "./App.css";
 
@@ -1880,27 +1881,53 @@ function SearchBar({ value, onChange, placeholder="Search...", width="100%", aut
 // behind a click, instead of a row of buttons shown at all times) ────────────
 function ActionMenu({ items, size = "sm" }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const btnRef = useRef(null);
+  const menuRef = useRef(null);
+
+  const reposition = useCallback(() => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    setCoords({ top: r.bottom + 4, left: Math.max(8, r.right - 180) });
+  }, []);
+
+  const toggle = (e) => {
+    e.stopPropagation();
+    if (!open) reposition();
+    setOpen(o => !o);
+  };
+
   useEffect(() => {
     if (!open) return;
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    const handleOutside = (e) => {
+      if (btnRef.current?.contains(e.target)) return;
+      if (menuRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    const handleScroll = () => setOpen(false); // close instead of drifting out of position
+    document.addEventListener("mousedown", handleOutside);
+    window.addEventListener("scroll", handleScroll, true);
+    window.addEventListener("resize", handleScroll);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      window.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener("resize", handleScroll);
+    };
   }, [open]);
 
   const visibleItems = items.filter(Boolean);
   if (!visibleItems.length) return null;
 
   return (
-    <div ref={ref} style={{ position: "relative", display: "inline-block", zIndex: open ? 100 : "auto" }}>
-      <button type="button" className="btn-ghost btn-sm" title="More actions"
-        onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+    <>
+      <button ref={btnRef} type="button" className="btn-ghost btn-sm" title="More actions"
+        onClick={toggle}
         style={{ fontSize: size === "sm" ? 15 : 17, padding: "3px 9px", lineHeight: 1, fontWeight: 700 }}>
         ⋯
       </button>
-      {open && (
-        <div onClick={e => e.stopPropagation()} style={{
-          position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 60,
+      {open && createPortal(
+        <div ref={menuRef} onClick={e => e.stopPropagation()} style={{
+          position: "fixed", top: coords.top, left: coords.left, zIndex: 9999,
           background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10,
           boxShadow: "var(--shadow-lg, var(--shadow))", minWidth: 180, padding: 5,
           display: "flex", flexDirection: "column", gap: 1,
@@ -1915,6 +1942,7 @@ function ActionMenu({ items, size = "sm" }) {
                 background: "transparent", border: "none", textAlign: "left", fontSize: 13, fontWeight: 500,
                 color: it.disabled ? "var(--text-muted)" : it.danger ? "var(--red)" : "var(--text-900)",
                 cursor: it.disabled ? "not-allowed" : "pointer", transition: "background 0.12s",
+                whiteSpace: "nowrap",
               }}
               onMouseEnter={e => !it.disabled && (e.currentTarget.style.background = "var(--surface-2)")}
               onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
@@ -1922,9 +1950,10 @@ function ActionMenu({ items, size = "sm" }) {
               <span>{it.label}</span>
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 }
 
