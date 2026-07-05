@@ -3577,8 +3577,8 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
                     <p className="inbox-row-subject">{m.subject}</p>
                     <p className="inbox-row-snippet">{m.snippet}</p>
                   </div>
-                  <div className="inbox-row-actions" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {!isSent && isScreeningEmail(m.subject, m.snippet, extractEmail(m.from || ""), trackedEmails) && (
+                  <div className="inbox-row-actions" style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+                    {!isSent && isScreeningEmail(m.subject, m.snippet, extractEmail(m.from || ""), trackedEmails) ? (
                       <button
                         className="btn-primary btn-sm"
                         title="AI will read their email and reply to exactly what they asked"
@@ -3587,8 +3587,7 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
                       >
                         🤖 Auto Reply
                       </button>
-                    )}
-                    {onFollowUp && (
+                    ) : onFollowUp && (
                       <button
                         className="btn-followup btn-sm"
                         title="Send follow-up"
@@ -3597,14 +3596,14 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
                         🔁 Follow Up
                       </button>
                     )}
-                    <button
-                      className="btn-ghost btn-sm"
-                      title="Schedule Interview"
-                      style={{ fontSize:11, color:"#d97706", borderColor:"#d97706", whiteSpace:"nowrap" }}
-                      onClick={e => { e.stopPropagation(); handleInterview(m); }}
-                    >
-                      🗓 Interview
-                    </button>
+                    <div onClick={e => e.stopPropagation()}>
+                      <ActionMenu items={[
+                        onFollowUp && !isSent && isScreeningEmail(m.subject, m.snippet, extractEmail(m.from || ""), trackedEmails) && {
+                          icon: "🔁", label: "Send Follow-up", onClick: () => handleFollowUp(m),
+                        },
+                        { icon: "🗓", label: "Schedule Interview", onClick: () => handleInterview(m) },
+                      ]} />
+                    </div>
                   </div>
                   {!m.isRead && !isSent && <span className="inbox-unread-dot" />}
                   {!isSent && isScreeningEmail(m.subject, m.snippet, extractEmail(m.from || ""), trackedEmails) && (
@@ -4984,21 +4983,19 @@ function LinkedInConnectionsPage({ onFillApply, addToast }) {
                     🔗 Profile
                   </a>
                 )}
-                <button
-                  className="btn-primary btn-sm"
-                  title="Generate referral message to copy-paste on LinkedIn"
-                  style={{ background:"linear-gradient(135deg,#0077b5,#005f8f)", fontSize:11 }}
-                  onClick={() => setRefModal(c)}>
-                  💬 Message
-                </button>
-                <button
-                  className="btn-ghost btn-sm"
-                  title="Ignore — remove from list"
-                  style={{ fontSize:10, color:"var(--text-400,#9ca3af)", borderColor:"transparent" }}
-                  disabled={ignoring[c.rowIndex]}
-                  onClick={() => ignore(c)}>
-                  {ignoring[c.rowIndex] ? "…" : "🚫 Ignore"}
-                </button>
+                <div style={{ display:"flex", gap:5, alignItems:"center" }}>
+                  <button
+                    className="btn-primary btn-sm"
+                    title="Generate referral message to copy-paste on LinkedIn"
+                    style={{ background:"linear-gradient(135deg,#0077b5,#005f8f)", fontSize:11, flex:1 }}
+                    onClick={() => setRefModal(c)}>
+                    💬 Message
+                  </button>
+                  <ActionMenu items={[
+                    { icon: "🚫", label: ignoring[c.rowIndex] ? "Ignoring…" : "Ignore — remove from list",
+                      disabled: !!ignoring[c.rowIndex], danger: true, onClick: () => ignore(c) },
+                  ]} />
+                </div>
               </div>
             </div>
           ))}
@@ -7866,10 +7863,9 @@ function InterviewsPage({ addToast }) {
                         onClick={()=>{setEditing(String(iv._id)); setForm({});}}>
                         ✏️ Edit
                       </button>
-                      <button className="btn-ghost btn-sm" style={{ color:"#dc2626", borderColor:"#dc2626" }}
-                        onClick={()=>deleteInterview(iv._id, iv.company)}>
-                        🗑
-                      </button>
+                      <ActionMenu items={[
+                        { icon: "🗑", label: "Delete Interview", danger: true, onClick: () => deleteInterview(iv._id, iv.company) },
+                      ]} />
                     </div>
                   </div>
                 </div>
