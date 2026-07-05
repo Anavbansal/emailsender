@@ -3497,11 +3497,22 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
         // would get hidden even though Gmail correctly found it. Instead, just
         // exclude a short list of known non-HR automated-notification senders that
         // tend to trip the broad OR query with generic words like "profile"/"location".
-        const NOISE_SENDER_DOMAINS = ["glassdoor.com", "accounts.google.com", "google.com"];
+        // Bulk job-alert/digest bots (multiple listings, no reply expected) are noise
+        // for a Screening tab even though Gmail's broad query correctly finds them —
+        // they mention "opportunity"/"profile"/etc but are automated broadcasts, not
+        // a real recruiter conversation. Excluded by sender domain/address pattern or
+        // an "Alert:"-style subject, NOT by content keywords (which stay unreliable).
+        const NOISE_SENDER_DOMAINS  = ["glassdoor.com", "accounts.google.com", "google.com", "ambitionbox.com"];
+        const NOISE_ADDRESS_PATTERNS = ["jobalerts", "job-alerts", "jobalert-noreply"];
         const displayMessages = isScreeningTab
           ? messages.filter(m => {
-              const senderDomain = (extractEmail(m.from || "").split("@")[1] || "").toLowerCase();
-              return !NOISE_SENDER_DOMAINS.some(d => senderDomain === d || senderDomain.endsWith("." + d));
+              const senderEmail  = extractEmail(m.from || "").toLowerCase();
+              const senderDomain = senderEmail.split("@")[1] || "";
+              const subjectLower = (m.subject || "").toLowerCase();
+              if (NOISE_SENDER_DOMAINS.some(d => senderDomain === d || senderDomain.endsWith("." + d))) return false;
+              if (NOISE_ADDRESS_PATTERNS.some(p => senderEmail.includes(p))) return false;
+              if (subjectLower.startsWith("alert:")) return false; // bulk digest-style broadcasts
+              return true;
             })
           : messages;
         return displayMessages.length === 0 ? (
