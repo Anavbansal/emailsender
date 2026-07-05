@@ -1926,7 +1926,7 @@ app.post("/api/contacts/recover-from-gmail", requireAuth, async (req, res) => {
     const auth  = getUserGmailAuth(req.user);
     const gmail = google.gmail({ version: "v1", auth });
 
-    const query = 'in:sent (subject:"Application for" OR subject:"Job Application") newer_than:730d';
+    const query = 'in:sent has:attachment filename:pdf newer_than:1095d';
     // Process ONE page per request (small, ~50 messages) — keeps each HTTP call
     // well under Render's request timeout. The frontend chains calls using
     // nextPageToken until the whole mailbox has been scanned.
