@@ -43,6 +43,11 @@
   --text-700:      #4a463e;
   --text-500:      #837c6d;
   --text-400:      #b0a996;
+  --text-muted:    #837c6d; /* alias for --text-500 — used throughout App.js */
+  --text:          #1c1a17; /* alias for --text-900 */
+  --card-bg:       #ffffff; /* alias for --surface */
+  --surface-hover: #f6f5f1; /* alias for --surface-2 */
+  --blue-50:       #ece9fe; /* light tint of the violet accent, for selected-row backgrounds */
 
   --sidebar-bg:    #1c1a22;
   --sidebar-text:  #a9a3b5;
@@ -98,6 +103,11 @@
   --text-700:      #c6c3d0;
   --text-500:      #8b8894;
   --text-400:      #4e4c57;
+  --text-muted:    #8b8894; /* alias for --text-500 — used throughout App.js */
+  --text:          #edecf0; /* alias for --text-900 */
+  --card-bg:       #15161c; /* alias for --surface */
+  --surface-hover: #1e2027; /* alias for --surface-2/3 */
+  --blue-50:       #241f3d; /* dark tint of the violet accent, for selected-row backgrounds */
 
   --sidebar-bg:    #08090c;
   --sidebar-text:  #8b8894;
@@ -1018,9 +1028,11 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 /* ─── Inbox email list ───────────────────────────────────────────────────────── */
 .inbox-list {
   display: flex; flex-direction: column;
-  border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+  border: 1px solid var(--border); border-radius: var(--radius);
   background: var(--surface);
 }
+.inbox-list .inbox-row:first-child { border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); }
+.inbox-list .inbox-row:last-child { border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); }
 
 .inbox-row {
   display: flex; align-items: center; gap: 12px;
@@ -1065,9 +1077,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 /* ─── Inbox row actions (Follow Up button) ────────────────────────────────────── */
 .inbox-row-actions {
   display: flex; align-items: center; gap: 6px; flex-shrink: 0;
-  opacity: 0; transition: opacity .15s;
 }
-.inbox-row:hover .inbox-row-actions { opacity: 1; }
 
 /* ─── Inbox footer (count + Load More) ───────────────────────────────────────── */
 .inbox-footer {
