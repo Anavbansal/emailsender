@@ -6759,12 +6759,11 @@ ${profile.displayName || currentUser?.displayName || "Your Name"}`}
                   </div>
                 </div>
                 {tpl.isCustom && (
-                  <button className="btn-ghost btn-sm" style={{ fontSize:11, color:"#dc2626", borderColor:"#dc2626" }}
-                    onClick={(e) => { e.stopPropagation(); deleteTemplate(idx); }}>
-                    🗑
-                  </button>
+                  <ActionMenu items={[
+                    { icon: "🗑", label: "Delete Template", danger: true, onClick: () => deleteTemplate(idx) },
+                  ]} />
                 )}
-                <span style={{ color:"var(--text-muted)", fontSize:12 }}>{editIdx===idx ? "▲ Close" : "▼ Edit"}</span>
+                <span style={{ color:"var(--text-muted)", fontSize:13, transition:"transform 0.15s", transform: editIdx===idx ? "rotate(90deg)" : "rotate(0deg)" }}>▸</span>
               </div>
 
               {/* Editor */}
