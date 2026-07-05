@@ -3488,13 +3488,21 @@ function InboxPage({ contacts = [], onFollowUp, addToast }) {
 
       {/* Email list */}
       {(() => {
-        // The Screening tab's Gmail query is intentionally broad (to catch emails
-        // from senders outside the original thread) — filter results client-side
-        // with the same isScreeningEmail() classifier so only genuine matches show,
-        // instead of every email that happened to contain a generic word like
-        // "location" or "phone" somewhere in its body.
+        // Gmail's search already matches against the FULL email body (not just the
+        // short snippet), so the deep query itself is the real relevance signal.
+        // Re-filtering client-side using isScreeningEmail(subject, snippet, ...) was
+        // actively WRONG here — it only sees the truncated snippet, so a genuine
+        // screening/opportunity email whose matching keyword appears further down in
+        // the body (e.g. "Experience Required: 4+ Years" past the first ~100 chars)
+        // would get hidden even though Gmail correctly found it. Instead, just
+        // exclude a short list of known non-HR automated-notification senders that
+        // tend to trip the broad OR query with generic words like "profile"/"location".
+        const NOISE_SENDER_DOMAINS = ["glassdoor.com", "accounts.google.com", "google.com"];
         const displayMessages = isScreeningTab
-          ? messages.filter(m => isScreeningEmail(m.subject, m.snippet, extractEmail(m.from || ""), trackedEmails))
+          ? messages.filter(m => {
+              const senderDomain = (extractEmail(m.from || "").split("@")[1] || "").toLowerCase();
+              return !NOISE_SENDER_DOMAINS.some(d => senderDomain === d || senderDomain.endsWith("." + d));
+            })
           : messages;
         return displayMessages.length === 0 ? (
         <div className="empty-state">
