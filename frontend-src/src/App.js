@@ -5469,6 +5469,12 @@ function ScheduledPage({ addToast }) {
                   <div className="contact-meta">
                     {tab==="failed" ? (
                       <span style={{ color:"#dc2626", fontSize:12 }}>❌ {job.error || "Unknown error"}</span>
+                    ) : tab==="held" && job.holdReason==="duplicate" ? (
+                      <span style={{ color:"#991b1b", fontSize:12 }}>
+                        📤 Originally applied: {job.duplicateOriginalSentAt
+                          ? new Date(job.duplicateOriginalSentAt).toLocaleString("en-IN", { dateStyle:"medium", timeStyle:"short" })
+                          : "date unknown"}
+                      </span>
                     ) : (<>
                       <span>📅 {parseSchedTime(job.scheduledTime).toLocaleString("en-IN", { dateStyle:"medium", timeStyle:"short" })}</span>
                       <span style={{ color: tab==="held" ? "#d97706" : "var(--blue)", fontWeight:600 }}>{countdown(job.scheduledTime)}</span>

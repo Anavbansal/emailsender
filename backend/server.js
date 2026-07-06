@@ -51,6 +51,7 @@ const ScheduledEmailSchema = new mongoose.Schema({
   error:         { type: String },
   reminderSent:  { type: Boolean, default: false },     // for "held" jobs — reminder email already sent
   holdReason:    { type: String, default: "" },         // "manual" | "duplicate" — why a job is held
+  duplicateOriginalSentAt: { type: Date, default: null }, // when the ORIGINAL application to this contact was sent (duplicate-hold context)
   userId:        { type: String, default: "default" },
 }, { timestamps: true });
 
@@ -510,13 +511,13 @@ async function addScheduledJob(job) {
   }
 }
 
-async function updateJobStatus(jobId, status, error, holdReason) {
+async function updateJobStatus(jobId, status, error, holdReason, extra = {}) {
   if (mongoose.connection.readyState === 1) {
-    await ScheduledEmail.updateOne({ jobId }, { status, ...(error !== undefined && { error }), ...(holdReason !== undefined && { holdReason }) });
+    await ScheduledEmail.updateOne({ jobId }, { status, ...(error !== undefined && { error }), ...(holdReason !== undefined && { holdReason }), ...extra });
   } else {
     const jobs = await loadScheduled();
     const j = jobs.find(x => x.jobId === jobId);
-    if (j) { j.status = status; if (error !== undefined) j.error = error; if (holdReason !== undefined) j.holdReason = holdReason; }
+    if (j) { j.status = status; if (error !== undefined) j.error = error; if (holdReason !== undefined) j.holdReason = holdReason; Object.assign(j, extra); }
     fs.writeFileSync(SCHEDULED_FILE, JSON.stringify(jobs, null, 2), "utf8");
   }
 }
@@ -783,7 +784,7 @@ cron.schedule("* * * * *", async () => {
           }).sort({ sentAt: -1 }).lean();
 
           if (existing) {
-            await updateJobStatus(job.jobId, "held", null, "duplicate");
+            await updateJobStatus(job.jobId, "held", null, "duplicate", { duplicateOriginalSentAt: existing.sentAt || null });
             await markJobReminderSent(job.jobId, true); // already notified via notifyDuplicateHold below — don't double-notify
             await notifyDuplicateHold(jobUser, jobUserCfg, job, existing);
             continue;
@@ -2667,6 +2668,24 @@ app.get("/api/scheduled-emails", requireAuth, async (req, res) => {
         : (j.userId === req.userId)
     );
   }
+  // Backfill duplicateOriginalSentAt for held/duplicate jobs created before this
+  // field existed — looks it up live instead of showing "date unknown" forever.
+  if (mongoose.connection.readyState === 1) {
+    const needsBackfill = jobs.filter(j => j.status === "held" && j.holdReason === "duplicate" && !j.duplicateOriginalSentAt && j.emailData?.hrEmail);
+    for (const j of needsBackfill) {
+      try {
+        const escaped = j.emailData.hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const original = await SentEmailLog.findOne({
+          hrEmail: new RegExp("^" + escaped + "$", "i"), type: "application",
+        }).sort({ sentAt: -1 }).lean();
+        if (original?.sentAt) {
+          j.duplicateOriginalSentAt = original.sentAt;
+          ScheduledEmail.updateOne({ jobId: j.jobId }, { duplicateOriginalSentAt: original.sentAt }).catch(() => {});
+        }
+      } catch {}
+    }
+  }
+
   res.json({ success: true, jobs });
 });
 
