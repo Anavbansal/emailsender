@@ -8033,7 +8033,7 @@ function InterviewsPage({ addToast }) {
                     <div className="form-group" style={{ marginBottom:0 }}>
                       <label className="form-label" style={{ fontSize:11 }}>Interview Date & Time</label>
                       <input type="datetime-local" className="form-input" style={{ fontSize:13 }}
-                        value={form.interviewDate ? new Date(form.interviewDate).toISOString().slice(0,16) : iv.interviewDate ? new Date(iv.interviewDate).toISOString().slice(0,16) : ""}
+                        value={form.interviewDate ? toLocalDT(form.interviewDate) : iv.interviewDate ? toLocalDT(iv.interviewDate) : ""}
                         onChange={e=>setForm(p=>({...p,interviewDate:e.target.value}))} />
                     </div>
                     <div className="form-group" style={{ marginBottom:0 }}>
