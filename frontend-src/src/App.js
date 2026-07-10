@@ -2116,6 +2116,55 @@ function ThreadModal({ messageId, contact, onClose }) {
   );
 }
 
+function CapturedCallRow({ call, addToast, onDone }) {
+  const [expanded, setExpanded] = useState(false);
+  const [form, setForm] = useState({ hrEmail:"", hrName:"", company:"", role:"" });
+  const [saving, setSaving] = useState(false);
+
+  const promote = async () => {
+    if (!form.hrEmail) { addToast && addToast("❌ HR email required to save as a contact", "error"); return; }
+    setSaving(true);
+    try {
+      await axios.post(`${API}/api/captured-calls/${call._id}/promote`, form);
+      addToast && addToast("✅ Added to Contacts!");
+      onDone();
+    } catch(e) { addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error"); }
+    finally { setSaving(false); }
+  };
+  const dismiss = async () => {
+    try { await axios.delete(`${API}/api/captured-calls/${call._id}`); onDone(); }
+    catch(e) { addToast && addToast("❌ Failed to dismiss", "error"); }
+  };
+
+  return (
+    <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:8, padding:"8px 12px" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8 }}>
+        <div>
+          <span style={{ fontWeight:700, fontSize:13 }}>📱 {call.phone}</span>
+          <span style={{ fontSize:11, color:"var(--text-muted)", marginLeft:8 }}>{relativeTime(new Date(call.capturedAt).getTime())}</span>
+        </div>
+        <div style={{ display:"flex", gap:6 }}>
+          <button className="btn-ghost btn-sm" style={{ fontSize:11 }} onClick={() => setExpanded(e => !e)}>
+            {expanded ? "▲ Close" : "＋ Add as Contact"}
+          </button>
+          <button className="btn-ghost btn-sm" style={{ fontSize:11, color:"var(--red)" }} onClick={dismiss}>✕</button>
+        </div>
+      </div>
+      {expanded && (
+        <div style={{ marginTop:8, display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+          <input className="form-input" style={{ fontSize:12 }} placeholder="HR Email (required)" value={form.hrEmail} onChange={e=>setForm(p=>({...p,hrEmail:e.target.value}))} />
+          <input className="form-input" style={{ fontSize:12 }} placeholder="HR Name" value={form.hrName} onChange={e=>setForm(p=>({...p,hrName:e.target.value}))} />
+          <input className="form-input" style={{ fontSize:12 }} placeholder="Company" value={form.company} onChange={e=>setForm(p=>({...p,company:e.target.value}))} />
+          <input className="form-input" style={{ fontSize:12 }} placeholder="Role" value={form.role} onChange={e=>setForm(p=>({...p,role:e.target.value}))} />
+          <button className="btn-primary btn-sm" style={{ gridColumn:"span 2" }} onClick={promote} disabled={saving}>
+            {saving ? "Saving..." : "💾 Save as Contact"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail, onFollowUp, onMessage, onRefresh, addToast, onViewThread, onManualUpdate }) {
   const [search,     setSearch]    = useState("");
   const [view,       setView]      = useState("list"); // "list" | "kanban"
@@ -2133,6 +2182,10 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
 
   const [syncModal,  setSyncModal]  = useState(false);
   const [recovering, setRecovering] = useState(false);
+  const [capturedCalls, setCapturedCalls] = useState([]);
+  const [capturedOpen,  setCapturedOpen]  = useState(false);
+  const fetchCapturedCalls = () => axios.get(`${API}/api/captured-calls`).then(r => setCapturedCalls(r.data.calls || [])).catch(() => {});
+  useEffect(() => { fetchCapturedCalls(); }, []);
   const recoverFromGmail = async () => {
     setRecovering(true);
     let pageToken = null, totalScanned = 0, totalRecovered = 0, totalTracked = 0, totalSkipped = 0, round = 0;
@@ -2420,6 +2473,24 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
           )}
         </div>
       </div>
+
+      {capturedCalls.length > 0 && (
+        <div style={{ background:"var(--amber-light)", border:"1px solid var(--amber-border)", borderRadius:10, padding:"10px 14px", marginBottom:12 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer" }}
+            onClick={() => setCapturedOpen(o => !o)}>
+            <span style={{ fontSize:13, fontWeight:700, color:"var(--amber)" }}>
+              📞 {capturedCalls.length} Captured Call{capturedCalls.length===1?"":"s"} — review & add
+            </span>
+            <span style={{ fontSize:12, color:"var(--text-muted)" }}>{capturedOpen ? "▲ Hide" : "▼ Show"}</span>
+          </div>
+          {capturedOpen && (
+            <div style={{ marginTop:10, display:"flex", flexDirection:"column", gap:8 }}>
+              {capturedCalls.map(cc => <CapturedCallRow key={cc._id} call={cc} addToast={addToast}
+                onDone={() => setCapturedCalls(prev => prev.filter(x => x._id !== cc._id))} />)}
+            </div>
+          )}
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         <div className="empty-state">
@@ -6530,6 +6601,47 @@ function AdminPage({ addToast }) {
 }
 
 // --- Settings Page ---
+function CaptureWebhookBox({ addToast }) {
+  const [url, setUrl] = useState("");
+  const [loading, setLoading] = useState(true);
+  const load = () => {
+    setLoading(true);
+    axios.get(`${API}/api/capture-token`)
+      .then(r => setUrl(r.data.webhookUrl))
+      .catch(() => addToast && addToast("❌ Failed to load webhook URL", "error"))
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => { load(); }, []);
+
+  const copy = () => {
+    navigator.clipboard.writeText(url);
+    addToast && addToast("✅ Copied!");
+  };
+  const regenerate = async () => {
+    if (!window.confirm("This invalidates the old URL — you'll need to update it in MacroDroid/Tasker too. Continue?")) return;
+    try {
+      const r = await axios.post(`${API}/api/capture-token/regenerate`);
+      setUrl(r.data.webhookUrl);
+      addToast && addToast("✅ New webhook URL generated");
+    } catch(e) { addToast && addToast("❌ Failed", "error"); }
+  };
+
+  if (loading) return <div style={{ fontSize:13, color:"var(--text-muted)" }}>Loading…</div>;
+  return (
+    <div>
+      <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+        <input readOnly value={url} className="form-input" style={{ fontSize:12, flex:1, minWidth:220 }} onClick={e => e.target.select()} />
+        <button className="btn-ghost btn-sm" onClick={copy}>📋 Copy</button>
+        <button className="btn-ghost btn-sm" style={{ color:"var(--red)", borderColor:"var(--red)" }} onClick={regenerate}>🔄 Regenerate</button>
+      </div>
+      <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:8 }}>
+        Content Body (JSON) in MacroDroid: <code>{`{"phone": "[cr_phone_number]"}`}</code> — replace with MacroDroid's actual call-number magic-text variable.
+        Set Header Params → <code>Content-Type: application/json</code>.
+      </p>
+    </div>
+  );
+}
+
 function SettingsPage({ addToast }) {
   const currentUser = getUser();
   const [saving,    setSaving]    = useState(false);
@@ -7217,6 +7329,16 @@ ${profile.displayName || currentUser?.displayName || "Your Name"}`}
                 📤 Send Test Digest Now
               </button>
             </div>
+          </Section>
+
+          <Section title="📞 Call Capture Webhook">
+            <div style={{ fontSize:12, color:"var(--text-muted)", marginBottom:12 }}>
+              Use with MacroDroid/Tasker to auto-capture HR phone numbers on incoming calls.
+              Set up a macro: <strong>Trigger</strong> = Phone Ring/Call Received, <strong>Action</strong> = HTTP Request (POST)
+              to the URL below, with the caller's number sent as <code>phone</code> in the Content Body (JSON).
+              Captured numbers show up under HR Contacts → Captured Calls for you to review and add.
+            </div>
+            <CaptureWebhookBox addToast={addToast} />
           </Section>
         </div>
       )}

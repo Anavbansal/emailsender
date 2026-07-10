@@ -144,6 +144,7 @@ const UserSchema = new mongoose.Schema({
   // Daily Digest preferences
   digestEnabled:      { type: Boolean, default: false },
   digestLastSentDate: { type: String, default: "" }, // "YYYY-MM-DD" (IST) — prevents duplicate sends
+  captureToken:       { type: String, default: "" }, // secret token for the call-capture webhook (MacroDroid etc.)
 }, { timestamps: true });
 
 const User = mongoose.models.User || mongoose.model("User", UserSchema);
@@ -164,6 +165,17 @@ const InterviewSchema = new mongoose.Schema({
 }, { timestamps: true });
 InterviewSchema.index({ userId: 1, hrEmail: 1 }, { unique: true });
 const Interview = mongoose.model("Interview", InterviewSchema);
+
+// ─── CapturedCall Model — numbers captured via MacroDroid/Tasker webhook ──────
+// (pending manual review: add company/role, then it becomes a real contact)
+const CapturedCallSchema = new mongoose.Schema({
+  userId:      { type: String, required: true },
+  phone:       { type: String, required: true },
+  capturedAt:  { type: Date, default: Date.now },
+  reviewed:    { type: Boolean, default: false },
+  dismissed:   { type: Boolean, default: false },
+}, { timestamps: true });
+const CapturedCall = mongoose.models.CapturedCall || mongoose.model("CapturedCall", CapturedCallSchema);
 
 // ─── EmailTemplate Model ─────────────────────────────────────────────────────
 const emailTemplateSchema = new mongoose.Schema({
@@ -2081,6 +2093,92 @@ app.post("/api/contacts/recover-from-gmail", requireAuth, async (req, res) => {
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }
+});
+
+// ─── Call Capture (MacroDroid/Tasker webhook) ─────────────────────────────────
+const crypto = require("crypto");
+
+// GET/create the current user's capture token (shown in Settings)
+app.get("/api/capture-token", requireAuth, async (req, res) => {
+  try {
+    let token = req.user.captureToken;
+    if (!token) {
+      token = crypto.randomBytes(16).toString("hex");
+      await User.updateOne({ _id: req.userId }, { $set: { captureToken: token } });
+    }
+    res.json({ success: true, token, webhookUrl: `${BASE_URL}/api/capture-call?token=${token}` });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// Regenerate (invalidate old, e.g. if it leaked)
+app.post("/api/capture-token/regenerate", requireAuth, async (req, res) => {
+  try {
+    const token = crypto.randomBytes(16).toString("hex");
+    await User.updateOne({ _id: req.userId }, { $set: { captureToken: token } });
+    res.json({ success: true, token, webhookUrl: `${BASE_URL}/api/capture-call?token=${token}` });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// The actual webhook — NO session auth (MacroDroid can't log in), authenticated
+// by the secret token instead. Accepts phone from query string OR JSON body
+// (MacroDroid's HTTP Request action can send either).
+app.post("/api/capture-call", async (req, res) => {
+  try {
+    const token = req.query.token || req.body?.token;
+    if (!token) return res.status(401).json({ success: false, message: "token required" });
+    const user = await User.findOne({ captureToken: token }).lean();
+    if (!user) return res.status(401).json({ success: false, message: "invalid token" });
+
+    const rawPhone = req.query.phone || req.body?.phone || req.body?.number || "";
+    const phone = String(rawPhone).replace(/[^\d+]/g, "");
+    if (!phone || phone.length < 6) return res.status(400).json({ success: false, message: "valid phone required" });
+
+    // Avoid spamming duplicates if the same number calls multiple times in a row
+    const recent = await CapturedCall.findOne({
+      userId: String(user._id), phone, capturedAt: { $gte: new Date(Date.now() - 6*60*60*1000) },
+    }).lean();
+    if (recent) return res.json({ success: true, message: "Already captured recently", duplicate: true });
+
+    await CapturedCall.create({ userId: String(user._id), phone });
+    res.json({ success: true, message: "Captured!" });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// List pending (unreviewed, not dismissed) captured calls for the logged-in user
+app.get("/api/captured-calls", requireAuth, async (req, res) => {
+  try {
+    const calls = await CapturedCall.find({ userId: req.userId, reviewed: false, dismissed: false })
+      .sort({ capturedAt: -1 }).lean();
+    res.json({ success: true, calls });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// Dismiss (not relevant / wrong number / spam)
+app.delete("/api/captured-calls/:id", requireAuth, async (req, res) => {
+  try {
+    await CapturedCall.updateOne({ _id: req.params.id, userId: req.userId }, { $set: { dismissed: true } });
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// Promote a captured number into a real HR Contact (creates a lightweight
+// SentEmailLog-style entry so it shows up on the Contacts page — type "manual"
+// so it's never confused with an actual sent application in stats)
+app.post("/api/captured-calls/:id/promote", requireAuth, async (req, res) => {
+  try {
+    const { hrEmail, hrName, company, role, notes } = req.body;
+    if (!hrEmail) return res.status(400).json({ success: false, message: "hrEmail required to create a contact" });
+    const call = await CapturedCall.findOne({ _id: req.params.id, userId: req.userId }).lean();
+    if (!call) return res.status(404).json({ success: false, message: "Not found" });
+
+    await SentEmailLog.create({
+      userId: req.userId, hrEmail: hrEmail.toLowerCase(), hrName: hrName || "", company: company || "", role: role || "",
+      type: "application", subject: `[Captured from phone call — ${call.phone}]`,
+      sentAt: call.capturedAt, notes: notes || `Phone: ${call.phone}`, source: "call-capture",
+    });
+    await CapturedCall.updateOne({ _id: call._id }, { $set: { reviewed: true } });
+    res.json({ success: true, message: "Added to Contacts!" });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
 app.get("/api/contacts", requireAuth, async (req, res) => {
