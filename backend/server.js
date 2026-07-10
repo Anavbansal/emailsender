@@ -549,6 +549,19 @@ function parseScheduledTime(scheduledTime) {
   return new Date(scheduledTime).getTime();
 }
 
+// Same fix as parseScheduledTime, but returns a Date object (not a timestamp) —
+// used for interviewDate, which browsers send as a naive "YYYY-MM-DDTHH:mm"
+// string with no timezone. Without this, the server (running in UTC on Render)
+// would interpret e.g. "14:00" as 14:00 UTC instead of 14:00 IST — a ~5.5 hour
+// shift (2:00 PM IST becoming 7:30 PM when read back).
+function parseISTDate(dateStr) {
+  if (!dateStr) return null;
+  if (typeof dateStr !== "string") return new Date(dateStr);
+  if (!dateStr.includes("Z") && !dateStr.includes("+"))
+    return new Date(dateStr + "+05:30");
+  return new Date(dateStr);
+}
+
 
 // ─── LinkedInStatus Model (stores sent/replied without needing Sheets) ───────
 const linkedInStatusSchema = new mongoose.Schema({
@@ -3706,7 +3719,7 @@ app.patch("/api/contact/update", requireAuth, async (req, res) => {
     if (stage          !== undefined) updates.stage          = stage;
     if (priority       !== undefined) updates.priority       = priority;
     if (interviewRound !== undefined) updates.interviewRound = interviewRound;
-    if (interviewDate  !== undefined) updates.interviewDate  = interviewDate ? new Date(interviewDate) : null;
+    if (interviewDate  !== undefined) updates.interviewDate  = interviewDate ? parseISTDate(interviewDate) : null;
     if (callLog        !== undefined) updates.callLog        = callLog;
 
     // Update ALL records for this email (multiple sends)
@@ -5327,7 +5340,7 @@ app.post("/api/interviews", requireAuth, async (req, res) => {
       { $set: {
         hrEmail: hrEmail.toLowerCase(), hrName: hrName || "", company: company || "", role: role || "",
         stage: stage || "Interview", interviewRound: interviewRound || "",
-        interviewDate: interviewDate ? new Date(interviewDate) : null,
+        interviewDate: interviewDate ? parseISTDate(interviewDate) : null,
         priority: priority || "Normal", callLog: callLog || "",
       }},
       { upsert: true, new: true }
@@ -5359,7 +5372,7 @@ app.patch("/api/interviews/:id", requireAuth, async (req, res) => {
     const updates = {};
     if (stage          !== undefined) updates.stage          = stage;
     if (interviewRound !== undefined) updates.interviewRound = interviewRound;
-    if (interviewDate  !== undefined) updates.interviewDate  = interviewDate ? new Date(interviewDate) : null;
+    if (interviewDate  !== undefined) updates.interviewDate  = interviewDate ? parseISTDate(interviewDate) : null;
     if (callLog        !== undefined) updates.callLog        = callLog;
     if (priority       !== undefined) updates.priority       = priority;
 
