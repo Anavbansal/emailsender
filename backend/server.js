@@ -2051,9 +2051,10 @@ app.post("/api/contacts/recover-from-gmail", requireAuth, async (req, res) => {
       scanned++;
       const existing = await SentEmailLog.findOne({ messageId: m.id, userId: req.userId }).lean();
       if (existing) {
-        // Already tracked — but if it came from a previous recovery run before
-        // template-detection existed, backfill just the templateType (no duplicate).
-        if (!existing.templateType && existing.source === "gmail-recovery") {
+        // Already tracked — but if templateType is missing (older sends from
+        // before template tracking existed, or a previous recovery run before
+        // detection existed), backfill it now — no duplicate created either way.
+        if (!existing.templateType) {
           try {
             const full = await gmail.users.messages.get({ userId: "me", id: m.id, format: "full" });
             const detected = detectTemplateType(existing.subject || "", extractGmailBodyText(full.data.payload));
