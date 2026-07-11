@@ -3805,11 +3805,15 @@ app.patch("/api/contact/update", requireAuth, async (req, res) => {
     if (mongoose.connection.readyState !== 1)
       return res.status(503).json({ success: false, message: "MongoDB not connected" });
 
-    const { hrEmail, replied, repliedAt, notes, followupSent, followupScheduled, status,
+    const { hrEmail, newHrEmail, hrName, company, role, replied, repliedAt, notes, followupSent, followupScheduled, status,
             phone, stage, priority, interviewRound, interviewDate, callLog } = req.body;
     if (!hrEmail) return res.status(400).json({ success: false, message: "hrEmail required" });
 
     const updates = {};
+    if (newHrEmail     !== undefined && newHrEmail.trim()) updates.hrEmail = newHrEmail.trim().toLowerCase();
+    if (hrName         !== undefined) updates.hrName         = hrName;
+    if (company        !== undefined) updates.company        = company;
+    if (role           !== undefined) updates.role           = role;
     if (replied        !== undefined) updates.replied        = replied;
     if (repliedAt      !== undefined) updates.repliedAt      = repliedAt ? new Date(repliedAt) : new Date();
     if (notes          !== undefined) updates.notes          = notes;

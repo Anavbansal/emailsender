@@ -1818,16 +1818,24 @@ function InterviewScheduleModal({ contact, onClose, onSaved, addToast }) {
 // ─── Manual Update Modal ──────────────────────────────────────────────────────
 function ManualUpdateModal({ contact, onClose, onSaved, addToast }) {
   const STAGES = ["Applied","Opened","Replied","Interview","Offer","Rejected","On Hold"];
+  const [hrEmail,  setHrEmail]  = useState(contact?.hrEmail || "");
+  const [hrName,   setHrName]   = useState(contact?.hrName || "");
+  const [company,  setCompany]  = useState(contact?.company || "");
+  const [role,     setRole]     = useState(contact?.role || "");
+  const [phone,    setPhone]    = useState(contact?.phone || "");
   const [stage,    setStage]    = useState(contact?.stage || "Applied");
   const [notes,    setNotes]    = useState(contact?.notes || "");
   const [saving,   setSaving]   = useState(false);
   useLockBodyScroll();
 
   const save = async () => {
+    if (!hrEmail.trim()) { addToast && addToast("❌ HR Email can't be empty", "error"); return; }
     setSaving(true);
     try {
       await axios.patch(`${API}/api/contact/update`, {
-        hrEmail: contact.hrEmail, stage, notes,
+        hrEmail: contact.hrEmail, // original — used to find the record(s)
+        newHrEmail: hrEmail.trim() !== contact.hrEmail ? hrEmail.trim() : undefined,
+        hrName, company, role, phone, stage, notes,
         ...(stage === "Replied" ? { replied: true } : {}),
       });
       addToast && addToast("✅ Contact updated!");
@@ -1838,15 +1846,33 @@ function ManualUpdateModal({ contact, onClose, onSaved, addToast }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box-form" onClick={e=>e.stopPropagation()} style={{maxWidth:400}}>
+      <div className="modal-box modal-box-form" onClick={e=>e.stopPropagation()} style={{maxWidth:440}}>
         <div className="modal-header">
           <div className="modal-title-row"><span>✏️</span><h3 className="modal-title">Update Contact</h3></div>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="modal-scroll">
-          <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13}}>
-            <strong>{contact?.company||"—"}</strong>
-            <span style={{color:"var(--text-muted)",marginLeft:8,fontSize:12}}>{contact?.hrEmail}</span>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+            <div className="form-group" style={{ gridColumn:"span 2", marginBottom:0 }}>
+              <label className="form-label" style={{fontSize:11}}>HR Email</label>
+              <input className="form-input" style={{fontSize:13}} value={hrEmail} onChange={e=>setHrEmail(e.target.value)} placeholder="hr@company.com" />
+            </div>
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <label className="form-label" style={{fontSize:11}}>HR Name</label>
+              <input className="form-input" style={{fontSize:13}} value={hrName} onChange={e=>setHrName(e.target.value)} placeholder="Optional" />
+            </div>
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <label className="form-label" style={{fontSize:11}}>Phone</label>
+              <input className="form-input" style={{fontSize:13}} value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Optional" />
+            </div>
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <label className="form-label" style={{fontSize:11}}>Company</label>
+              <input className="form-input" style={{fontSize:13}} value={company} onChange={e=>setCompany(e.target.value)} placeholder="Company name" />
+            </div>
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <label className="form-label" style={{fontSize:11}}>Role</label>
+              <input className="form-input" style={{fontSize:13}} value={role} onChange={e=>setRole(e.target.value)} placeholder="Role applied for" />
+            </div>
           </div>
           <div className="form-group">
             <label className="form-label" style={{fontSize:11}}>Stage</label>
