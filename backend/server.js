@@ -2122,7 +2122,7 @@ app.post("/api/capture-token/regenerate", requireAuth, async (req, res) => {
 // The actual webhook — NO session auth (MacroDroid can't log in), authenticated
 // by the secret token instead. Accepts phone from query string OR JSON body
 // (MacroDroid's HTTP Request action can send either).
-app.post("/api/capture-call", async (req, res) => {
+app.all("/api/capture-call", async (req, res) => {
   try {
     const token = req.query.token || req.body?.token;
     if (!token) return res.status(401).json({ success: false, message: "token required" });
