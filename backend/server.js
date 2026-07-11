@@ -2131,7 +2131,10 @@ app.all("/api/capture-call", async (req, res) => {
 
     const rawPhone = req.query.phone || req.body?.phone || req.body?.number || "";
     const phone = String(rawPhone).replace(/[^\d+]/g, "");
-    if (!phone || phone.length < 6) return res.status(400).json({ success: false, message: "valid phone required" });
+    if (!phone || phone.length < 6) return res.status(400).json({
+      success: false, message: "valid phone required",
+      debug: { receivedQuery: req.query, receivedBody: req.body, contentType: req.headers["content-type"] || null },
+    });
 
     // Avoid spamming duplicates if the same number calls multiple times in a row
     const recent = await CapturedCall.findOne({
