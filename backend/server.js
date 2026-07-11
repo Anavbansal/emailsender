@@ -171,6 +171,7 @@ const Interview = mongoose.model("Interview", InterviewSchema);
 const CapturedCallSchema = new mongoose.Schema({
   userId:      { type: String, required: true },
   phone:       { type: String, required: true },
+  name:        { type: String, default: "" }, // from phone's own Contacts app, if this number is already saved there
   capturedAt:  { type: Date, default: Date.now },
   reviewed:    { type: Boolean, default: false },
   dismissed:   { type: Boolean, default: false },
@@ -2135,6 +2136,8 @@ app.all("/api/capture-call", async (req, res) => {
       success: false, message: "valid phone required",
       debug: { receivedQuery: req.query, receivedBody: req.body, contentType: req.headers["content-type"] || null },
     });
+    const rawName = req.query.name || req.body?.name || req.body?.contactName || "";
+    const name = String(rawName).trim().slice(0, 100);
 
     // Avoid spamming duplicates if the same number calls multiple times in a row
     const recent = await CapturedCall.findOne({
@@ -2142,7 +2145,7 @@ app.all("/api/capture-call", async (req, res) => {
     }).lean();
     if (recent) return res.json({ success: true, message: "Already captured recently", duplicate: true });
 
-    await CapturedCall.create({ userId: String(user._id), phone });
+    await CapturedCall.create({ userId: String(user._id), phone, name });
     res.json({ success: true, message: "Captured!" });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });

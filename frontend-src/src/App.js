@@ -2144,7 +2144,7 @@ function ThreadModal({ messageId, contact, onClose }) {
 
 function CapturedCallRow({ call, addToast, onDone }) {
   const [expanded, setExpanded] = useState(false);
-  const [form, setForm] = useState({ hrEmail:"", hrName:"", company:"", role:"" });
+  const [form, setForm] = useState({ hrEmail:"", hrName: call.name || "", company:"", role:"" });
   const [saving, setSaving] = useState(false);
 
   const promote = async () => {
@@ -2167,6 +2167,7 @@ function CapturedCallRow({ call, addToast, onDone }) {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8 }}>
         <div>
           <span style={{ fontWeight:700, fontSize:13 }}>📱 {call.phone}</span>
+          {call.name && <span style={{ fontSize:12, color:"var(--text-700)", marginLeft:8 }}>— {call.name}</span>}
           <span style={{ fontSize:11, color:"var(--text-muted)", marginLeft:8 }}>{relativeTime(new Date(call.capturedAt).getTime())}</span>
         </div>
         <div style={{ display:"flex", gap:6 }}>
@@ -6661,7 +6662,8 @@ function CaptureWebhookBox({ addToast }) {
         <button className="btn-ghost btn-sm" style={{ color:"var(--red)", borderColor:"var(--red)" }} onClick={regenerate}>🔄 Regenerate</button>
       </div>
       <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:8 }}>
-        Content Body (JSON) in MacroDroid: <code>{`{"phone": "[cr_phone_number]"}`}</code> — replace with MacroDroid's actual call-number magic-text variable.
+        Content Body (JSON) in MacroDroid: <code>{`{"phone": "[cr_phone_number]", "name": "[cr_contact_name]"}`}</code> — replace with MacroDroid's actual call-number/contact-name magic-text variables.
+        <strong> Name is optional</strong> — it only fills in if the number is already saved in your phone's Contacts app; leave it out if you don't have that variable, phone alone still works.
         Set Header Params → <code>Content-Type: application/json</code>.
       </p>
     </div>
