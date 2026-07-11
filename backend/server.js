@@ -83,6 +83,7 @@ const SentEmailLogSchema = new mongoose.Schema({
   source:       { type: String,  default: "app" },
   gmailMsgId:   { type: String,  default: null },
   replySnippet: { type: String,  default: "" },
+  replyCategory:{ type: String,  default: "" }, // AI-classified: interested | interview | assessment | rejected | info_request | other
   conversation: { type: Array,   default: [] },
   userId:       { type: String,  default: "default" }, // multi-user support
   // Contact tracker fields
@@ -2209,6 +2210,7 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
           repliedAt: { $first: "$repliedAt" }, followupSent: { $max: "$followupSent" },
           notes: { $first: "$notes" }, totalSent: { $sum: 1 },
           templateType: { $first: "$templateType" },
+          replyCategory: { $first: "$replyCategory" },
         }}
       ]);
       const contacts = rows.map(r => {
@@ -2220,7 +2222,7 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
           replied: r.replied||false, repliedAt: toMs(r.repliedAt)||null,
           followupSent: r.followupSent||false, notes: typeof r.notes==="string"?r.notes:"",
           needsFollowUp: ls>0 && (Date.now()-ls)>THREE_DAYS_MS && !r.replied,
-          lastTrackingId: null, templateType: r.templateType || "",
+          lastTrackingId: null, templateType: r.templateType || "", replyCategory: r.replyCategory || "",
         };
       }).sort((a,b) => b.lastSentAt - a.lastSentAt);
       return res.json({ success: true, contacts, fetchedAt: Date.now(), sheetError: null, sheetTab: "" });
@@ -2344,6 +2346,7 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
         notes:        { $first: "$notes" },
         totalSent:    { $sum: 1 },
         templateType: { $first: "$templateType" },
+        replyCategory: { $first: "$replyCategory" },
       }}
     ]);
 
@@ -2425,6 +2428,7 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
       interviewDate: c.interviewDate  ? new Date(c.interviewDate).getTime() : null,
       callLog:       c.callLog        || "",
       templateType:  c.templateType   || "",
+      replyCategory: c.replyCategory  || "",
       needsFollowUp,
     });
   }
@@ -2571,6 +2575,15 @@ app.get("/api/gmail/replies", requireAuth, async (req, res) => {
                   { hrEmail: new RegExp("^" + escapedFE + "$", "i"), ...emailFilter2 },
                   { $set: { replied: true, repliedAt: dateH ? new Date(dateH) : new Date(), replySnippet: d.data.snippet || "" } }
                 );
+                // Auto-classify the new reply in the background (non-blocking)
+                if (process.env.GROQ_API_KEY && d.data.snippet) {
+                  classifyReply(d.data.snippet, existing.subject || "").then(cat =>
+                    SentEmailLog.updateMany(
+                      { hrEmail: new RegExp("^" + escapedFE + "$", "i"), ...emailFilter2 },
+                      { $set: { replyCategory: cat } }
+                    )
+                  ).catch(() => {});
+                }
               }
             }
           } catch { /* skip chunk */ }
@@ -5000,6 +5013,63 @@ async function groqChat(messages, maxTokens = 800, temperature = 0.8, model = "o
   const data = await res.json();
   return data.choices?.[0]?.message?.content?.trim() || "";
 }
+
+// ─── AI Reply Classifier — categorize HR replies into actionable buckets ─────
+const REPLY_CATEGORIES = ["interested", "interview", "assessment", "rejected", "info_request", "other"];
+async function classifyReply(snippet, subject = "") {
+  const out = await groqChat([{
+    role: "user", content:
+`Classify this HR/recruiter reply to a job application into EXACTLY ONE category:
+- interested: positive interest, wants to proceed, asks for a call/resume/discussion
+- interview: an interview is being scheduled or proposed (date/time/round mentioned)
+- assessment: a test, assignment, or coding challenge is being sent
+- rejected: position closed / not shortlisted / rejection
+- info_request: asks for details (CTC, notice period, experience, documents) without clear next step
+- other: auto-reply, out-of-office, unrelated, or unclear
+
+Subject: ${subject.slice(0, 150)}
+Reply:
+"""
+${String(snippet).slice(0, 800)}
+"""
+
+Answer with ONLY the category word, nothing else.`
+  }], 10, 0);
+  const cat = out.toLowerCase().replace(/[^a-z_]/g, "");
+  return REPLY_CATEGORIES.includes(cat) ? cat : "other";
+}
+
+// Batch: classify up to 15 unclassified replies per call (frontend can chain)
+app.post("/api/ai/classify-replies", requireAuth, async (req, res) => {
+  try {
+    if (!process.env.GROQ_API_KEY) return res.status(400).json({ success: false, message: "GROQ_API_KEY not configured" });
+    if (mongoose.connection.readyState !== 1) return res.status(503).json({ success: false, message: "MongoDB not connected" });
+
+    const userFilter = req.user.username === (process.env.OWNER_USERNAME || "anav")
+      ? { $or: [{ userId: req.userId }, { userId: "default" }, { userId: { $exists: false } }] }
+      : { userId: req.userId };
+
+    const pending = await SentEmailLog.find({
+      ...userFilter, replied: true, replySnippet: { $ne: "" }, replyCategory: "",
+    }).sort({ repliedAt: -1 }).limit(15).lean();
+
+    let classified = 0;
+    for (const r of pending) {
+      try {
+        const cat = await classifyReply(r.replySnippet, r.subject);
+        // Tag every record for this hrEmail so the grouped contact view sees it
+        const escaped = r.hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        await SentEmailLog.updateMany(
+          { hrEmail: new RegExp("^" + escaped + "$", "i"), ...userFilter },
+          { $set: { replyCategory: cat } }
+        );
+        classified++;
+      } catch (e) { console.error("classify failed:", e.message); }
+    }
+    const remaining = await SentEmailLog.countDocuments({ ...userFilter, replied: true, replySnippet: { $ne: "" }, replyCategory: "" });
+    res.json({ success: true, classified, remaining });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
 
 // ─── 1. AI Email Writer ───────────────────────────────────────────────────────
 

@@ -2211,6 +2211,24 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
   const [recovering, setRecovering] = useState(false);
   const [capturedCalls, setCapturedCalls] = useState([]);
   const [capturedOpen,  setCapturedOpen]  = useState(false);
+  const [classifying, setClassifying] = useState(false);
+  const classifyReplies = async () => {
+    setClassifying(true);
+    let total = 0, rounds = 0;
+    try {
+      while (rounds < 30) { // ~450 replies max per click
+        rounds++;
+        const r = await axios.post(`${API}/api/ai/classify-replies`);
+        if (!r.data.success) { addToast && addToast("❌ " + (r.data.message || "Failed"), "error"); break; }
+        total += r.data.classified;
+        if (r.data.classified > 0) addToast && addToast(`✨ Classified ${total} so far… (${r.data.remaining} left)`);
+        if (!r.data.remaining || r.data.classified === 0) break;
+      }
+      addToast && addToast(`✅ Done — ${total} replies categorized!`);
+      onRefresh && onRefresh();
+    } catch(e) { addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error"); }
+    finally { setClassifying(false); }
+  };
   const fetchCapturedCalls = () => axios.get(`${API}/api/captured-calls`).then(r => setCapturedCalls(r.data.calls || [])).catch(() => {});
   useEffect(() => { fetchCapturedCalls(); }, []);
   const recoverFromGmail = async () => {
@@ -2282,6 +2300,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
   // ── Filter tabs definition ─────────────────────────────────────────────────
   const FILTER_TABS = [
     { key: "all",           icon: "👥", label: "All",           color: "#2563eb" },
+    { key: "needs_action",  icon: "⚡", label: "Needs Action",  color: "#dc2626" },
     { key: "replied",       icon: "↩",  label: "Replied",       color: "#059669" },
     { key: "followup",           icon: "⏰", label: "Follow-up Due",       color: "#d97706" },
     { key: "followup_sent",      icon: "🔁", label: "Follow-up Sent",      color: "#7c3aed" },
@@ -2319,6 +2338,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
       const matchTab = (() => {
         if (activeTab === "all")                return true;
         if (activeTab === "replied")            return c.replied || replyEmails.has(c.hrEmail.toLowerCase());
+        if (activeTab === "needs_action")       return c.replied && ["interested","interview","assessment","info_request"].includes(c.replyCategory);
         if (activeTab === "followup")           return c.needsFollowUp && !c.followupScheduled;
         if (activeTab === "followup_sent")      return c.followupSent;
         if (activeTab === "followup_scheduled") return c.followupScheduled && !c.followupSent;
@@ -2463,6 +2483,15 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
             style={{ fontSize: 12, color: "#0d9488", borderColor: "#0d9488" }}
           >
             {recovering ? <><span className="spinner" /> Scanning Sent folder…</> : "🔄 Recover Missing"}
+          </button>
+          <button
+            className={`btn-ghost btn-sm ${classifying ? "loading" : ""}`}
+            onClick={classifyReplies}
+            disabled={classifying}
+            title="AI reads every reply you've received and tags it: Interested / Interview / Assessment / Rejected / Info Asked — powering the ⚡ Needs Action tab"
+            style={{ fontSize: 12, color: "#7c3aed", borderColor: "#7c3aed" }}
+          >
+            {classifying ? <><span className="spinner" /> Classifying…</> : "✨ Classify Replies"}
           </button>
           <button className="btn-ghost btn-sm" style={{ fontSize:12 }}
             title="Export contacts as CSV"
@@ -2623,6 +2652,21 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
 
                 {/* Row 3: Meta info chips */}
                 <div className="contact-meta" style={{ flexWrap:"wrap", gap:4 }}>
+                  {c.replyCategory && c.replied && (() => {
+                    const CAT = {
+                      interested:  { label:"🌟 Interested",  bg:"#d1fae5", fg:"#065f46" },
+                      interview:   { label:"🎤 Interview",   bg:"#ede9fe", fg:"#5b21b6" },
+                      assessment:  { label:"📝 Assessment",  bg:"#dbeafe", fg:"#1e40af" },
+                      rejected:    { label:"❌ Rejected",    bg:"#fee2e2", fg:"#991b1b" },
+                      info_request:{ label:"❓ Info Asked",  bg:"#fef3c7", fg:"#92400e" },
+                      other:       { label:"💬 Reply",       bg:"var(--surface-2)", fg:"var(--text-muted)" },
+                    }[c.replyCategory];
+                    return CAT ? (
+                      <span style={{ fontSize:10, padding:"1px 7px", borderRadius:99, fontWeight:700, background:CAT.bg, color:CAT.fg }}>
+                        {CAT.label}
+                      </span>
+                    ) : null;
+                  })()}
                   {c.templateType && (
                     <span style={{ fontSize:10, padding:"1px 6px", borderRadius:99, border:"1px solid var(--border)", color:"var(--text-muted)", background:"var(--surface)" }}>
                       {c.templateType==="crm" ? "🔗 CRM"
