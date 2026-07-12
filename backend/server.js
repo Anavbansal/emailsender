@@ -2373,6 +2373,7 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
           totalSent:        row.totalSent    || 1,
           followupCount:    row.followupSent ? 1 : 0,
           templateType:     row.templateType || "",
+          replyCategory:    row.replyCategory || "",
         });
       } else {
         // Enrich existing sheet/tracking contact with DB data
@@ -2383,6 +2384,7 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
         existing.followupSent    = row.followupSent|| existing.followupSent || false;
         existing.notes           = row.notes       || existing.notes       || "";
         existing.templateType    = row.templateType|| existing.templateType|| "";
+        existing.replyCategory   = row.replyCategory|| existing.replyCategory|| "";
         if (!existing.latestSentAt && row.latestSentAt)
           existing.latestSentAt = new Date(row.latestSentAt).getTime();
       }
