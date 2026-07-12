@@ -5050,7 +5050,9 @@ app.post("/api/ai/classify-replies", requireAuth, async (req, res) => {
       : { userId: req.userId };
 
     const pending = await SentEmailLog.find({
-      ...userFilter, replied: true, replySnippet: { $ne: "" }, replyCategory: "",
+      ...userFilter, replied: true,
+      replySnippet: { $nin: ["", null] },
+      replyCategory: { $in: ["", null] }, // null also matches docs where the field doesn't exist yet
     }).sort({ repliedAt: -1 }).limit(15).lean();
 
     let classified = 0;
@@ -5066,7 +5068,7 @@ app.post("/api/ai/classify-replies", requireAuth, async (req, res) => {
         classified++;
       } catch (e) { console.error("classify failed:", e.message); }
     }
-    const remaining = await SentEmailLog.countDocuments({ ...userFilter, replied: true, replySnippet: { $ne: "" }, replyCategory: "" });
+    const remaining = await SentEmailLog.countDocuments({ ...userFilter, replied: true, replySnippet: { $nin: ["", null] }, replyCategory: { $in: ["", null] } });
     res.json({ success: true, classified, remaining });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
