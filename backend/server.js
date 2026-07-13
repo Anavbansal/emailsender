@@ -1729,7 +1729,13 @@ function buildFollowUpHTML({ hrName, company, role, originalDate, customNote, tr
 
   let theme = THEMES[templateType] || THEMES.fullstack;
   let senderTitle = theme.title;
-  let bodyText = `I remain very enthusiastic and confident that my <strong>4.8+ years of experience</strong> in full-stack development, Node.js, AWS serverless architectures, and enterprise CTI/Telephony integrations would be a strong fit for your team. I am currently in my notice period and available to join by late August 2026.`;
+  const BODY_TEXT = {
+    crm:       `I remain very enthusiastic and confident that my <strong>4.7+ years of experience</strong> architecting CRM integrations across ServiceNow, Salesforce, Freshdesk, and Zendesk — with deep ServiceNow platform development (Flow Designer, Scripted REST APIs, IntegrationHub) — would be a strong fit for your team.`,
+    cti:       `I remain very enthusiastic and confident that my <strong>4.7+ years of experience</strong> architecting CTI/Telephony integrations across Avaya, Genesys Cloud, Webex Contact Center, and Amazon Connect — real-time screen-pop and CRM sync for enterprise contact centers — would be a strong fit for your team.`,
+    formal:    `I remain very enthusiastic and confident that my <strong>4.7+ years of experience</strong> across full-stack development, CRM integrations, and CTI/Telephony systems would be a strong fit for your team.`,
+    fullstack: `I remain very enthusiastic and confident that my <strong>4.7+ years of experience</strong> in full-stack development, Node.js, AngularJS, and AWS Lambda serverless architectures would be a strong fit for your team.`,
+  };
+  let bodyText = BODY_TEXT[templateType] || BODY_TEXT.fullstack;
   let resumeNote = theme.resumeName;
   const isCustomTemplate = !THEMES[templateType];
 
@@ -2654,31 +2660,40 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
 
   // If originalThreadId not supplied, look it up from DB so old entries also work
   let resolvedThreadId = originalThreadId || null;
+  let resolvedMessageId = originalMessageId || null;
+  let resolvedSubject = originalSubject || null;
   let resolvedTemplateType = req.body.templateType || null;
   if (mongoose.connection.readyState === 1) {
-    if (!resolvedThreadId && originalMessageId) {
-      const prev = await SentEmailLog.findOne({ messageId: originalMessageId }).lean();
+    if (!resolvedThreadId && resolvedMessageId) {
+      const prev = await SentEmailLog.findOne({ messageId: resolvedMessageId }).lean();
       if (prev && prev.threadId) resolvedThreadId = prev.threadId;
       if (!resolvedTemplateType && prev?.templateType) resolvedTemplateType = prev.templateType;
     }
-    // If still no templateType, look up the original APPLICATION email sent to this hrEmail
-    if (!resolvedTemplateType) {
+    // No message/thread info given at all (e.g. "Follow-up Instead" from the
+    // Reminders queue) — look up the original APPLICATION email to this hrEmail
+    // for thread info, subject, AND template, so this genuinely replies into
+    // the existing conversation instead of starting a new one.
+    if (!resolvedThreadId || !resolvedTemplateType) {
       const escaped = hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const originalApp = await SentEmailLog.findOne({
         hrEmail: { $regex: new RegExp("^" + escaped + "$", "i") },
         userId: String(req.user._id),
         type: "application",
-        templateType: { $exists: true, $ne: "" },
       }).sort({ sentAt: -1 }).lean();
-      if (originalApp?.templateType) resolvedTemplateType = originalApp.templateType;
+      if (originalApp) {
+        if (!resolvedThreadId  && originalApp.threadId)  resolvedThreadId  = originalApp.threadId;
+        if (!resolvedMessageId && originalApp.messageId) resolvedMessageId = originalApp.messageId;
+        if (!resolvedSubject   && originalApp.subject)   resolvedSubject   = originalApp.subject;
+        if (!resolvedTemplateType && originalApp.templateType) resolvedTemplateType = originalApp.templateType;
+      }
     }
   }
   const fuTplType = resolvedTemplateType || "fullstack";
 
   const fuUserName  = getUserConfig(req.user).profileName || "Anav Bansal";
-  const baseSubject = originalSubject ||
+  const baseSubject = resolvedSubject ||
     (role ? `Application for ${role} Position — ${fuUserName}` : `Job Application — ${fuUserName}`);
-  const subject     = `Re: ${baseSubject}`;
+  const subject     = baseSubject.toLowerCase().startsWith("re:") ? baseSubject : `Re: ${baseSubject}`;
   const trackRecord = createTrackingRecord({ hrEmail, hrName, company, role, subject, type: "followup", username: req.user?.username });
   const trackUrl    = `${BASE_URL}/api/track/${trackRecord.trackingId}`;
   const fuDbTemplate = (mongoose.connection.readyState === 1)
@@ -2694,8 +2709,8 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
     const resolvedResume = await resolveResumeForTemplate(fuTplType, req.user, fuCfg);
     const info = await sendViaGmailAPI({
       to: hrEmail, subject, html,
-      inReplyTo:    originalMessageId || null,
-      references:   originalMessageId || null,
+      inReplyTo:    resolvedMessageId || null,
+      references:   resolvedMessageId || null,
       threadId:     resolvedThreadId,
       userConfig:   fuCfg,
       user:         req.user,
@@ -2706,7 +2721,7 @@ app.post("/api/send-followup", requireAuth, async (req, res) => {
     await saveSentEmail({
       messageId: info.id, threadId: info.threadId || null, trackingId: trackRecord.trackingId,
       type: "followup", hrEmail, hrName: hrName||"", company: company||"", role: role||"",
-      subject, sentAt: new Date(), inReplyTo: originalMessageId || null, templateType: fuTplType,
+      subject, sentAt: new Date(), inReplyTo: resolvedMessageId || null, templateType: fuTplType,
     }, req.userId);
     // Mark followupSent, clear needsFollowUp and followupScheduled
     if (mongoose.connection.readyState === 1) {
