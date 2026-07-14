@@ -363,7 +363,7 @@ function getUserConfig(user) {
     yearOfPassing:    user.yearOfPassing    || (isOwner ? "2021" : ""),
     university:       user.university       || (isOwner ? "Rajasthan Technical University, Kota" : ""),
     resumeHighlights: user.resumeHighlights || (isOwner
-      ? "6+ enterprise CRM integrations across ServiceNow, Salesforce, Freshdesk, Zendesk, CDK Global, COX Automotive — each cutting manual agent effort 30-40%. Published & own 3 marketplace apps (ServiceNow Store, Freshdesk Marketplace, Webex App Hub). ServiceNow: Flow Designer, Scripted REST APIs, IntegrationHub, Virtual Agent, Business Rules, ACLs. CTI/Telephony: Avaya (AACC/AES/IPO), Genesys Cloud, Webex Contact Center, Amazon Connect, Zoom — real-time screen-pop and CTI-to-CRM sync for Fortune 500 contact centers. Backend: Node.js, Express.js, AWS Lambda, DynamoDB, MySQL, WebSockets. Frontend: AngularJS, ReactJS. Salesforce Open CTI adapter with Lightning; Zendesk Talk Integration; MS Dynamics 365 telephony middleware. 3x 'Pat on the Back' awards; nominated for Performance of the Year at NovelVox."
+      ? "6+ enterprise CRM integrations across ServiceNow, Salesforce, Freshdesk, Zendesk, CDK Global, COX Automotive — each cutting manual agent effort 30-40%. Published & own 3 marketplace apps (ServiceNow Store, Freshdesk Marketplace, Webex App Hub). ServiceNow: Flow Designer, Scripted REST APIs, IntegrationHub, Virtual Agent, Business Rules, ACLs. CTI/Telephony: Avaya (AACC/AES/IPO), Genesys Cloud, Webex Contact Center, Amazon Connect, Zoom — real-time screen-pop and CTI-to-CRM sync for Fortune 500 contact centers. Backend: Node.js, Express.js, AWS Lambda, DynamoDB, MySQL, WebSockets. Frontend: AngularJS. Salesforce Open CTI adapter with Lightning; Zendesk Talk Integration; MS Dynamics 365 telephony middleware. 3x 'Pat on the Back' awards; nominated for Performance of the Year at NovelVox."
       : ""),
     // Gmail credentials — critical for sending emails
     gmailRefreshToken:   user.gmailRefreshToken   || (isOwner ? process.env.GMAIL_REFRESH_TOKEN : ""),
@@ -2933,9 +2933,11 @@ app.get("/api/scheduled-emails", requireAuth, async (req, res) => {
 // ─── PATCH /api/scheduled-emails/:jobId — reschedule or update a job ────────
 app.patch("/api/scheduled-emails/:jobId", requireAuth, async (req, res) => {
   try {
-    const { scheduledTime, autoSend } = req.body;
-    if (!scheduledTime) return res.status(400).json({ success: false, message: "scheduledTime required" });
-    const updates = { scheduledTime, status: autoSend === false ? "held" : "pending" };
+    const { scheduledTime, autoSend, templateType } = req.body;
+    if (!scheduledTime && !templateType) return res.status(400).json({ success: false, message: "scheduledTime or templateType required" });
+    const updates = {};
+    if (scheduledTime) { updates.scheduledTime = scheduledTime; updates.status = autoSend === false ? "held" : "pending"; }
+    if (templateType)  { updates["emailData.templateType"] = templateType; }
     if (mongoose.connection.readyState === 1) {
       const job = await ScheduledEmail.findOne({ jobId: req.params.jobId });
       if (!job) return res.status(404).json({ success: false, message: "Job not found" });
@@ -2945,11 +2947,14 @@ app.patch("/api/scheduled-emails/:jobId", requireAuth, async (req, res) => {
     } else {
       const jobs = await loadScheduled();
       const j = jobs.find(x => x.jobId === req.params.jobId);
-      if (j) { j.scheduledTime = scheduledTime; j.status = updates.status; }
+      if (j) {
+        if (scheduledTime) { j.scheduledTime = scheduledTime; j.status = updates.status; }
+        if (templateType)  { j.emailData = { ...(j.emailData || {}), templateType }; }
+      }
       const fs = require("fs");
       fs.writeFileSync(SCHEDULED_FILE, JSON.stringify(jobs, null, 2), "utf8");
     }
-    res.json({ success: true, message: "Job rescheduled" });
+    res.json({ success: true, message: "Job updated" });
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 

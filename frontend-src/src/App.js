@@ -185,7 +185,7 @@ function isScreeningEmail(subject = "", snippet = "", fromEmail = "", trackedEma
 
 const EMAIL_TEMPLATES_ANAV = [
   { id: "fullstack", name: "Full Stack", icon: "⚡", accent: "#2563eb",
-    customNote: "I am excited to apply for this opportunity. My full-stack expertise in Node.js, ReactJS, and AWS Lambda makes me an ideal candidate for building scalable, production-ready applications." },
+    customNote: "I am excited to apply for this opportunity. My full-stack expertise in Node.js and AWS Lambda makes me an ideal candidate for building scalable, production-ready applications." },
   { id: "cti",      name: "CTI Expert", icon: "📞", accent: "#7c3aed",
     customNote: "With 4.7+ years specializing in CTI/telephony integrations, I have architected enterprise-grade solutions across Avaya AACC, Genesys, Webex, and Amazon Connect." },
   { id: "formal",   name: "Formal",     icon: "🎯", accent: "#1d4ed8",
@@ -254,7 +254,7 @@ const DEFAULT_TEMPLATE_ANAV = {
   headerTheme: "blue",
   customIntro: "",
   highlights: [
-    "4.7+ years · Node.js, AngularJS, ReactJS, Express.js",
+    "4.7+ years · Node.js, AngularJS, Express.js",
     "AWS Lambda · DynamoDB · S3 · Amazon Connect",
     "10+ enterprise CTI integrations (Avaya, Genesys, Webex, Zoom)",
     "CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics, CDK Global",
@@ -368,7 +368,7 @@ const MSG_TEMPLATES_ANAV = [
 
 Hope you're doing well! I came across your profile and wanted to reach out.
 
-I'm Anav Bansal — a Senior Full Stack Developer with 4.7+ years of experience building production-grade applications using Node.js, Angular, React, AWS Lambda, and DynamoDB. I've worked extensively on enterprise CTI integrations and serverless architectures.
+I'm Anav Bansal — a Senior Full Stack Developer with 4.7+ years of experience building production-grade applications using Node.js, Angular, AWS Lambda, and DynamoDB. I've worked extensively on enterprise CTI integrations and serverless architectures.
 
 I'm currently exploring a job switch and would love to connect with someone at ${c}. If there are any openings that might be a good fit, or if you'd be open to a referral, I'd really appreciate it!
 
@@ -394,7 +394,7 @@ Anav Bansal
 
 I hope this message finds you well!
 
-I'm Anav Bansal, a Senior Full Stack Developer with 4.7+ years of experience delivering scalable, end-to-end applications — Node.js, Angular, React, AWS, and enterprise CRM/CTI integrations across platforms like ServiceNow, Salesforce, and Freshdesk.
+I'm Anav Bansal, a Senior Full Stack Developer with 4.7+ years of experience delivering scalable, end-to-end applications — Node.js, Angular, AWS, and enterprise CRM/CTI integrations across platforms like ServiceNow, Salesforce, and Freshdesk.
 
 I'm at a stage in my career where I'm actively evaluating exciting new opportunities, and ${c} has caught my attention. I'd be grateful if you'd consider referring me, or simply connecting me with the right person on your team.
 
@@ -4669,7 +4669,7 @@ function ReferralPage({ addToast }) {
 Hope you're doing well! I saw that ${company || "your company"} has an opening for ${role || "a relevant position"} and I'm really excited about it.
 
 I have 4.7+ years of experience as a Senior Full Stack Developer with expertise in:
-• Node.js, ReactJS, AngularJS, AWS Lambda
+• Node.js, AngularJS, AWS Lambda
 • CTI Integrations: Avaya, Genesys, Webex, Amazon Connect
 • CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics
 
@@ -4692,7 +4692,7 @@ Maine dekha ki *${company || "tumhari company"}* mein *${role || "ek role"}* ka 
 Kya tum mujhe refer kar sakte ho? Tumhare jaise *${relation.toLowerCase()}* ka referral bahut valuable hoga! 🙏
 
 *Meri profile:*
-• 4.7+ years — Node.js, ReactJS, AWS Lambda
+• 4.7+ years — Node.js, AWS Lambda
 • CTI Expert: Avaya, Genesys, Webex, Amazon Connect
 • CRM: ServiceNow, Salesforce, Freshdesk
 
@@ -5362,6 +5362,17 @@ function ScheduledPage({ addToast }) {
   const [retryingId,  setRetryingId]  = useState(null);
   const [sendingId,   setSendingId]   = useState(null);
   const [rescheduleJob, setRescheduleJob] = useState(null); // job being rescheduled
+  const [newTemplate, setNewTemplate] = useState("");
+  const [editTemplates, setEditTemplates] = useState(getEmailTemplates());
+  useEffect(() => {
+    const base = getEmailTemplates();
+    const baseIds = new Set(base.map(t => t.id));
+    axios.get(`${API}/api/templates`)
+      .then(r => setEditTemplates([...base, ...(r.data.templates || [])
+        .filter(t => !baseIds.has(t.templateId))
+        .map(t => ({ id: t.templateId, name: t.name || t.templateId, icon: t.icon || "⚡" }))]))
+      .catch(() => {});
+  }, []);
   const [newDateTime,   setNewDateTime]   = useState("");
   const [sequenceModal, setSequenceModal] = useState(false);
   const [seqForm,       setSeqForm]       = useState({ hrEmail:"", company:"", role:"", hrName:"", templateType:"fullstack",
@@ -5416,8 +5427,11 @@ function ScheduledPage({ addToast }) {
   const reschedule = async () => {
     if (!rescheduleJob || !newDateTime) return;
     try {
-      await axios.patch(`${API}/api/scheduled-emails/${rescheduleJob.jobId}`, { scheduledTime: new Date(newDateTime).toISOString() });
-      addToast && addToast("✅ Rescheduled!");
+      await axios.patch(`${API}/api/scheduled-emails/${rescheduleJob.jobId}`, {
+        scheduledTime: new Date(newDateTime).toISOString(),
+        templateType: newTemplate || undefined,
+      });
+      addToast && addToast("✅ Updated!");
       setRescheduleJob(null);
       fetchJobs();
     } catch(e) { addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error"); }
@@ -5648,8 +5662,8 @@ function ScheduledPage({ addToast }) {
                   )}
                   <ActionMenu items={[
                     tab==="pending" && {
-                      icon: "📅", label: "Reschedule",
-                      onClick: () => { setRescheduleJob(job); setNewDateTime(toLocalDT(parseSchedTime(job.scheduledTime))); },
+                      icon: "📅", label: "Reschedule / Change Template",
+                      onClick: () => { setRescheduleJob(job); setNewDateTime(toLocalDT(parseSchedTime(job.scheduledTime))); setNewTemplate(job.emailData?.templateType || "fullstack"); },
                     },
                     { icon: tab==="failed" ? "🗑" : "🚫", label: tab==="failed" ? "Delete" : "Cancel",
                       danger: true, onClick: () => remove(job.jobId) },
@@ -5665,7 +5679,7 @@ function ScheduledPage({ addToast }) {
       <div className="modal-overlay" onClick={() => setRescheduleJob(null)}>
         <div className="modal-box modal-box-sm" onClick={e => e.stopPropagation()}>
           <div className="modal-header">
-            <div className="modal-title-row"><span>📅</span><h3 className="modal-title">Reschedule Email</h3></div>
+            <div className="modal-title-row"><span>📅</span><h3 className="modal-title">Edit Scheduled Email</h3></div>
             <button className="modal-close" onClick={() => setRescheduleJob(null)}>✕</button>
           </div>
           <div style={{ padding:"16px 20px" }}>
@@ -5681,11 +5695,23 @@ function ScheduledPage({ addToast }) {
                 if (d.getDay()===0) d.setDate(d.getDate()+1);
                 setNewDateTime(toLocalDT(d));
               }} />
-            <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:4 }}>📅 Weekends auto-skip to Monday</p>
+            <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:4, marginBottom:16 }}>📅 Weekends auto-skip to Monday</p>
+
+            <label className="form-label" style={{ fontSize:11 }}>Template</label>
+            <div className="template-grid">
+              {editTemplates.map(t => (
+                <button key={t.id} type="button"
+                  className={`template-card ${newTemplate === t.id ? "template-card-active" : ""}`}
+                  onClick={() => setNewTemplate(t.id)}>
+                  <span className="tcard-icon">{t.icon}</span>
+                  <span className="tcard-name">{t.name}</span>
+                </button>
+              ))}
+            </div>
           </div>
           <div className="modal-footer">
             <button className="btn-ghost" onClick={() => setRescheduleJob(null)}>Cancel</button>
-            <button className="btn-primary" onClick={reschedule}>📅 Reschedule</button>
+            <button className="btn-primary" onClick={reschedule}>💾 Save</button>
           </div>
         </div>
       </div>
@@ -6647,7 +6673,7 @@ function AdminPage({ addToast }) {
             <div className="form-group" style={{ marginBottom:0 }}>
               <label className="form-label" style={{ fontSize:11 }}>Key Skills</label>
               <input className="form-input" style={{ fontSize:13 }}
-                placeholder="Node.js, React, AWS..."
+                placeholder="Node.js, AWS, ServiceNow..."
                 value={newUser.keySkills||""}
                 onChange={e => setNewUser(p=>({...p,keySkills:e.target.value}))} />
             </div>
@@ -6790,8 +6816,13 @@ function SettingsPage({ addToast }) {
   const DEFAULT_TEMPLATES_ANAV = [
     { id:"fullstack", name:"Full Stack",  icon:"⚡", accent:"#2563eb",
       subject:"Job Application — Anav Bansal",
-      customNote:"I am excited to apply for this opportunity. My full-stack expertise in Node.js, ReactJS, and AWS Lambda makes me an ideal candidate for building scalable, production-ready applications.",
-      highlights:["4.7+ years · Node.js, AngularJS, ReactJS, Express.js","AWS Lambda · DynamoDB · S3 · Amazon Connect","10+ enterprise CTI integrations (Avaya, Genesys, Webex, Zoom)","CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics"],
+      customNote:"I am excited to apply for this opportunity. My full-stack expertise in Node.js and AWS Lambda makes me an ideal candidate for building scalable, production-ready applications.",
+      highlights:["4.7+ years · Node.js, AngularJS, Express.js","AWS Lambda · DynamoDB · S3 · Amazon Connect","10+ enterprise CTI integrations (Avaya, Genesys, Webex, Zoom)","CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics"],
+      resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
+    { id:"servicenow", name:"ServiceNow Expert", icon:"🟢", accent:"#16a34a",
+      subject:"Job Application — Anav Bansal (Senior ServiceNow Developer)",
+      customNote:"With 4.7+ years as a Senior ServiceNow Developer, I specialize in ITSM, CSM, Flow Designer, IntegrationHub, CMDB/Asset data, and Vulnerability Response concepts.",
+      highlights:["4.7+ years · Senior ServiceNow Developer","ServiceNow: ITSM, CSM, Flow Designer, IntegrationHub, Scripted REST APIs","SecOps: CMDB/Asset matching, Vulnerability Response lifecycle","IntegrationHub spoke dev cut ITSM ticket time by 60%"],
       resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
     { id:"cti", name:"CTI Expert", icon:"📞", accent:"#7c3aed",
       subject:"Job Application — Anav Bansal (CTI/Telephony Specialist)",
