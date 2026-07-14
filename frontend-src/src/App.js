@@ -5620,6 +5620,14 @@ function ScheduledPage({ addToast }) {
                         : tab==="held" ? {background:"#fef3c7",color:"#92400e"} : {}}>
                       {tab==="failed" ? "Failed" : tab==="held" ? (job.holdReason==="duplicate"?"Auto-paused":"Manual") : "Auto-send"}
                     </span>
+                    {job.emailData?.templateType && (() => {
+                      const t = editTemplates.find(x => x.id === job.emailData.templateType);
+                      return (
+                        <span style={{ fontSize:10, padding:"1px 7px", borderRadius:99, border:"1px solid var(--border)", color:"var(--text-muted)", background:"var(--surface)" }}>
+                          {t ? `${t.icon} ${t.name}` : `🏷️ ${job.emailData.templateType}`}
+                        </span>
+                      );
+                    })()}
                   </div>
                   <p className="contact-email">{job.emailData.hrEmail}</p>
                   {tab==="held" && job.holdReason==="duplicate" && (
