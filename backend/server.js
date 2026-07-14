@@ -674,22 +674,33 @@ async function clearGmailAlert(username) {
 // ── Notify user by email when a scheduled job fires (success or failure) ──────
 // ── Notify user that a HELD job's time has arrived — they need to send manually ──
 // ── Notify user that a scheduled job was auto-held due to a detected duplicate ─
-async function notifyDuplicateHold(jobUser, jobUserCfg, job, existing) {
+async function notifyDuplicateHoldBatch(jobUser, jobUserCfg, items) {
   try {
-    if (!jobUser) return;
+    if (!jobUser || !items.length) return;
     const auth = getUserGmailAuth(jobUser);
     const gmail = google.gmail({ version: "v1", auth });
     const senderEmail = jobUserCfg?.gmailUser || jobUser.gmailUser || "";
-    const subject = `⏸ Scheduled email paused — already applied to ${job.emailData.company || job.emailData.hrEmail}`;
+    const n = items.length;
+    const subject = n === 1
+      ? `⏸ Scheduled email paused — already applied to ${items[0].job.emailData.company || items[0].job.emailData.hrEmail}`
+      : `⏸ ${n} scheduled emails paused — duplicates detected`;
     const encodedSubject = `=?UTF-8?B?${Buffer.from(subject).toString("base64")}?=`;
-    const html = `<div style="font-family:Segoe UI,sans-serif;max-width:480px;margin:20px auto;border:1px solid #fde047;border-radius:12px;overflow:hidden;">
-      <div style="background:#d97706;color:#fff;padding:16px 24px;font-weight:700;font-size:15px;">⏸ Scheduled email paused — duplicate detected</div>
+    const rows = items.map(({ job, existing }) => `
+      <tr>
+        <td style="padding:10px 12px;border-bottom:1px solid #fde68a;">
+          <strong>${job.emailData.company || "—"}</strong><br/>
+          <span style="color:#6b7280;font-size:12px;">${job.emailData.hrEmail}${job.emailData.role ? " · " + job.emailData.role : ""}</span>
+        </td>
+        <td style="padding:10px 12px;border-bottom:1px solid #fde68a;color:#6b7280;font-size:12px;white-space:nowrap;">
+          Applied ${new Date(existing.sentAt).toLocaleDateString("en-IN")}
+        </td>
+      </tr>`).join("");
+    const html = `<div style="font-family:Segoe UI,sans-serif;max-width:560px;margin:20px auto;border:1px solid #fde047;border-radius:12px;overflow:hidden;">
+      <div style="background:#d97706;color:#fff;padding:16px 24px;font-weight:700;font-size:15px;">⏸ ${n} scheduled email${n===1?"":"s"} paused — duplicate${n===1?"":"s"} detected</div>
       <div style="padding:20px 24px;color:#374151;font-size:14px;line-height:1.7;">
-        <p>This email was about to be auto-sent, but you already applied to this contact on <strong>${new Date(existing.sentAt).toLocaleString("en-IN")}</strong>, so it was <strong>not sent automatically</strong>.</p>
-        <p><strong>Company:</strong> ${job.emailData.company || "—"}</p>
-        <p><strong>To:</strong> ${job.emailData.hrEmail}</p>
-        <p><strong>Role:</strong> ${job.emailData.role || "—"}</p>
-        <p style="margin-top:16px;">If you still want to send it (e.g. different role, follow-up reason), open the app's <strong>Scheduled → Reminders</strong> tab and tap <strong>Send Now</strong>. Otherwise you can safely delete it.</p>
+        <p>These were about to be auto-sent, but you'd already applied to these contacts, so they were <strong>not sent automatically</strong>:</p>
+        <table style="width:100%;border-collapse:collapse;margin:12px 0;">${rows}</table>
+        <p style="margin-top:16px;">Open the app's <strong>Scheduled → Reminders</strong> tab to review — tap <strong>Send Now</strong> to send anyway, <strong>Follow-up Instead</strong> to reply on the original thread, or delete if not needed.</p>
       </div>
     </div>`;
     const raw = [
@@ -699,7 +710,7 @@ async function notifyDuplicateHold(jobUser, jobUserCfg, job, existing) {
     ].join("\r\n");
     await gmail.users.messages.send({ userId: "me", requestBody: { raw: Buffer.from(raw).toString("base64url") } });
   } catch (e) {
-    console.warn("⚠️ Duplicate-hold notification failed (non-critical):", e.message);
+    console.warn("⚠️ Duplicate-hold batch notification failed (non-critical):", e.message);
   }
 }
 
@@ -770,6 +781,9 @@ async function notifyScheduledResult(jobUser, jobUserCfg, job, status, detail) {
 cron.schedule("* * * * *", async () => {
   const jobs = await loadScheduled();
   const now  = Date.now();
+  // Collect all duplicate-holds found in THIS run, grouped by user, and send
+  // ONE summary email per user at the end instead of one email per job.
+  const duplicateBatch = new Map(); // userKey -> { jobUser, jobUserCfg, items: [{job, existing}] }
   for (const job of jobs) {
     if (job.status === "held" && parseScheduledTime(job.scheduledTime) <= now && !job.reminderSent) {
       // Held jobs: just send a reminder email — don't auto-send
@@ -812,8 +826,10 @@ cron.schedule("* * * * *", async () => {
 
           if (existing) {
             await updateJobStatus(job.jobId, "held", null, "duplicate", { duplicateOriginalSentAt: existing.sentAt || null });
-            await markJobReminderSent(job.jobId, true); // already notified via notifyDuplicateHold below — don't double-notify
-            await notifyDuplicateHold(jobUser, jobUserCfg, job, existing);
+            await markJobReminderSent(job.jobId, true); // batched summary email sent after the loop — don't double-notify
+            const userKey = job.userId && job.userId !== "default" ? job.userId : "owner";
+            if (!duplicateBatch.has(userKey)) duplicateBatch.set(userKey, { jobUser, jobUserCfg, items: [] });
+            duplicateBatch.get(userKey).items.push({ job, existing });
             continue;
           }
         }
@@ -886,6 +902,12 @@ cron.schedule("* * * * *", async () => {
         notifyScheduledResult(jobUser, jobUserCfg, job, "failed", e.message).catch(() => {});
       }
     }
+  }
+
+  // Send ONE batched duplicate-hold summary email per user (instead of one
+  // email per duplicate) for everything caught in this run.
+  for (const { jobUser, jobUserCfg, items } of duplicateBatch.values()) {
+    notifyDuplicateHoldBatch(jobUser, jobUserCfg, items).catch(() => {});
   }
 });
 
