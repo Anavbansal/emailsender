@@ -194,6 +194,8 @@ const EMAIL_TEMPLATES_ANAV = [
     customNote: "I build fast, ship quality, and love environments where impact matters. My Node.js + AWS stack has powered real-time enterprise solutions." },
   { id: "crm",      name: "CRM Expert", icon: "🏆", accent: "#0d9488",
     customNote: "With 4.7+ years as a CRM Integration Expert, I specialize in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent) and Freshdesk CTI." },
+  { id: "servicenow", name: "ServiceNow Expert", icon: "🟢", accent: "#16a34a",
+    customNote: "With 4.7+ years as a Senior ServiceNow Developer, I specialize in ITSM, CSM, Flow Designer, IntegrationHub, CMDB/Asset data, and Vulnerability Response concepts." },
 ];
 
 const EMAIL_TEMPLATES_PRIYAL = [
@@ -235,7 +237,7 @@ const getEmailTemplates = () => {
 // getEmailTemplates() is computed dynamically via getEmailTemplates()
 const BACKEND_TEMPLATE_MAP = {
   fullstack:"fullstack", cti:"cti", formal:"formal", startup:"fullstack",
-  crm:"crm", finance:"finance", credit:"credit", genai:"genai",
+  crm:"crm", servicenow:"servicenow", finance:"finance", credit:"credit", genai:"genai",
   backend:"backend", java:"java",
 };
 
@@ -2673,6 +2675,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
                         : c.templateType==="cti" ? "📡 CTI"
                         : c.templateType==="formal" ? "🎯 Formal"
                         : c.templateType==="fullstack" ? "⚡ FS"
+                        : c.templateType==="servicenow" ? "🟢 ServiceNow"
                         : `${allTemplatesForLabel.get(c.templateType)?.icon || "🏷️"} ${allTemplatesForLabel.get(c.templateType)?.name || c.templateType}`}
                     </span>
                   )}

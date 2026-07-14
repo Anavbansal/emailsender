@@ -26,6 +26,7 @@ app.use(gmailAuthRoutes);
 const RESUME_PATH      = path.join(__dirname, "ANAV_BANSAL_FullStackDeveloper.pdf");
 const CRM_RESUME_PATH  = path.join(__dirname, "ANAV_BANSAL_CRMExpert.pdf");
 const CTI_RESUME_PATH  = path.join(__dirname, "Anav_Bansal_TelephonyExpert.pdf");
+const SERVICENOW_RESUME_PATH = path.join(__dirname, "Anav_Bansal_ServiceNowExpert.pdf");
 const MOHIT_RESUME_PATH = path.join(__dirname, "Mohit_Singh_CRMExpert_v3.pdf");
 const RESUME_DRIVE_LINK = "https://drive.google.com/file/d/1LKc-w9Ggd5I1eZ3t7Wvm9psU-4ITxHxr/view?usp=sharing";
 const THREE_DAYS_MS    = 3 * 24 * 60 * 60 * 1000;
@@ -436,6 +437,9 @@ async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references
   } else if (!isPriyalGmail && !isMohitGmail && templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)) {
     resumeFile = CRM_RESUME_PATH;
     resumeName = "Anav_Bansal_CRMExpert.pdf";
+  } else if (!isPriyalGmail && !isMohitGmail && templateType === "servicenow" && fs.existsSync(SERVICENOW_RESUME_PATH)) {
+    resumeFile = SERVICENOW_RESUME_PATH;
+    resumeName = "Anav_Bansal_ServiceNowExpert.pdf";
   } else if (!isPriyalGmail && !isMohitGmail && templateType === "cti" && fs.existsSync(CTI_RESUME_PATH)) {
     resumeFile = CTI_RESUME_PATH;
     resumeName = "Anav_Bansal_TelephonyExpert.pdf";
@@ -1143,6 +1147,7 @@ const HEADER_THEMES = {
   dark:   "linear-gradient(135deg,#111827 0%,#374151 100%)",
   teal:   "linear-gradient(135deg,#134e4a 0%,#0d9488 100%)",
   orange: "linear-gradient(135deg,#92400e 0%,#d97706 100%)",
+  emerald:"linear-gradient(135deg,#052e16 0%,#16a34a 100%)",
 };
 const DEFAULT_HIGHLIGHTS = [
   "4.8+ years · Node.js, AngularJS, Express.js, REST APIs, AWS Lambda, DynamoDB/MySQL",
@@ -1164,6 +1169,13 @@ const CRM_HIGHLIGHTS = [
   "Freshdesk (FDK, Marketplace Apps, CTI API) · Salesforce Open CTI · Zendesk Apps Framework · MS Dynamics 365",
   "3 published enterprise marketplace apps: ServiceNow Store · Freshdesk · Webex App Hub",
   "CTI Screen Pop · Click-to-Dial · Real-Time Ticket Automation · CRM-Telephony Sync",
+];
+const SERVICENOW_HIGHLIGHTS = [
+  "4.7+ years · Senior ServiceNow Developer & CRM Integration Expert",
+  "ServiceNow Platform: ITSM · CSM · CMDB/Asset · Flow Designer · IntegrationHub · Scripted REST APIs · Business Rules · ACLs · Virtual Agent",
+  "SecOps exposure: CMDB/Asset matching & dedup, Vulnerability Response lifecycle (scan → triage → prioritize → remediate → verify), scanner ingestion (Qualys, Tenable, Rapid7)",
+  "IntegrationHub spoke development cut ITSM ticket-creation time by 60%",
+  "3 published marketplace apps: ServiceNow Store · Freshdesk Marketplace · Webex App Hub",
 ];
 
 // ─── Core send helper ─────────────────────────────────────────────────────────
@@ -1188,6 +1200,9 @@ async function resolveResumeForTemplate(templateType, user, userCfg) {
   }
   if (isPriyalUser && user?.resumePath && fs.existsSync(user.resumePath)) {
     return { filename: user.resumeFileName || "Priyal_Goyal_Resume.pdf", path: user.resumePath, contentType: "application/pdf" };
+  }
+  if (!isPriyalUser && !isMohitUser && templateType === "servicenow" && fs.existsSync(SERVICENOW_RESUME_PATH)) {
+    return { filename: "Anav_Bansal_ServiceNowExpert.pdf", path: SERVICENOW_RESUME_PATH, contentType: "application/pdf" };
   }
   if (!isPriyalUser && !isMohitUser && templateType === "cti" && fs.existsSync(CTI_RESUME_PATH)) {
     return { filename: "Anav_Bansal_TelephonyExpert.pdf", path: CTI_RESUME_PATH, contentType: "application/pdf" };
@@ -1254,7 +1269,9 @@ async function sendApplicationEmail({
     ? `Application for ${role} Position${companyStr} — ${userName}`
     : templateType === "crm"
       ? `Job Application — ${userName} (Senior CRM & ServiceNow Expert)${companyStr}`
-      : `Job Application — ${userName}${companyStr}`;
+      : templateType === "servicenow"
+        ? `Job Application — ${userName} (Senior ServiceNow Developer)${companyStr}`
+        : `Job Application — ${userName}${companyStr}`;
 
   const trackRecord = createTrackingRecord({ hrEmail, hrName, company, role, subject, type: "application", username: user?.username });
   const trackUrl    = `${BASE_URL}/api/track/${trackRecord.trackingId}`;
@@ -1311,10 +1328,12 @@ async function sendApplicationEmail({
     if (templateType === "cti")         html = buildCTIHTML(tplOpts);
     else if (templateType === "formal") html = buildFormalHTML(tplOpts);
     else if (templateType === "crm")    html = buildCRMHTML(tplOpts);
+    else if (templateType === "servicenow") html = buildServiceNowHTML(tplOpts);
     else                                html = buildFullstackHTML(tplOpts);
   } else if (templateType === "cti")    html = buildCTIHTML(tplOpts);
   else if (templateType === "formal")   html = buildFormalHTML(tplOpts);
   else if (templateType === "crm")      html = buildCRMHTML(tplOpts);
+  else if (templateType === "servicenow") html = buildServiceNowHTML(tplOpts);
   else                                  html = buildFullstackHTML(tplOpts);
 
 
@@ -1405,6 +1424,53 @@ function buildCRMHTML({ hrName, company, role, customNote, trackUrl = "", custom
 
 
 // ─── HTML: Dynamic DB Template ───────────────────────────────────────────────
+function buildServiceNowHTML({ hrName, company, role, customNote, trackUrl = "", customIntro = "", customHighlights = null, headerTheme = "emerald" }) {
+  const gradient  = HEADER_THEMES[headerTheme] || HEADER_THEMES.emerald;
+  const greeting  = hrName ? `Dear ${hrName},` : "Dear Hiring Manager,";
+  const roleText  = role   ? ` for the <strong>${role}</strong> position` : "";
+  const noteBlock = customNote ? `<p style="color:#374151;line-height:1.8;margin:16px 0;">${customNote}</p>` : "";
+  const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
+  const intro     = customIntro ||
+    `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}.
+     With <strong>4.7+ years as a Senior ServiceNow Developer</strong>, I specialize in the <strong>ServiceNow platform</strong>
+     (ITSM, CSM, Flow Designer, IntegrationHub, Scripted REST APIs, Business Rules, ACLs, CMDB/Asset data) with working
+     exposure to <strong>Security Operations concepts</strong> — Vulnerability Response lifecycle, CMDB/asset matching, and
+     scanner data ingestion — alongside CRM integrations across Freshdesk, Salesforce, Zendesk, and MS Dynamics.
+     I am currently serving my notice period at NovelVox and am available to join by late August 2026 or earlier for the right opportunity.`;
+  const items     = (customHighlights && customHighlights.length) ? customHighlights : SERVICENOW_HIGHLIGHTS;
+  const hlHtml    = items.map(h => `<li>${h}</li>`).join("");
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',sans-serif;">
+<div style="max-width:620px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+  <div style="background:${gradient};padding:36px 40px;">
+    <p style="margin:0 0 6px;color:#bbf7d0;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Senior ServiceNow Developer</p>
+    <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Anav Bansal</h1>
+    <p style="margin:6px 0 0;color:#bbf7d0;font-size:14px;">ServiceNow (ITSM · CSM · Vulnerability Response · CMDB) · Freshdesk · Salesforce · Zendesk</p>
+  </div>
+  <div style="padding:36px 40px;">
+    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
+    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${intro}</p>
+    ${noteBlock}
+    <p style="color:#374151;line-height:1.8;margin:0 0 24px;">
+      At <strong>Novelvox PVT Ltd</strong>, I led ServiceNow IntegrationHub spoke development that cut ITSM ticket-creation
+      time by <strong>60%</strong>, published <strong>3 enterprise marketplace apps</strong>
+      (ServiceNow Store, Freshdesk Marketplace, Webex App Hub), and delivered <strong>6+ CRM/ServiceNow integrations</strong> —
+      each reducing manual agent effort by 30–40%. Nominated for <em>Performance of the Year</em> and received three
+      <em>'Pat on the Back'</em> awards.
+    </p>
+    <div style="background:#f0fdf4;border-left:4px solid #16a34a;border-radius:0 8px 8px 0;padding:20px 24px;margin-bottom:24px;">
+      <p style="margin:0 0 12px;font-weight:600;color:#14532d;font-size:14px;">🏆 ServiceNow & CRM Expertise</p>
+      <ul style="margin:0;padding-left:20px;color:#374151;font-size:14px;line-height:2;">${hlHtml}</ul>
+    </div>
+    <p style="color:#374151;line-height:1.8;margin:0;">Thank you for your time and consideration. I would love the opportunity to discuss how I can bring this expertise to your team.</p>
+  </div>
+  ${footer("#16a34a")}
+</div>${pixel}</body></html>`;
+}
+
+
+
 function buildDynamicHTML({ hrName, company, role, customNote, trackUrl = "", dbTemplate, userName = "Anav Bansal" }) {
   const greeting   = hrName ? `Dear ${hrName},` : "Dear Hiring Manager,";
   const co         = company||"your organization";
@@ -1747,6 +1813,7 @@ function buildFollowUpHTML({ hrName, company, role, originalDate, customNote, tr
     cti:       { gradient: "#3b0764 0%,#7c3aed 100%",  accent: "#7c3aed", title: "CTI/Telephony Integration Specialist · Follow-Up", resumeName: "Anav_Bansal_TelephonyExpert.pdf" },
     formal:    { gradient: "#1e3a8a 0%,#1d4ed8 100%",  accent: "#1d4ed8", title: "Senior Software Developer · Follow-Up",           resumeName: "Anav_Bansal_Resume.pdf" },
     fullstack: { gradient: "#064e3b 0%,#059669 100%",  accent: "#059669", title: "Senior Full Stack Developer · Follow-Up",         resumeName: "Anav_Bansal_Resume.pdf" },
+    servicenow:{ gradient: "#052e16 0%,#16a34a 100%",  accent: "#16a34a", title: "Senior ServiceNow Developer · Follow-Up",         resumeName: "Anav_Bansal_ServiceNowExpert.pdf" },
   };
 
   let theme = THEMES[templateType] || THEMES.fullstack;
@@ -1756,6 +1823,7 @@ function buildFollowUpHTML({ hrName, company, role, originalDate, customNote, tr
     cti:       `I remain very enthusiastic and confident that my <strong>4.7+ years of experience</strong> architecting CTI/Telephony integrations across Avaya, Genesys Cloud, Webex Contact Center, and Amazon Connect — real-time screen-pop and CRM sync for enterprise contact centers — would be a strong fit for your team.`,
     formal:    `I remain very enthusiastic and confident that my <strong>4.7+ years of experience</strong> across full-stack development, CRM integrations, and CTI/Telephony systems would be a strong fit for your team.`,
     fullstack: `I remain very enthusiastic and confident that my <strong>4.7+ years of experience</strong> in full-stack development, Node.js, AngularJS, and AWS Lambda serverless architectures would be a strong fit for your team.`,
+    servicenow:`I remain very enthusiastic and confident that my <strong>4.7+ years of experience</strong> on the ServiceNow platform — ITSM, CSM, Flow Designer, IntegrationHub, CMDB/Asset, and Vulnerability Response concepts — would be a strong fit for your team.`,
   };
   let bodyText = BODY_TEXT[templateType] || BODY_TEXT.fullstack;
   let resumeNote = theme.resumeName;
@@ -2039,18 +2107,21 @@ function extractGmailBodyText(payload) {
 // subjects, since CTI/Full Stack/Formal all share the same generic subject
 // format when a role is specified).
 function detectTemplateFromSubject(subject = "") {
+  if (/\(Senior ServiceNow Developer\)/i.test(subject)) return "servicenow";
   if (/\(Senior CRM & ServiceNow Expert\)/i.test(subject)) return "crm";
   return "";
 }
 function detectTemplateFromBody(bodyText = "") {
   const t = bodyText.toLowerCase();
-  const scores = { crm: 0, cti: 0, fullstack: 0 };
+  const scores = { crm: 0, cti: 0, fullstack: 0, servicenow: 0 };
   ["servicenow", "salesforce", "freshdesk", "zendesk", "crm integration", "ms dynamics", "gliderecord"]
     .forEach(k => { if (t.includes(k)) scores.crm++; });
   ["avaya", "genesys", "webex contact center", "amazon connect cti", "cti integration", "telephony integration", "ivr"]
     .forEach(k => { if (t.includes(k)) scores.cti++; });
   ["node.js", "angularjs", "aws lambda", "full-stack developer", "full stack developer", "express.js"]
     .forEach(k => { if (t.includes(k)) scores.fullstack++; });
+  ["vulnerability response", "cmdb", "scanner data ingestion", "itsm", "csm", "senior servicenow developer", "secops"]
+    .forEach(k => { if (t.includes(k)) scores.servicenow++; });
   const [topType, topScore] = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
   return topScore > 0 ? topType : ""; // inconclusive → leave blank, editable manually
 }
@@ -3190,6 +3261,7 @@ app.post("/api/whatsapp/message", requireAuth, async (req, res) => {
     } else {
       highlights = templateType === "cti" ? CTI_HIGHLIGHTS.slice(0, 4)
                  : templateType === "crm" ? CRM_HIGHLIGHTS.slice(0, 4)
+                 : templateType === "servicenow" ? SERVICENOW_HIGHLIGHTS.slice(0, 4)
                  : DEFAULT_HIGHLIGHTS.slice(0, 4);
       // Respect any saved override for the built-in template too
       const override = req.user?._id ? await EmailTemplate.findOne({
@@ -3228,6 +3300,7 @@ app.post("/api/preview-email", requireAuth, async (req, res) => {
   else if (templateType === "cti")    html = buildCTIHTML(opts);
   else if (templateType === "formal") html = buildFormalHTML(opts);
   else if (templateType === "crm")    html = buildCRMHTML(opts);
+  else if (templateType === "servicenow") html = buildServiceNowHTML(opts);
   else                                html = buildFullstackHTML(opts);
   res.json({ success: true, html });
 });
@@ -4223,6 +4296,8 @@ app.post("/api/debug/resume", requireAuth, async (req, res) => {
     resumeName = "Anav_Bansal_TelephonyExpert.pdf";
   } else if (!isPriyalUser && templateType === "crm" && fs.existsSync(CRM_RESUME_PATH)) {
     resumeName = "Anav_Bansal_CRMExpert.pdf";
+  } else if (!isPriyalUser && templateType === "servicenow" && fs.existsSync(SERVICENOW_RESUME_PATH)) {
+    resumeName = "Anav_Bansal_ServiceNowExpert.pdf";
   } else {
     resumeName = "Anav_Bansal_Resume.pdf (default)";
   }
