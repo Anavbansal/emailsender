@@ -24,7 +24,7 @@ app.use(express.json());
 app.use(gmailAuthRoutes);
 
 const RESUME_PATH      = path.join(__dirname, "ANAV_BANSAL_FullStackDeveloper.pdf");
-const CRM_RESUME_PATH  = path.join(__dirname, "ANAV_BANSAL_CRMExpert.pdf");
+const CRM_RESUME_PATH  = path.join(__dirname, "Anav_Bansal_ServiceNowExpert.pdf");
 const CTI_RESUME_PATH  = path.join(__dirname, "Anav_Bansal_TelephonyExpert.pdf");
 const SERVICENOW_RESUME_PATH = path.join(__dirname, "Anav_Bansal_ServiceNowExpert.pdf");
 const MOHIT_RESUME_PATH = path.join(__dirname, "Mohit_Singh_CRMExpert_v3.pdf");
