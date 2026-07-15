@@ -3055,6 +3055,9 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
         if (!scheduledTime) throw new Error("Choose a date and time.");
         const res = await axios.post(`${API}/api/schedule-email`, { ...payload, scheduledTime, autoSend });
         setStatus({ type: "success", text: res.data.message });
+        setForm({ hrEmail: "", hrName: "", company: "", role: "", customNote: "" });
+        setSched(defaultScheduleTime());
+        onContactsRefresh();
       } else {
         const res = await axios.post(`${API}/api/send-application`, payload);
         if (res.data.isDuplicate) {
@@ -3065,7 +3068,7 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
         }
         setStatus({ type: "success", text: res.data.message });
         setForm({ hrEmail: "", hrName: "", company: "", role: "", customNote: "" });
-        setSched("");
+        setSched(defaultScheduleTime());
         onContactsRefresh();
       }
     } catch (err) {
