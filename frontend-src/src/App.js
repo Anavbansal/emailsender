@@ -3311,6 +3311,8 @@ function ThreadView({ threadId, onBack }) {
   const [sending,  setSending]  = useState(false);
   const [sendStatus, setSendStatus] = useState(null);
   const [aiDrafting, setAiDrafting] = useState(false);
+  const [correction, setCorrection] = useState("");
+  const [refining,   setRefining]   = useState(false);
 
   const draftWithAI = async () => {
     const last = messages[messages.length - 1];
@@ -3318,12 +3320,30 @@ function ThreadView({ threadId, onBack }) {
     setAiDrafting(true);
     try {
       const fromName = (last.from || "").replace(/<[^>]+>/, "").trim();
+      // Read the FULL email (body), not just the short snippet
       const r = await axios.post(`${API}/api/ai/inbox-reply`, {
-        emailBody: last.snippet || "", subject, fromName,
+        emailBody: last.body || last.snippet || "", subject, fromName,
       });
       if (r.data.success && r.data.reply) setReplyBody(r.data.reply);
     } catch(e) { setSendStatus({ type: "error", text: "AI draft failed — try again" }); }
     finally { setAiDrafting(false); }
+  };
+
+  // Refine the current draft based on feedback, keeping the original email as context
+  const refineWithAI = async () => {
+    if (!correction.trim()) return;
+    const last = messages[messages.length - 1];
+    if (!last) return;
+    setRefining(true);
+    try {
+      const fromName = (last.from || "").replace(/<[^>]+>/, "").trim();
+      const r = await axios.post(`${API}/api/ai/inbox-reply`, {
+        emailBody: last.body || last.snippet || "", subject, fromName,
+        previousDraft: replyBody, correction: correction.trim(),
+      });
+      if (r.data.success && r.data.reply) { setReplyBody(r.data.reply); setCorrection(""); }
+    } catch(e) { setSendStatus({ type: "error", text: "Refine failed — try again" }); }
+    finally { setRefining(false); }
   };
 
   useEffect(() => {
@@ -3435,6 +3455,18 @@ function ThreadView({ threadId, onBack }) {
               onChange={e => setReplyBody(e.target.value)}
               autoFocus
             />
+            {replyBody.trim() && (
+              <div style={{ display:"flex", gap:6, margin:"6px 0" }}>
+                <input className="form-input" style={{ fontSize:12, flex:1 }}
+                  placeholder="Any changes? e.g. 'make it shorter' or 'mention I can join in 2 weeks'"
+                  value={correction} onChange={e => setCorrection(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && !refining) refineWithAI(); }} />
+                <button className="btn-ghost btn-sm" style={{ fontSize:11, color:"#7c3aed", borderColor:"#7c3aed", whiteSpace:"nowrap" }}
+                  onClick={refineWithAI} disabled={refining || !correction.trim()}>
+                  {refining ? "Refining…" : "🔄 Refine"}
+                </button>
+              </div>
+            )}
             {sendStatus && (
               <div className={`alert alert-${sendStatus.type}`}>
                 <span className="alert-icon">{sendStatus.type === "success" ? "✓" : "✕"}</span>
@@ -3475,14 +3507,27 @@ function ScreeningReplyModal({ message, contacts, onClose, addToast }) {
   const [editProfile, setEditProfile] = useState(false);
   const [scheduleMode, setScheduleMode] = useState(false);
   const [scheduledAt,  setScheduledAt]  = useState("");
+  const [fullBody,   setFullBody]   = useState("");   // full email text, not just the short snippet
+  const [chatHistory, setChatHistory] = useState([]); // for iterative refine
+  const [correction,  setCorrection]  = useState("");
+  const [refining,    setRefining]    = useState(false);
   useLockBodyScroll();
 
-  // ── Auto-generate AI reply on modal open ─────────────────────────────────
+  // Fetch the FULL email body (snippet is only ~100 chars — not enough to read
+  // a detailed HR email properly) before generating the first draft.
   useEffect(() => {
-    generateReply();
+    if (!message.threadId) { generateReply(""); return; }
+    axios.get(`${API}/api/gmail/thread/${message.threadId}`)
+      .then(r => {
+        const full = (r.data.messages || []).find(m => m.id === message.id);
+        const body = full?.body || message.snippet || "";
+        setFullBody(body);
+        generateReply(body);
+      })
+      .catch(() => generateReply(message.snippet || ""));
   }, []);
 
-  const generateReply = async () => {
+  const generateReply = async (bodyText) => {
     setAiLoading(true);
     const rUser  = getUser();
     const rName  = rUser?.displayName || "Anav Bansal";
@@ -3507,15 +3552,13 @@ Preferred Location: ${pf.preferredLocation}
 Contact: ${rPhone} | ${rEmail}
 LinkedIn: ${rLi}`;
 
-    // The actual HR email content for AI to analyze
+    // The FULL HR email content for AI to analyze — read carefully, not just a snippet
     const hrEmailContent = `Subject: ${message.subject || ""}
 From: ${hrName || fromEmail}
-Body snippet: ${message.snippet || ""}`;
+Full message:
+${(bodyText || message.snippet || "").slice(0, 4000)}`;
 
-    try {
-      const r = await axios.post(`${API}/api/ai/chat`, {
-        tool: "screening",
-        message: `Here is the HR email I received:
+    const initialMessage = `Here is the HR email I received — read it carefully in full before replying, there may be more than one question in it:
 
 ${hrEmailContent}
 
@@ -3523,13 +3566,19 @@ Here is my complete profile:
 
 ${profileContext}
 
-Write a professional reply that ONLY answers what the HR specifically asked for. Do not dump all profile fields — only include the details relevant to their questions. If they asked for notice period and CTC, only give those. If they asked for skills and experience, only answer that. Address HR by name "${hrName || "there"}" and sign off as ${rName} with phone ${rPhone}. Keep it concise and professional. Plain text only, no markdown.`,
-        history: [],
+Write a professional reply that ONLY answers what the HR specifically asked for. Do not dump all profile fields — only include the details relevant to their questions. If they asked for notice period and CTC, only give those. If they asked for skills and experience, only answer that. Address HR by name "${hrName || "there"}" and sign off as ${rName} with phone ${rPhone}. Keep it concise and professional. Plain text only, no markdown.`;
+
+    try {
+      const r = await axios.post(`${API}/api/ai/chat`, {
+        tool: "screening", message: initialMessage, history: [],
       });
       if (r.data.success && r.data.reply) {
         setReplyText(r.data.reply);
+        setChatHistory([
+          { role: "user", text: initialMessage },
+          { role: "assistant", text: r.data.reply },
+        ]);
       } else {
-        // Fallback to smart template if AI fails
         setReplyText(buildScreeningReply(hrName));
       }
     } catch {
@@ -3537,6 +3586,32 @@ Write a professional reply that ONLY answers what the HR specifically asked for.
     } finally {
       setAiLoading(false);
     }
+  };
+
+  // ── Refine the draft based on the user's own correction, keeping full context ──
+  const refineReply = async () => {
+    if (!correction.trim()) return;
+    setRefining(true);
+    try {
+      const r = await axios.post(`${API}/api/ai/chat`, {
+        tool: "screening",
+        message: `Update the reply you just drafted based on this feedback: "${correction.trim()}"\n\nReturn ONLY the full revised reply text, no explanation of what changed.`,
+        history: chatHistory,
+      });
+      if (r.data.success && r.data.reply) {
+        setReplyText(r.data.reply);
+        setChatHistory(prev => [
+          ...prev,
+          { role: "user", text: `Feedback: ${correction.trim()}` },
+          { role: "assistant", text: r.data.reply },
+        ]);
+        setCorrection("");
+      } else {
+        addToast && addToast("❌ Refine failed — try again", "error");
+      }
+    } catch {
+      addToast && addToast("❌ Refine failed — try again", "error");
+    } finally { setRefining(false); }
   };
 
   const send = async () => {
@@ -3632,13 +3707,25 @@ Write a professional reply that ONLY answers what the HR specifically asked for.
                       {editProfile ? "✕ Close Profile" : "✏️ Edit Profile"}
                     </button>
                     <button className="btn-ghost btn-sm" style={{ fontSize:11, color:"#7c3aed", borderColor:"#7c3aed" }}
-                      onClick={generateReply} disabled={aiLoading}>
+                      onClick={() => generateReply(fullBody)} disabled={aiLoading}>
                       ✨ Regenerate
                     </button>
                   </div>
                 </div>
                 <textarea className="form-textarea" rows={12} style={{ fontSize:13, fontFamily:"inherit" }}
                   value={replyText} onChange={e => setReplyText(e.target.value)} />
+
+                {/* Refine — tell the AI what to change, it revises with full context */}
+                <div style={{ display:"flex", gap:6, marginTop:8 }}>
+                  <input className="form-input" style={{ fontSize:12.5, flex:1 }}
+                    placeholder="Any changes? e.g. 'make it shorter' or 'my notice period is 30 days not 60'"
+                    value={correction} onChange={e => setCorrection(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter" && !refining) refineReply(); }} />
+                  <button className="btn-primary btn-sm" style={{ background:"#7c3aed", whiteSpace:"nowrap" }}
+                    onClick={refineReply} disabled={refining || !correction.trim()}>
+                    {refining ? "Refining…" : "🔄 Refine"}
+                  </button>
+                </div>
               </div>
 
               {/* Profile editor (collapsible) */}

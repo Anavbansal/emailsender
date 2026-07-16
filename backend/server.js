@@ -5231,7 +5231,7 @@ Rules:
 // interview scheduling notes, recruiter follow-ups, casual back-and-forth, etc.)
 app.post("/api/ai/inbox-reply", requireAuth, async (req, res) => {
   try {
-    const { emailBody = "", subject = "", fromName = "", tone = "professional" } = req.body;
+    const { emailBody = "", subject = "", fromName = "", tone = "professional", previousDraft = "", correction = "" } = req.body;
     if (!process.env.GROQ_API_KEY) return res.status(400).json({ success: false, message: "GROQ_API_KEY not configured" });
     const userCfg  = getUserConfig(req.user);
     const userName = userCfg.profileName || req.user.displayName || "Anav Bansal";
@@ -5250,21 +5250,36 @@ app.post("/api/ai/inbox-reply", requireAuth, async (req, res) => {
     ].filter(Boolean).join("\n");
     const highlights = userCfg.resumeHighlights || req.user.resumeHighlights || "";
 
-    const reply = await groqChat([{
-      role: "user", content:
-`You are ${userName}, replying to an email from ${fromName || "a recruiter/HR contact"}.
+    const promptBody = (previousDraft && correction)
+      ? `You are ${userName}. You already drafted this reply to an email from ${fromName || "a recruiter/HR contact"}:
+"""
+${previousDraft}
+"""
+
+Original email you're replying to (for context — don't lose anything relevant already correctly addressed):
+Subject: ${subject}
+"""
+${emailBody.slice(0, 2000)}
+"""
+${profileBlock ? `\nYour profile (use ONLY if relevant to their request/correction):\n${profileBlock}\n` : ""}
+The person asked for this change to the draft: "${correction}"
+
+Rewrite the FULL reply applying that change, keeping everything else about the draft that wasn't asked to change. Return ONLY the revised reply text, no preamble, no explanation of what changed.`
+      : `You are ${userName}, replying to an email from ${fromName || "a recruiter/HR contact"}.
 ${profileBlock ? `\nYour profile (use ONLY if the email actually asks for this info — don't volunteer it unprompted):\n${profileBlock}\n` : ""}${highlights ? `\nYour resume highlights (cite these exactly for any technical/skill questions — don't invent details not listed here):\n${highlights}\n` : ""}
+Read the ENTIRE message carefully before drafting — note every question or request it contains, not just the first line.
 Subject: ${subject}
 Their message:
 """
-${emailBody.slice(0, 2000)}
+${emailBody.slice(0, 4000)}
 """
 
 Write a ${tone} reply. Address exactly what they asked or said — don't invent unrelated details, and don't dump profile info they didn't ask about.
 Keep it natural and concise (under 120 words unless the message needs more).
 Sign off with just the first name: ${userName.split(" ")[0]}.
-Return ONLY the reply text, no subject line, no preamble.`
-    }], 400, 0.7);
+Return ONLY the reply text, no subject line, no preamble.`;
+
+    const reply = await groqChat([{ role: "user", content: promptBody }], 500, 0.7);
 
     res.json({ success: true, reply });
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
