@@ -2142,7 +2142,7 @@ app.post("/api/contacts/recover-from-gmail", requireAuth, async (req, res) => {
     // well under Render's request timeout. The frontend chains calls using
     // nextPageToken until the whole mailbox has been scanned.
     const { pageToken: incomingPageToken } = req.body || {};
-    let scanned = 0, recovered = 0, alreadyTracked = 0, skipped = 0;
+    let scanned = 0, recovered = 0, alreadyTracked = 0, skipped = 0, retagged = 0;
 
     const list = await gmail.users.messages.list({ userId: "me", q: query, maxResults: 50, pageToken: incomingPageToken || undefined });
     const msgs = list.data.messages || [];
@@ -2162,6 +2162,18 @@ app.post("/api/contacts/recover-from-gmail", requireAuth, async (req, res) => {
           } catch {}
         }
         alreadyTracked++; continue;
+      }
+
+      // This message might already be tracked under the WRONG userId (e.g.
+      // "default" — from before per-user tagging was fixed). Since it's in
+      // THIS user's own Gmail Sent folder, it's unambiguously theirs — re-tag
+      // it instead of creating a duplicate. This is what breaks follow-up
+      // threading: the thread lookup filters strictly by the user's real ID,
+      // so a mistagged record is invisible to it.
+      const mistagged = await SentEmailLog.findOne({ messageId: m.id }).lean();
+      if (mistagged) {
+        await SentEmailLog.updateOne({ _id: mistagged._id }, { $set: { userId: req.userId } });
+        retagged++; continue;
       }
 
       try {
@@ -2191,7 +2203,7 @@ app.post("/api/contacts/recover-from-gmail", requireAuth, async (req, res) => {
       } catch (e) { skipped++; }
     }
 
-    res.json({ success: true, scanned, recovered, alreadyTracked, skipped, nextPageToken: list.data.nextPageToken || null });
+    res.json({ success: true, scanned, recovered, alreadyTracked, retagged, skipped, nextPageToken: list.data.nextPageToken || null });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }
@@ -2310,6 +2322,7 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
           notes: { $first: "$notes" }, totalSent: { $sum: 1 },
           templateType: { $first: "$templateType" },
           replyCategory: { $first: "$replyCategory" },
+          opened: { $max: "$opened" }, openedAt: { $min: "$openedAt" },
         }}
       ]);
       const contacts = rows.map(r => {
@@ -2317,7 +2330,7 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
         return {
           hrEmail: r.hrEmail||"", hrName: r.hrName||"", company: r.company||"", role: r.role||"",
           lastSentAt: ls, lastMessageId: r.messageId||null, lastThreadId: r.threadId||null,
-          totalSent: r.totalSent||1, followupCount: 0, opened: false, openedAt: null,
+          totalSent: r.totalSent||1, followupCount: 0, opened: r.opened||false, openedAt: toMs(r.openedAt)||null,
           replied: r.replied||false, repliedAt: toMs(r.repliedAt)||null,
           followupSent: r.followupSent||false, notes: typeof r.notes==="string"?r.notes:"",
           needsFollowUp: ls>0 && (Date.now()-ls)>THREE_DAYS_MS && !r.replied,

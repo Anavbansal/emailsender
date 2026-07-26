@@ -2235,7 +2235,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
   useEffect(() => { fetchCapturedCalls(); }, []);
   const recoverFromGmail = async () => {
     setRecovering(true);
-    let pageToken = null, totalScanned = 0, totalRecovered = 0, totalTracked = 0, totalSkipped = 0, round = 0;
+    let pageToken = null, totalScanned = 0, totalRecovered = 0, totalTracked = 0, totalRetagged = 0, totalSkipped = 0, round = 0;
     try {
       do {
         round++;
@@ -2244,11 +2244,12 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
         totalScanned   += r.data.scanned;
         totalRecovered += r.data.recovered;
         totalTracked   += r.data.alreadyTracked;
+        totalRetagged  += r.data.retagged || 0;
         totalSkipped   += r.data.skipped;
         pageToken = r.data.nextPageToken;
         addToast && addToast(`🔄 Scanned ${totalScanned} so far — recovered ${totalRecovered}...`);
       } while (pageToken && round < 40); // safety cap: ~2000 messages max per click
-      addToast && addToast(`✅ Done! Scanned ${totalScanned} — recovered ${totalRecovered} missing contacts (${totalTracked} already tracked)`);
+      addToast && addToast(`✅ Done! Scanned ${totalScanned} — recovered ${totalRecovered} missing, fixed ${totalRetagged} mistagged (${totalTracked} already tracked)`);
       onRefresh && onRefresh();
     } catch(e) {
       addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error");
