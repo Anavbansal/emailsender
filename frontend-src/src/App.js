@@ -560,6 +560,136 @@ function useLockBodyScroll() {
 }
 
 // ─── Dark Mode Toggle ─────────────────────────────────────────────────────────
+function NotificationBell({ onNavigate }) {
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const btnRef = useRef(null);
+  const popRef = useRef(null);
+
+  const fetchNotifications = useCallback(() => {
+    axios.get(`${API}/api/notifications`)
+      .then(r => { setNotifications(r.data.notifications || []); setUnreadCount(r.data.unreadCount || 0); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 60000); // poll every 60s
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
+
+  const reposition = () => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    setCoords({ top: r.bottom + 8, left: Math.max(8, r.right - 340) });
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const handleOutside = (e) => {
+      if (btnRef.current?.contains(e.target)) return;
+      if (popRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    const close = () => setOpen(false);
+    document.addEventListener("mousedown", handleOutside);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
+
+  const ICONS = { reply: "↩️", interview_soon: "🎤", duplicate_hold: "⏸", call_captured: "📞" };
+
+  const handleClick = async (n) => {
+    if (!n.read) {
+      axios.post(`${API}/api/notifications/${n._id}/read`).catch(() => {});
+      setNotifications(prev => prev.map(x => x._id === n._id ? { ...x, read: true } : x));
+      setUnreadCount(c => Math.max(0, c - 1));
+    }
+    setOpen(false);
+    if (n.link) onNavigate(n.link);
+  };
+
+  const markAllRead = async () => {
+    axios.post(`${API}/api/notifications/mark-all-read`).catch(() => {});
+    setNotifications(prev => prev.map(x => ({ ...x, read: true })));
+    setUnreadCount(0);
+  };
+
+  return (
+    <>
+      <button ref={btnRef} className="btn-ghost btn-sm" title="Notifications"
+        style={{ position: "relative", padding: "8px 10px", fontSize: 15 }}
+        onClick={() => { if (!open) { reposition(); fetchNotifications(); } setOpen(o => !o); }}>
+        🔔
+        {unreadCount > 0 && (
+          <span style={{
+            position: "absolute", top: 2, right: 2, minWidth: 16, height: 16, padding: "0 3px",
+            borderRadius: 99, background: "var(--red)", color: "#fff", fontSize: 10, fontWeight: 700,
+            display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
+          }}>
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
+      </button>
+      {open && createPortal(
+        <div ref={popRef} onClick={e => e.stopPropagation()} style={{
+          position: "fixed", top: coords.top, left: coords.left, zIndex: 9999,
+          width: 340, maxHeight: 440, overflowY: "auto",
+          background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius)",
+          boxShadow: "var(--shadow-lg)",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderBottom: "1px solid var(--border)" }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-900)" }}>Notifications</span>
+            {unreadCount > 0 && (
+              <button onClick={markAllRead} style={{ background: "none", border: "none", fontSize: 11, color: "var(--blue)", cursor: "pointer", fontWeight: 600 }}>
+                Mark all read
+              </button>
+            )}
+          </div>
+          {notifications.length === 0 ? (
+            <div style={{ padding: "32px 20px", textAlign: "center", fontSize: 13, color: "var(--text-muted)" }}>
+              No notifications yet
+            </div>
+          ) : notifications.map(n => (
+            <div key={n._id} onClick={() => handleClick(n)}
+              style={{
+                display: "flex", gap: 10, padding: "11px 14px", cursor: "pointer",
+                borderBottom: "1px solid var(--border)", background: n.read ? "transparent" : "var(--blue-50)",
+                transition: "background 0.12s",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "var(--surface-2)"}
+              onMouseLeave={e => e.currentTarget.style.background = n.read ? "transparent" : "var(--blue-50)"}>
+              <span style={{ fontSize: 16, flexShrink: 0 }}>{ICONS[n.type] || "🔔"}</span>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 12.5, fontWeight: n.read ? 500 : 700, color: "var(--text-900)", lineHeight: 1.4 }}>
+                  {n.title}
+                </div>
+                {n.message && (
+                  <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {n.message}
+                  </div>
+                )}
+                <div style={{ fontSize: 10.5, color: "var(--text-400)", marginTop: 3 }}>
+                  {relativeTime(new Date(n.createdAt).getTime())}
+                </div>
+              </div>
+              {!n.read && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--blue)", flexShrink: 0, marginTop: 4 }} />}
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
 function DarkModeToggle({ dark, onToggle }) {
   return (
     <button className={`dmtoggle${dark ? " dmtoggle-on" : ""}`} onClick={onToggle} title="Toggle dark mode">
@@ -6422,6 +6552,7 @@ function App() {
               <span className="plink plink-resume">📄 Resume</span>
             </>)}
           </div>
+          <NotificationBell onNavigate={navigate} />
           <DarkModeToggle dark={darkMode} onToggle={() => setDarkMode(d => !d)} />
         </header>
 

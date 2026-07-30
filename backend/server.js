@@ -180,6 +180,29 @@ const CapturedCallSchema = new mongoose.Schema({
 }, { timestamps: true });
 const CapturedCall = mongoose.models.CapturedCall || mongoose.model("CapturedCall", CapturedCallSchema);
 
+// ─── Notification Model — in-app notification bell ─────────────────────────
+const NotificationSchema = new mongoose.Schema({
+  userId:     { type: String, required: true },
+  type:       { type: String, required: true }, // reply | interview_soon | duplicate_hold | call_captured
+  title:      { type: String, required: true },
+  message:    { type: String, default: "" },
+  link:       { type: String, default: "" },     // page id to navigate to on click, e.g. "contacts" | "interviews" | "scheduled"
+  read:       { type: Boolean, default: false },
+  dedupeKey:  { type: String, default: "" },      // prevents duplicate notifications for the same underlying event
+}, { timestamps: true });
+NotificationSchema.index({ userId: 1, dedupeKey: 1 }, { unique: true, partialFilterExpression: { dedupeKey: { $ne: "" } } });
+const Notification = mongoose.models.Notification || mongoose.model("Notification", NotificationSchema);
+
+// Best-effort notification creator — never throws, silently no-ops on duplicate
+// (same dedupeKey) or on any DB error, since this must never block the real
+// action (a reply sync, a call capture, etc.) that triggered it.
+async function notify(userId, { type, title, message = "", link = "", dedupeKey = "" }) {
+  try {
+    if (mongoose.connection.readyState !== 1) return;
+    await Notification.create({ userId, type, title, message, link, dedupeKey });
+  } catch (e) { /* duplicate dedupeKey or DB hiccup — non-critical, ignore */ }
+}
+
 // ─── EmailTemplate Model ─────────────────────────────────────────────────────
 const emailTemplateSchema = new mongoose.Schema({
   userId:      { type: String, required: true },
@@ -681,10 +704,17 @@ async function clearGmailAlert(username) {
 async function notifyDuplicateHoldBatch(jobUser, jobUserCfg, items) {
   try {
     if (!jobUser || !items.length) return;
+    const n = items.length;
+    notify(String(jobUser._id), {
+      type: "duplicate_hold",
+      title: `${n} scheduled email${n===1?"":"s"} paused — duplicate${n===1?"":"s"} detected`,
+      message: items.slice(0, 3).map(i => i.job.emailData.company).filter(Boolean).join(", ") + (n > 3 ? "…" : ""),
+      link: "scheduled",
+      dedupeKey: `dup:${jobUser._id}:${Date.now()}`, // batches are inherently unique per run, no real collision risk
+    });
     const auth = getUserGmailAuth(jobUser);
     const gmail = google.gmail({ version: "v1", auth });
     const senderEmail = jobUserCfg?.gmailUser || jobUser.gmailUser || "";
-    const n = items.length;
     const subject = n === 1
       ? `⏸ Scheduled email paused — already applied to ${items[0].job.emailData.company || items[0].job.emailData.hrEmail}`
       : `⏸ ${n} scheduled emails paused — duplicates detected`;
@@ -1014,6 +1044,28 @@ cron.schedule("0 8 * * *", async () => {
       } catch (e) { console.error(`Digest failed for ${user.username}:`, e.message); }
     }
   } catch (e) { console.error("Digest cron error:", e.message); }
+}, { timezone: "Asia/Kolkata" });
+
+// ─── Interview reminders — runs hourly, notifies once per interview when it's
+// starting within the next 3 hours ─────────────────────────────────────────
+cron.schedule("0 * * * *", async () => {
+  if (mongoose.connection.readyState !== 1) return;
+  try {
+    const now = Date.now();
+    const soon = new Date(now + 3 * 60 * 60000);
+    const upcoming = await Interview.find({
+      interviewDate: { $gte: new Date(now), $lte: soon },
+    }).lean();
+    for (const iv of upcoming) {
+      notify(iv.userId, {
+        type: "interview_soon",
+        title: `🎤 Interview soon: ${iv.company || "Company"}`,
+        message: `${iv.role || ""} ${iv.interviewRound ? "· " + iv.interviewRound : ""} at ${new Date(iv.interviewDate).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}`.trim(),
+        link: "interviews",
+        dedupeKey: `interview_soon:${iv._id}`, // one reminder per interview, ever
+      });
+    }
+  } catch (e) { console.error("Interview reminder cron error:", e.message); }
 }, { timezone: "Asia/Kolkata" });
 
 // ─── POST /api/digest/send-now — manually trigger your own digest (testing) ──
@@ -2259,6 +2311,11 @@ app.all("/api/capture-call", async (req, res) => {
     if (recent) return res.json({ success: true, message: "Already captured recently", duplicate: true });
 
     await CapturedCall.create({ userId: String(user._id), phone, name });
+    notify(String(user._id), {
+      type: "call_captured", title: `📞 Call captured: ${name || phone}`,
+      message: name ? phone : "", link: "contacts",
+      dedupeKey: `call:${user._id}:${phone}:${new Date().toISOString().slice(0,13)}`, // 1 notif per number per hour max
+    });
     res.json({ success: true, message: "Captured!" });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -2297,6 +2354,39 @@ app.post("/api/captured-calls/:id/promote", requireAuth, async (req, res) => {
     });
     await CapturedCall.updateOne({ _id: call._id }, { $set: { reviewed: true } });
     res.json({ success: true, message: "Added to Contacts!" });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── Notifications (in-app bell) ──────────────────────────────────────────────
+app.get("/api/notifications", requireAuth, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) return res.json({ success: true, notifications: [], unreadCount: 0 });
+    const [notifications, unreadCount] = await Promise.all([
+      Notification.find({ userId: req.userId }).sort({ createdAt: -1 }).limit(30).lean(),
+      Notification.countDocuments({ userId: req.userId, read: false }),
+    ]);
+    res.json({ success: true, notifications, unreadCount });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+app.post("/api/notifications/:id/read", requireAuth, async (req, res) => {
+  try {
+    await Notification.updateOne({ _id: req.params.id, userId: req.userId }, { $set: { read: true } });
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+app.post("/api/notifications/mark-all-read", requireAuth, async (req, res) => {
+  try {
+    await Notification.updateMany({ userId: req.userId, read: false }, { $set: { read: true } });
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+app.delete("/api/notifications/:id", requireAuth, async (req, res) => {
+  try {
+    await Notification.deleteOne({ _id: req.params.id, userId: req.userId });
+    res.json({ success: true });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
@@ -2696,6 +2786,11 @@ app.get("/api/gmail/replies", requireAuth, async (req, res) => {
                   { hrEmail: new RegExp("^" + escapedFE + "$", "i"), ...emailFilter2 },
                   { $set: { replied: true, repliedAt: dateH ? new Date(dateH) : new Date(), replySnippet: d.data.snippet || "" } }
                 );
+                notify(req.userId, {
+                  type: "reply", title: `${existing.company || fromEmail} replied`,
+                  message: (d.data.snippet || "").slice(0, 140), link: "contacts",
+                  dedupeKey: `reply:${req.userId}:${fromEmail}:${dateH || Date.now()}`,
+                });
                 // Auto-classify the new reply in the background (non-blocking)
                 if (process.env.GROQ_API_KEY && d.data.snippet) {
                   classifyReply(d.data.snippet, existing.subject || "").then(cat =>
