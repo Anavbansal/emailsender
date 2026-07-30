@@ -2459,6 +2459,8 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
         totalSent:    { $sum: 1 },
         templateType: { $first: "$templateType" },
         replyCategory: { $first: "$replyCategory" },
+        opened:       { $max:   "$opened" },
+        openedAt:     { $min:   "$openedAt" },
       }}
     ]);
 
@@ -2475,8 +2477,8 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
           latestSentAt:     row.latestSentAt ? new Date(row.latestSentAt).getTime() : 0,
           latestMessageId:  row.messageId    || null,
           latestThreadId:   row.threadId     || null,
-          opened:           false,
-          openedAt:         null,
+          opened:           row.opened       || false,
+          openedAt:         row.openedAt ? new Date(row.openedAt).getTime() : null,
           replied:          row.replied      || false,
           repliedAt:        row.repliedAt    || null,
           followupSent:     row.followupSent || false,
@@ -2488,9 +2490,14 @@ app.get("/api/contacts", requireAuth, async (req, res) => {
           replyCategory:    row.replyCategory || "",
         });
       } else {
-        // Enrich existing sheet/tracking contact with DB data
+        // Enrich existing sheet/tracking contact with DB data — MongoDB is the
+        // more reliable, always-up-to-date source for "opened" (the legacy
+        // Sheet only got a row when logToSheets happened to fire), so let a
+        // true opened status from either source win.
         existing.latestThreadId  = row.threadId  || existing.latestThreadId  || null;
         existing.latestMessageId = row.messageId || existing.latestMessageId || null;
+        existing.opened          = existing.opened || row.opened || false;
+        if (!existing.openedAt && row.openedAt) existing.openedAt = new Date(row.openedAt).getTime();
         existing.replied         = row.replied      || existing.replied      || false;
         existing.repliedAt       = row.repliedAt   || existing.repliedAt   || null;
         existing.followupSent    = row.followupSent|| existing.followupSent || false;
