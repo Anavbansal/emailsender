@@ -3546,29 +3546,23 @@ app.get("/api/sync-sent-emails", requireAuth, async (req, res) => {
 
     const afterDate  = req.query.after  || "2026/05/28";
     const beforeDate = req.query.before || "";
-    const maxResults = parseInt(req.query.max || "100");
     const myEmail    = (cfg8.gmailUser || process.env.GMAIL_USER || "").toLowerCase();
+    const incomingPageToken = req.query.pageToken || undefined;
 
     const query = beforeDate
       ? `in:sent after:${afterDate} before:${beforeDate}`
       : `in:sent after:${afterDate}`;
-    console.log(`📧 Syncing Gmail sent emails: ${query} (max: ${maxResults})`);
+    console.log(`📧 Syncing Gmail sent emails: ${query}`);
 
-    let allMessages = [];
-    let pageToken = null;
-    do {
-      const listParams = { userId: "me", q: query, maxResults: Math.min(100, maxResults) };
-      if (pageToken) listParams.pageToken = pageToken;
-      const list = await gmail.users.messages.list(listParams);
-      allMessages = allMessages.concat(list.data.messages || []);
-      pageToken = list.data.nextPageToken || null;
-      if (allMessages.length >= maxResults) break;
-    } while (pageToken);
+    // One safe page per request (~50 messages) — keeps every call well under
+    // Render's timeout regardless of how many emails the date range matches.
+    // The frontend chains requests using nextPageToken until done, so the
+    // date range alone controls total volume — no artificial count cap.
+    const list = await gmail.users.messages.list({ userId: "me", q: query, maxResults: 50, pageToken: incomingPageToken });
+    const allMessages = list.data.messages || [];
+    const nextPageToken = list.data.nextPageToken || null;
 
-    // Trim to exact max
-    allMessages = allMessages.slice(0, maxResults);
-
-    console.log(`📬 Found ${allMessages.length} sent messages`);
+    console.log(`📬 Found ${allMessages.length} sent messages in this page`);
 
     let inserted = 0, skipped = 0, updated = 0, repliesFound = 0;
     const results = [];
@@ -3719,6 +3713,7 @@ app.get("/api/sync-sent-emails", requireAuth, async (req, res) => {
       inserted, updated, skipped,
       totalFetched: allMessages.length,
       sample: results.slice(0, 10),
+      nextPageToken,
     });
 
   } catch (e) {

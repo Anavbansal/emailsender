@@ -2259,23 +2259,33 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
   const [syncParams, setSyncParams] = useState({
     after: new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10),
     before: new Date().toISOString().slice(0,10),
-    max: 100,
   });
 
   const syncGmailSent = async (params) => {
     setSyncing(true); setSyncResult(null); setSyncModal(false);
+    let pageToken = null, totalInserted = 0, totalSkipped = 0, totalFetched = 0, round = 0;
     try {
-      const r = await axios.get(`${API}/api/sync-sent-emails`, {
-        params: { after: params.after.replace(/-/g,"/"), before: params.before?.replace(/-/g,"/"), max: params.max },
-        timeout: 120000,  // 2 min timeout
-      });
-      const { inserted, skipped, totalFetched } = r.data;
-      setSyncResult({ inserted, skipped, totalFetched });
-      addToast && addToast(`✅ Sync done! ${inserted} new, ${skipped} skipped.`);
+      do {
+        round++;
+        const r = await axios.get(`${API}/api/sync-sent-emails`, {
+          params: {
+            after: params.after.replace(/-/g,"/"), before: params.before?.replace(/-/g,"/"),
+            pageToken: pageToken || undefined,
+          },
+          timeout: 60000,
+        });
+        totalInserted += r.data.inserted || 0;
+        totalSkipped  += r.data.skipped  || 0;
+        totalFetched  += r.data.totalFetched || 0;
+        pageToken = r.data.nextPageToken;
+        if (totalFetched > 0) addToast && addToast(`📥 Synced ${totalFetched} so far — ${totalInserted} new...`);
+      } while (pageToken && round < 60); // safety cap: ~3000 messages max per sync
+      setSyncResult({ inserted: totalInserted, skipped: totalSkipped, totalFetched });
+      addToast && addToast(`✅ Sync done! ${totalInserted} new, ${totalSkipped} skipped.`);
       onRefresh();
     } catch (e) {
       if (e.code === "ECONNABORTED" || e.message?.includes("timeout"))
-        addToast && addToast("⏱ Sync timed out — try with fewer emails (lower max)", "error");
+        addToast && addToast("⏱ Sync timed out — try a smaller date range", "error");
       else
         addToast && addToast("❌ Sync failed: " + (e.response?.data?.message || e.message), "error");
     } finally { setSyncing(false); }
@@ -2836,45 +2846,8 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
                 )}
               </div>
 
-              {/* Max emails */}
-              <div className="form-group" style={{ marginBottom:0 }}>
-                <label className="form-label">
-                  📊 Max emails to fetch
-                  <span style={{ marginLeft:8, fontWeight:400, fontSize:11, color:"var(--text-muted)" }}>
-                    (lower = faster)
-                  </span>
-                </label>
-                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <input type="range" min={10} max={500} step={10}
-                    value={syncParams.max}
-                    onChange={e => setSyncParams(p => ({ ...p, max: +e.target.value }))}
-                    style={{ flex:1 }} />
-                  <span style={{ fontWeight:700, fontSize:15, minWidth:36, color:"var(--blue)" }}>
-                    {syncParams.max}
-                  </span>
-                </div>
-                <div style={{ display:"flex", gap:6, marginTop:6 }}>
-                  {[50, 100, 200, 500].map(n => (
-                    <button key={n} type="button" className="chip"
-                      style={{ fontSize:11, padding:"3px 10px",
-                        background: syncParams.max===n ? "var(--blue)" : undefined,
-                        color: syncParams.max===n ? "#fff" : undefined }}
-                      onClick={() => setSyncParams(p => ({ ...p, max: n }))}>
-                      {n}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Warning for large fetch */}
-              {syncParams.max > 200 && (
-                <div style={{ background:"#fef9c3", border:"1px solid #fde047", borderRadius:8, padding:"8px 12px", fontSize:12, color:"#713f12" }}>
-                  ⚠️ Fetching {syncParams.max} emails may take 2-3 minutes. Start with 100 first.
-                </div>
-              )}
-
               <div style={{ fontSize:12, color:"var(--text-muted)", background:"var(--surface-2)", borderRadius:8, padding:"8px 12px" }}>
-                📅 <strong>{syncParams.after}</strong> → <strong>{syncParams.before}</strong> · Max: <strong>{syncParams.max} emails</strong>
+                📅 <strong>{syncParams.after}</strong> → <strong>{syncParams.before}</strong> — fetches every sent email in this range, no limit
               </div>
             </div>
           </div>
