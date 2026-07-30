@@ -2357,6 +2357,70 @@ app.post("/api/captured-calls/:id/promote", requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// ─── Gmail management (delete/label/draft) directly from the app ─────────────
+app.post("/api/gmail/message/:id/trash", requireAuth, async (req, res) => {
+  try {
+    const auth = getUserGmailAuth(req.user);
+    const gmail = google.gmail({ version: "v1", auth });
+    await gmail.users.messages.trash({ userId: "me", id: req.params.id });
+    res.json({ success: true, message: "Moved to trash" });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+app.get("/api/gmail/labels", requireAuth, async (req, res) => {
+  try {
+    const auth = getUserGmailAuth(req.user);
+    const gmail = google.gmail({ version: "v1", auth });
+    const r = await gmail.users.labels.list({ userId: "me" });
+    // Only user-created labels + a few common system ones are useful to show —
+    // skip noisy system labels like CATEGORY_* / CHAT / SPAM.
+    const SKIP = new Set(["CATEGORY_PERSONAL","CATEGORY_SOCIAL","CATEGORY_PROMOTIONS","CATEGORY_UPDATES","CATEGORY_FORUMS","CHAT","SPAM","TRASH","DRAFT","UNREAD"]);
+    const labels = (r.data.labels || [])
+      .filter(l => !SKIP.has(l.id))
+      .map(l => ({ id: l.id, name: l.name, type: l.type }))
+      .sort((a, b) => (a.type === "system" ? -1 : 1) - (b.type === "system" ? -1 : 1) || a.name.localeCompare(b.name));
+    res.json({ success: true, labels });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+app.post("/api/gmail/message/:id/labels", requireAuth, async (req, res) => {
+  try {
+    const { addLabelIds = [], removeLabelIds = [] } = req.body;
+    const auth = getUserGmailAuth(req.user);
+    const gmail = google.gmail({ version: "v1", auth });
+    await gmail.users.messages.modify({ userId: "me", id: req.params.id, requestBody: { addLabelIds, removeLabelIds } });
+    res.json({ success: true, message: "Labels updated" });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+app.post("/api/gmail/draft", requireAuth, async (req, res) => {
+  try {
+    const { to, subject = "", body = "", threadId = null, inReplyTo = null } = req.body;
+    if (!to) return res.status(400).json({ success: false, message: "to required" });
+    const auth = getUserGmailAuth(req.user);
+    const gmail = google.gmail({ version: "v1", auth });
+    const userCfg = getUserConfig(req.user);
+    const fromEmail = userCfg.gmailUser || req.user.gmailUser || "";
+
+    const headers = [
+      `From: "${userCfg.profileName || req.user.displayName || "Job Mailer"}" <${fromEmail}>`,
+      `To: ${to}`,
+      `Subject: =?UTF-8?B?${Buffer.from(subject).toString("base64")}?=`,
+      `MIME-Version: 1.0`,
+      `Content-Type: text/plain; charset="UTF-8"`,
+    ];
+    if (inReplyTo) { headers.push(`In-Reply-To: ${inReplyTo}`); headers.push(`References: ${inReplyTo}`); }
+    const raw = [...headers, "", body].join("\r\n");
+
+    const requestBody = { message: { raw: Buffer.from(raw).toString("base64url") } };
+    if (threadId) requestBody.message.threadId = threadId;
+
+    const r = await gmail.users.drafts.create({ userId: "me", requestBody });
+    res.json({ success: true, message: "Draft saved!", draftId: r.data.id });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+
 // ─── Notifications (in-app bell) ──────────────────────────────────────────────
 app.get("/api/notifications", requireAuth, async (req, res) => {
   try {

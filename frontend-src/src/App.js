@@ -94,22 +94,21 @@ const getHRProfile = () => {
 
 // Keywords that indicate HR is asking screening questions
 const SCREENING_KEYWORDS = [
-  // CTC / Salary
-  "current ctc", "expected ctc", "current salary", "expected salary", "ctc", "salary", "package",
-  // Experience
-  "total experience", "years of experience", "relevant experience", "experience",
+  // CTC / Salary — compound phrases only ("ctc"/"salary" alone match everything)
+  "current ctc", "expected ctc", "current salary", "expected salary",
+  // Experience — compound phrases only ("experience" alone is far too generic)
+  "total experience", "years of experience", "relevant experience",
   // Notice / Joining
-  "notice period", "notice", "lwd", "last working day", "joining", "available to join", "availability",
+  "notice period", "last working day", "available to join",
   // Company / Role
   "current company", "current organization", "reason for change",
-  // Location
-  "current location", "preferred location", "location", "relocate", "relocation",
+  // Location — compound phrases only ("location"/"phone"/"mobile" alone are too generic)
+  "current location", "preferred location", "relocate", "relocation",
   // Offer
   "offer in hand", "offer letter",
   // Profile details request — Prachi-style emails
-  "candidate name", "candidate profile", "following details", "share your", "share details",
-  "please share", "profile:", "linkedin", "din id", "year of passing",
-  "phone", "contact number", "mobile", "personal details",
+  "candidate name", "candidate profile", "following details", "share your details",
+  "please share", "profile:", "din id", "year of passing", "contact number", "personal details",
   // Generic screening triggers
   "screening", "pre-screen", "shortlisted", "interested in your profile",
   "thank you for applying", "thank you for your application",
@@ -119,8 +118,8 @@ const SCREENING_KEYWORDS = [
   "your application for", "regarding your application", "your candidature",
   // Interview / assessment scheduling
   "schedule a call", "schedule an interview", "would like to schedule", "technical round",
-  "hr round", "telephonic round", "virtual interview", "assessment", "coding test",
-  "coding assignment", "online test", "hackerrank", "assignment", "task submission",
+  "hr round", "telephonic round", "virtual interview", "coding test",
+  "coding assignment", "online test", "hackerrank", "task submission",
   // Recruiter / HR sign-offs & teams
   "hiring manager", "talent acquisition", "recruitment team", "hr team", "hr manager",
   "recruiter", "talent partner", "people team",
@@ -3418,6 +3417,11 @@ function ThreadView({ threadId, onBack }) {
   const [aiDrafting, setAiDrafting] = useState(false);
   const [correction, setCorrection] = useState("");
   const [refining,   setRefining]   = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [deletingId,  setDeletingId]  = useState(null);
+  const [labels,      setLabels]      = useState([]);
+  const [labelMenuFor, setLabelMenuFor] = useState(null); // message id whose label picker is open
+  const [labelBusy,   setLabelBusy]   = useState(false);
 
   const draftWithAI = async () => {
     const last = messages[messages.length - 1];
@@ -3488,6 +3492,52 @@ function ThreadView({ threadId, onBack }) {
     } finally { setSending(false); }
   };
 
+  const saveDraft = async () => {
+    if (!replyBody.trim()) return;
+    setSavingDraft(true); setSendStatus(null);
+    try {
+      const last = messages[messages.length - 1];
+      await axios.post(`${API}/api/gmail/draft`, {
+        to: (last?.from || "").replace(/^.*<|>.*$/g, ""),
+        subject: subject?.toLowerCase().startsWith("re:") ? subject : `Re: ${subject}`,
+        body: replyBody,
+        threadId,
+        inReplyTo: last?.msgId || last?.id,
+      });
+      setSendStatus({ type: "success", text: "Saved as draft — check Gmail's Drafts folder." });
+    } catch (e) {
+      setSendStatus({ type: "error", text: e.response?.data?.message || "Failed to save draft." });
+    } finally { setSavingDraft(false); }
+  };
+
+  const deleteMessage = async (msgId) => {
+    if (!window.confirm("Move this message to Trash?")) return;
+    setDeletingId(msgId);
+    try {
+      await axios.post(`${API}/api/gmail/message/${msgId}/trash`);
+      setMessages(prev => prev.filter(m => m.id !== msgId));
+    } catch (e) { setSendStatus({ type: "error", text: "Failed to delete." }); }
+    finally { setDeletingId(null); }
+  };
+
+  const openLabelMenu = async (msgId) => {
+    setLabelMenuFor(msgId);
+    if (labels.length) return;
+    try {
+      const r = await axios.get(`${API}/api/gmail/labels`);
+      setLabels(r.data.labels || []);
+    } catch {}
+  };
+
+  const applyLabel = async (msgId, labelId) => {
+    setLabelBusy(true);
+    try {
+      await axios.post(`${API}/api/gmail/message/${msgId}/labels`, { addLabelIds: [labelId] });
+      setSendStatus({ type: "success", text: "Label applied!" });
+    } catch { setSendStatus({ type: "error", text: "Failed to apply label." }); }
+    finally { setLabelBusy(false); setLabelMenuFor(null); }
+  };
+
   if (loading) return <div className="thread-loading"><span className="spinner spinner-dark" /> Loading thread…</div>;
 
   return (
@@ -3513,6 +3563,37 @@ function ThreadView({ threadId, onBack }) {
                   {!msg.isRead && <span className="badge badge-sent" style={{ fontSize: 9 }}>Unread</span>}
                 </div>
                 <span className="thread-msg-date">{msg.date ? new Date(msg.date).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" }) : ""}</span>
+                <div onClick={e => e.stopPropagation()} style={{ position: "relative" }}>
+                  <ActionMenu items={[
+                    { icon: "🏷", label: "Apply Label", onClick: () => openLabelMenu(msg.id) },
+                    { icon: "🗑", label: deletingId===msg.id ? "Deleting…" : "Delete", danger: true, disabled: deletingId===msg.id, onClick: () => deleteMessage(msg.id) },
+                  ]} />
+                  {labelMenuFor === msg.id && (
+                    <div style={{
+                      position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 50,
+                      background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8,
+                      boxShadow: "var(--shadow)", minWidth: 180, maxHeight: 240, overflowY: "auto", padding: 5,
+                    }}>
+                      {labels.length === 0 ? (
+                        <div style={{ padding: 8, fontSize: 12, color: "var(--text-muted)" }}>Loading labels…</div>
+                      ) : labels.map(l => (
+                        <button key={l.id} disabled={labelBusy}
+                          onClick={() => applyLabel(msg.id, l.id)}
+                          style={{ display: "block", width: "100%", textAlign: "left", padding: "6px 10px", borderRadius: 6,
+                            background: "transparent", border: "none", fontSize: 12.5, color: "var(--text-900)", cursor: "pointer" }}
+                          onMouseEnter={e => e.currentTarget.style.background = "var(--surface-2)"}
+                          onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                          {l.name}
+                        </button>
+                      ))}
+                      <button onClick={() => setLabelMenuFor(null)}
+                        style={{ display: "block", width: "100%", textAlign: "center", marginTop: 4, padding: "5px", borderRadius: 6,
+                          background: "transparent", border: "none", borderTop: "1px solid var(--border)", fontSize: 11, color: "var(--text-muted)", cursor: "pointer" }}>
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <span className="thread-msg-chevron">{isOpen ? "▲" : "▼"}</span>
               </div>
               {isOpen && (
@@ -3581,6 +3662,9 @@ function ThreadView({ threadId, onBack }) {
             <div className="form-footer">
               <button className={`btn-primary btn-sm ${sending ? "loading" : ""}`} onClick={sendReply} disabled={sending || !replyBody.trim()}>
                 {sending ? <><span className="spinner" /> Sending…</> : "↩ Send Reply"}
+              </button>
+              <button className="btn-ghost btn-sm" onClick={saveDraft} disabled={savingDraft || !replyBody.trim()}>
+                {savingDraft ? "Saving…" : "💾 Save as Draft"}
               </button>
               <button className="btn-ghost btn-sm" onClick={() => { setReplying(false); setReplyBody(""); setSendStatus(null); }}>
                 Cancel
