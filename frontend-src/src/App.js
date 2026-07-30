@@ -2096,17 +2096,18 @@ function DropdownSelect({ value, onChange, options=[], placeholder, width="auto"
     <div style={{ position:"relative", width, flexShrink:0 }}>
       <select value={value} onChange={e => onChange(e.target.value)}
         style={{ appearance:"none", WebkitAppearance:"none", MozAppearance:"none",
-          width:"100%", height:h, paddingLeft:10, paddingRight:26,
-          borderRadius:8, border:"1px solid var(--border)", background:"var(--surface)",
+          width:"100%", height:h, paddingLeft:10, paddingRight:28,
+          borderRadius:"var(--radius-sm)", border:"1.5px solid var(--border)", background:"var(--surface)",
           color: value?"var(--text-700,#374151)":"var(--text-muted)", fontSize:fs,
-          cursor:"pointer", outline:"none", transition:"border-color 0.15s" }}
-        onFocus={e => e.target.style.borderColor="var(--blue)"}
-        onBlur={e => e.target.style.borderColor="var(--border)"}>
+          cursor:"pointer", outline:"none", transition:"border-color var(--t), box-shadow var(--t)" }}
+        onFocus={e => { e.target.style.borderColor="var(--border-focus)"; e.target.style.boxShadow="0 0 0 3px var(--amber-glow)"; }}
+        onBlur={e => { e.target.style.borderColor="var(--border)"; e.target.style.boxShadow="none"; }}>
         {placeholder && <option value="">{placeholder}</option>}
         {options.map(o => <option key={o.value??o} value={o.value??o}>{o.label??o}</option>)}
       </select>
-      <span style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)",
-        pointerEvents:"none", fontSize:9, color:"var(--text-muted)", lineHeight:1 }}>▼</span>
+      <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ position:"absolute", right:11, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}>
+        <path d="M1 1L5 5L9 1" stroke="var(--text-muted)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
     </div>
   );
 }

@@ -29,6 +29,7 @@
   --green:         #146c43;
   --green-light:   #e3f3ea;
   --green-border:  #a3d4bb;
+  --green-glow:    rgba(20,108,67,0.18);
 
   --amber:         #92400e;
   --amber-light:   #f8ede1;
@@ -89,6 +90,7 @@
   --green:         #4fae7f;
   --green-light:   #10221a;
   --green-border:  #1d5c41;
+  --green-glow:    rgba(79,174,127,0.2);
 
   --amber:         #c99257;
   --amber-light:   #29200f;
@@ -522,8 +524,20 @@ input, textarea, select { font-family: var(--font); }
   font-size: 13px;
   color: var(--text-900);
   transition: border-color var(--t), box-shadow var(--t), background var(--t);
-  appearance: none;
 }
+.form-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 34px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23797a83' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+[data-theme="dark"] .form-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%2386878f' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.form-select:disabled { cursor: not-allowed; }
 .form-input::placeholder, .form-textarea::placeholder { color: var(--text-400); }
 .form-input:focus, .form-textarea:focus, .form-select:focus {
   outline: none;
@@ -533,6 +547,42 @@ input, textarea, select { font-family: var(--font); }
 }
 .form-input:disabled, .form-textarea:disabled { opacity: 0.55; cursor: not-allowed; }
 .form-textarea { resize: vertical; min-height: 80px; line-height: 1.6; }
+
+/* ─── Custom checkbox & radio — replace unstyled native browser defaults ──────── */
+input[type="checkbox"], input[type="radio"] {
+  appearance: none; -webkit-appearance: none;
+  width: 17px; height: 17px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  display: inline-block;
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+  vertical-align: middle;
+  transition: border-color var(--t), background var(--t), box-shadow var(--t);
+}
+input[type="checkbox"] { border-radius: 5px; }
+input[type="radio"]    { border-radius: 50%; }
+input[type="checkbox"]:hover, input[type="radio"]:hover { border-color: var(--text-400); }
+input[type="checkbox"]:focus-visible, input[type="radio"]:focus-visible {
+  outline: none; box-shadow: 0 0 0 3px var(--amber-glow);
+}
+input[type="checkbox"]:checked, input[type="radio"]:checked {
+  background: var(--blue); border-color: var(--blue);
+}
+input[type="checkbox"]:checked::after {
+  content: ""; position: absolute; left: 5px; top: 1px;
+  width: 4px; height: 9px;
+  border: solid #fff; border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+input[type="radio"]:checked::after {
+  content: ""; position: absolute; left: 4px; top: 4px;
+  width: 7px; height: 7px; border-radius: 50%; background: #fff;
+}
+input[type="checkbox"]:disabled, input[type="radio"]:disabled {
+  opacity: 0.45; cursor: not-allowed;
+}
 
 /* ─── datetime-local inputs (scheduler, reschedule, etc.) ──────────────────────
    Native date/time pickers ignore most CSS, but color-scheme + accent-color
@@ -639,8 +689,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 }
 .btn-primary  { background: var(--amber); box-shadow: 0 3px 14px var(--amber-glow); }
 .btn-primary:hover:not(:disabled)  { transform: translateY(-1px); box-shadow: 0 6px 20px var(--amber-glow); }
-.btn-followup { background: var(--green); box-shadow: 0 3px 12px rgba(5,150,105,0.2); }
-.btn-followup:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 5px 18px rgba(5,150,105,0.3); }
+.btn-followup { background: var(--green); box-shadow: 0 3px 12px var(--green-glow); }
+.btn-followup:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 5px 18px var(--green-glow); }
 .btn-primary:disabled, .btn-followup:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
 
 .btn-arrow { width: 15px; height: 15px; border-radius: 50%; background: rgba(255,255,255,0.22); display: flex; align-items: center; justify-content: center; font-size: 10px; }
@@ -1916,28 +1966,17 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 .btn-followup {
   background: #059669 !important;
   background-size: 200% 100% !important;
-  box-shadow: 0 4px 14px rgba(5,150,105,0.3) !important;
+  box-shadow: 0 4px 14px var(--green-glow) !important;
   transition: all 0.25s ease !important;
 }
 .btn-followup:hover:not(:disabled) {
   background-position: right center !important;
   transform: translateY(-2px) !important;
-  box-shadow: 0 8px 20px rgba(5,150,105,0.4) !important;
+  box-shadow: 0 8px 20px var(--green-glow) !important;
 }
 
 .btn-ghost {
   transition: all 0.2s ease !important;
-}
-.btn-ghost:hover:not(:disabled) {
-  background: var(--surface-2) !important;
-  transform: translateY(-1px);
-  box-shadow: 0 3px 8px rgba(0,0,0,0.06);
-}
-
-/* ─── Form Inputs ────────────────────────────────────────────────────────────── */
-.form-input:focus, .form-textarea:focus, .form-select:focus {
-  box-shadow: 0 0 0 3px var(--blue-glow), 0 2px 8px rgba(37,99,235,0.1) !important;
-  transform: translateY(-1px);
 }
 
 /* ─── Template Cards ─────────────────────────────────────────────────────────── */
@@ -1972,7 +2011,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 
 /* ─── Badges ─────────────────────────────────────────────────────────────────── */
 .badge { animation: badge-pop 0.25s ease both; transition: all 0.2s ease; }
-.badge-opened  { background: #d1fae5 !important; box-shadow: 0 1px 4px rgba(5,150,105,0.2); }
+.badge-opened  { background: #d1fae5 !important; box-shadow: 0 1px 4px var(--green-glow); }
 .badge-reply   { background: #dbeafe !important; box-shadow: 0 1px 4px rgba(37,99,235,0.2); }
 .badge-reminder{ background: #fef3c7 !important; box-shadow: 0 1px 4px rgba(217,119,6,0.2); }
 
@@ -2210,18 +2249,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
 .btn-primary { transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s; }
-.btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(37,99,235,0.28); }
+.btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 14px var(--amber-glow); }
 .btn-primary:active:not(:disabled) { transform: translateY(0); box-shadow: none; }
-.btn-ghost { transition: background 0.12s ease; }
-.btn-ghost:hover { background: var(--surface-2, rgba(0,0,0,0.04)) !important; }
-
-/* ── Inputs ─────────────────────────────────────────────────────────────── */
-.form-input, .form-select, .form-textarea { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
-.form-input:focus, .form-select:focus, .form-textarea:focus {
-  border-color: var(--blue) !important;
-  box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
-  outline: none;
-}
 
 /* ── Modals ─────────────────────────────────────────────────────────────── */
 .modal-box { animation: modalPop 0.18s cubic-bezier(0.34,1.56,0.64,1); box-shadow: 0 24px 60px rgba(0,0,0,0.25); }
