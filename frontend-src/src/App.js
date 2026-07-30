@@ -735,7 +735,7 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
 
   const GmailAlert = () => !gmailAlert ? null : (
     <div style={{
-      background:"linear-gradient(135deg,#fee2e2,#fef2f2)", border:"2px solid #fca5a5",
+      background:"#fee2e2", border:"2px solid #fca5a5",
       borderRadius:12, padding:"14px 20px", marginBottom:16,
       display:"flex", alignItems:"center", gap:14, flexWrap:"wrap"
     }}>
@@ -839,7 +839,7 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
           : { icon:"🚀", msg:"Start strong — send 5 applications today to build momentum.", action:"send", btn:"Apply Now" };
         return (
           <div style={{
-            background:"linear-gradient(135deg,#fef3c7,#fffbeb)", border:"1px solid #fde68a",
+            background:"#fef3c7", border:"1px solid #fde68a",
             borderRadius:12, padding:"12px 16px", marginBottom:16,
             display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap"
           }}>
@@ -1120,7 +1120,7 @@ Write a short custom note (1-2 sentences) that fits naturally in a "${tplName}" 
 
             {/* AI Generate All */}
             <div style={{
-              background:"linear-gradient(135deg,#7c3aed15,#2563eb15)", border:"1.5px solid #7c3aed33",
+              background:"#7c3aed15", border:"1.5px solid #7c3aed33",
               borderRadius:10, padding:"12px 14px",
             }}>
               <div style={{ fontWeight:700, fontSize:12, color:"#7c3aed", marginBottom:6 }}>✨ AI Generate Everything</div>
@@ -1427,7 +1427,7 @@ function BulkFollowUpModal({ contacts, onClose, addToast, isFiltered = false }) 
                   <div style={{ height:8, borderRadius:99, background:"var(--border)", overflow:"hidden" }}>
                     <div style={{
                       height:"100%", borderRadius:99,
-                      background:"linear-gradient(90deg,#7c3aed,#a855f7)",
+                      background:"#7c3aed",
                       width:`${(progress.done/progress.total)*100}%`,
                       transition:"width 0.3s ease"
                     }} />
@@ -1461,7 +1461,7 @@ function BulkFollowUpModal({ contacts, onClose, addToast, isFiltered = false }) 
                         padding:"10px 12px", borderRadius:10, cursor:"pointer",
                         border:`1.5px solid ${selected.has(c.hrEmail) ? "#7c3aed" : "var(--border,#e2e8f0)"}`,
                         background: selected.has(c.hrEmail)
-                          ? "linear-gradient(135deg,#faf5ff,#ede9fe)"
+                          ? "#faf5ff"
                           : "var(--surface,#fff)",
                         transition:"all 0.15s ease",
                       }}>
@@ -1478,7 +1478,7 @@ function BulkFollowUpModal({ contacts, onClose, addToast, isFiltered = false }) 
                       {/* Avatar */}
                       <div style={{
                         width:32, height:32, borderRadius:"50%", flexShrink:0,
-                        background:"linear-gradient(135deg,#7c3aed,#a855f7)",
+                        background:"#7c3aed",
                         display:"flex", alignItems:"center", justifyContent:"center",
                         fontSize:12, fontWeight:800, color:"#fff"
                       }}>
@@ -1520,7 +1520,7 @@ function BulkFollowUpModal({ contacts, onClose, addToast, isFiltered = false }) 
               className={`btn-primary ${sending ? "loading" : ""}`}
               onClick={send}
               disabled={sending || selected.size === 0}
-              style={{ background:"linear-gradient(135deg,#7c3aed,#a855f7)", minWidth:180 }}>
+              style={{ background:"#7c3aed", minWidth:180 }}>
               {sending
                 ? <><span className="spinner" /> Sending {progress.done}/{progress.total}…</>
                 : schedTime
@@ -1777,7 +1777,7 @@ function InterviewScheduleModal({ contact, onClose, onSaved, addToast }) {
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="modal-scroll">
-          <div style={{background:"linear-gradient(135deg,#eff6ff,#f0fdf4)",border:"1px solid #bfdbfe",borderRadius:10,padding:"10px 14px",marginBottom:16}}>
+          <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:10,padding:"10px 14px",marginBottom:16}}>
             <div style={{fontWeight:700,fontSize:13}}>{contact.company||"Company"}</div>
             <div style={{fontSize:12,color:"var(--text-muted)",marginTop:2}}>{contact.hrEmail}{contact.hrName?` · ${contact.hrName}`:""}</div>
             {contact.role&&<div style={{fontSize:12,color:"var(--blue)",marginTop:2}}>📌 {contact.role}</div>}
@@ -1808,7 +1808,7 @@ function InterviewScheduleModal({ contact, onClose, onSaved, addToast }) {
         </div>
         <div className="modal-footer">
           <button className="btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={save} disabled={saving} style={{background:"linear-gradient(135deg,#d97706,#f59e0b)"}}>
+          <button className="btn-primary" onClick={save} disabled={saving} style={{background:"#d97706"}}>
             {saving?"Saving…":"🗓 Schedule"}
           </button>
         </div>
@@ -2521,7 +2521,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
           <button
             className="btn-primary btn-sm"
             onClick={() => setBulkModal(true)}
-            style={{ background:"linear-gradient(135deg,#7c3aed,#a855f7)", fontSize:12 }}
+            style={{ background:"#7c3aed", fontSize:12 }}
             title="Send follow-up to multiple contacts at once">
             📅 Bulk Follow-up
           </button>
@@ -2606,10 +2606,10 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
               {/* Avatar + Status dot */}
               <div style={{ position: "relative", flexShrink: 0 }}>
                 <div className="contact-avatar" style={{
-                  background: c.replied ? "linear-gradient(135deg,#0d9488,#059669)"
-                    : c.opened ? "linear-gradient(135deg,#7c3aed,#4f46e5)"
-                    : c.needsFollowUp ? "linear-gradient(135deg,#d97706,#f59e0b)"
-                    : "linear-gradient(135deg,#2563eb,#4f46e5)"
+                  background: c.replied ? "#0d9488"
+                    : c.opened ? "#7c3aed"
+                    : c.needsFollowUp ? "#d97706"
+                    : "#2563eb"
                 }}>
                   {getInitials(c.hrName, c.hrEmail)}
                 </div>
@@ -2880,7 +2880,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
           <div className="modal-footer">
             <button className="btn-ghost" onClick={() => setSyncModal(false)}>Cancel</button>
             <button className="btn-primary"
-              style={{ background:"linear-gradient(135deg,#0d9488,#059669)" }}
+              style={{ background:"#0d9488" }}
               onClick={() => syncGmailSent(syncParams)}>
               📥 Start Sync
             </button>
@@ -3253,7 +3253,7 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
                 onClick={() => setAiDrawer(true)}
                 style={{
                   padding:"5px 12px", borderRadius:99, fontSize:11, fontWeight:700,
-                  background:"linear-gradient(135deg,#7c3aed,#2563eb)",
+                  background:"#7c3aed",
                   color:"#fff", border:"none", cursor:"pointer"
                 }}>
                 ✨ AI Write
@@ -4963,7 +4963,7 @@ Bahut helpful hoga agar refer kar sako! 😊`;
           </div>
           <div className="modal-scroll">
             <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-              <div style={{ background:"linear-gradient(135deg,#7c3aed18,#2563eb18)", borderRadius:10, padding:"10px 14px", fontSize:12, color:"var(--text-muted)" }}>
+              <div style={{ background:"#7c3aed18", borderRadius:10, padding:"10px 14px", fontSize:12, color:"var(--text-muted)" }}>
                 ✨ AI will write a personalized email based on your profile and the HR details above.
               </div>
               <div className="form-group" style={{ marginBottom:0 }}>
@@ -4984,7 +4984,7 @@ Bahut helpful hoga agar refer kar sako! 😊`;
                   placeholder="e.g. I built a similar product..." value={aiKeyPoints} onChange={e => setAiKeyPoints(e.target.value)} />
               </div>
               <button onClick={generateAiEmail} disabled={aiLoading}
-                style={{ padding:"11px 20px", borderRadius:10, fontWeight:700, fontSize:14, background:"linear-gradient(135deg,#7c3aed,#2563eb)", color:"#fff", border:"none", cursor:aiLoading?"not-allowed":"pointer", opacity:aiLoading?0.7:1, display:"flex", alignItems:"center", gap:8, justifyContent:"center" }}>
+                style={{ padding:"11px 20px", borderRadius:10, fontWeight:700, fontSize:14, background:"#7c3aed", color:"#fff", border:"none", cursor:aiLoading?"not-allowed":"pointer", opacity:aiLoading?0.7:1, display:"flex", alignItems:"center", gap:8, justifyContent:"center" }}>
                 {aiLoading ? <><span className="spinner"/> Generating…</> : "✨ Generate Email"}
               </button>
               {aiBody && (
@@ -5009,7 +5009,7 @@ Bahut helpful hoga agar refer kar sako! 😊`;
           {aiBody && (
             <div className="modal-footer">
               <button className="btn-ghost" onClick={() => setAiDrawer(false)}>Cancel</button>
-              <button className="btn-primary" style={{ background:"linear-gradient(135deg,#7c3aed,#2563eb)" }} onClick={applyAiEmail}>✅ Use This Email</button>
+              <button className="btn-primary" style={{ background:"#7c3aed" }} onClick={applyAiEmail}>✅ Use This Email</button>
             </div>
           )}
         </div>
@@ -5083,7 +5083,7 @@ function ReferralMessageModal({ connection, onClose, addToast }) {
         <div className="modal-scroll">
           {/* Tips */}
           <div style={{
-            background:"linear-gradient(135deg,#f0f9ff,#e0f2fe)",
+            background:"#f0f9ff",
             border:"1px solid #bae6fd", borderRadius:10,
             padding:"10px 14px", marginBottom:14, fontSize:12, color:"#0369a1"
           }}>
@@ -5139,7 +5139,7 @@ function ReferralMessageModal({ connection, onClose, addToast }) {
           <button
             className="btn-primary"
             onClick={copy}
-            style={{ background: copied ? "linear-gradient(135deg,#059669,#10b981)" : undefined, minWidth:140 }}
+            style={{ background: copied ? "#059669" : undefined, minWidth:140 }}
           >
             {copied ? "✅ Copied!" : "📋 Copy Message"}
           </button>
@@ -5408,7 +5408,7 @@ function LinkedInConnectionsPage({ onFillApply, addToast }) {
                   <button
                     className="btn-primary btn-sm"
                     title="Generate referral message to copy-paste on LinkedIn"
-                    style={{ background:"linear-gradient(135deg,#0077b5,#005f8f)", fontSize:11, flex:1 }}
+                    style={{ background:"#0077b5", fontSize:11, flex:1 }}
                     onClick={() => setRefModal(c)}>
                     💬 Message
                   </button>
@@ -5634,7 +5634,7 @@ function ScheduledPage({ addToast }) {
       <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap", alignItems:"center" }}>
         <button onClick={() => setSequenceModal(true)}
           style={{ padding:"7px 14px", borderRadius:99, fontSize:12, fontWeight:700, cursor:"pointer",
-            background:"linear-gradient(135deg,#7c3aed,#2563eb)", color:"#fff", border:"none", marginRight:4 }}>
+            background:"#7c3aed", color:"#fff", border:"none", marginRight:4 }}>
           ⚡ Schedule Sequence
         </button>
         <Popover trigger={
@@ -5678,7 +5678,7 @@ function ScheduledPage({ addToast }) {
           <button onClick={retryAllFailed} disabled={retrying}
             style={{
               marginLeft:"auto", padding:"7px 16px", borderRadius:99, fontSize:12, fontWeight:700, cursor:retrying?"not-allowed":"pointer",
-              background:"linear-gradient(135deg,#059669,#10b981)", color:"#fff", border:"none", opacity:retrying?0.7:1
+              background:"#059669", color:"#fff", border:"none", opacity:retrying?0.7:1
             }}>
             {retrying ? "Retrying..." : `🔄 Retry All Failed (${failed.length})`}
           </button>
@@ -5747,7 +5747,7 @@ function ScheduledPage({ addToast }) {
                     </button>
                   )}
                   {tab==="held" && (
-                    <button className="btn-primary btn-sm" style={{ marginRight:6, background:"linear-gradient(135deg,#d97706,#f59e0b)" }}
+                    <button className="btn-primary btn-sm" style={{ marginRight:6, background:"#d97706" }}
                       onClick={() => sendNow(job.jobId)} disabled={sendingId===job.jobId}>
                       {sendingId===job.jobId ? "Sending..." : "📤 Send Now"}
                     </button>
@@ -5917,7 +5917,7 @@ function AuthPage({ onAuth }) {
   return (
     <div style={{
       minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center",
-      background:"linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)",
+      background:"#0f172a",
       padding:16
     }}>
       <div style={{
@@ -5930,7 +5930,7 @@ function AuthPage({ onAuth }) {
         <div style={{ textAlign:"center", marginBottom:32 }}>
           <div style={{
             width:56, height:56, borderRadius:16, margin:"0 auto 12px",
-            background:"linear-gradient(135deg,#3b82f6,#7c3aed)",
+            background:"#3b82f6",
             display:"flex", alignItems:"center", justifyContent:"center",
             fontSize:28, boxShadow:"0 8px 24px rgba(59,130,246,0.4)"
           }}>✉️</div>
@@ -5976,7 +5976,7 @@ function AuthPage({ onAuth }) {
           <button type="submit" disabled={loading}
             style={{
               width:"100%", padding:"12px 0", borderRadius:10, border:"none",
-              background:"linear-gradient(135deg,#2563eb,#7c3aed)", color:"#fff",
+              background:"#2563eb", color:"#fff",
               fontWeight:700, fontSize:15, cursor:"pointer", transition:"all 0.2s",
               boxShadow:"0 4px 16px rgba(37,99,235,0.4)",
               opacity: loading ? 0.7 : 1
@@ -6414,8 +6414,8 @@ function App() {
           <div className="header-user">
             <div className="header-avatar" style={{
               background: authUser?.username === "anav"
-                ? "linear-gradient(135deg,#3b82f6,#7c3aed)"
-                : "linear-gradient(135deg,#0d9488,#059669)"
+                ? "#3b82f6"
+                : "#0d9488"
             }}>
               {(authUser?.displayName || "U").slice(0,2).toUpperCase()}
             </div>
@@ -6697,7 +6697,7 @@ function AdminPage({ addToast }) {
                 <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
                   <div style={{
                     width:40, height:40, borderRadius:"50%", flexShrink:0,
-                    background:"linear-gradient(135deg,#3b82f6,#7c3aed)",
+                    background:"#3b82f6",
                     display:"flex", alignItems:"center", justifyContent:"center",
                     color:"#fff", fontWeight:800, fontSize:15
                   }}>
@@ -7624,7 +7624,7 @@ function TemplateManagerPage({ addToast }) {
         <h2 className="page-title">📋 Template Manager</h2>
         <button className="btn-primary btn-sm"
           onClick={() => setEditing(defaultTpl())}
-          style={{ background:"linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
+          style={{ background:"#6366f1" }}>
           + New Template
         </button>
       </div>
@@ -7849,7 +7849,7 @@ function TemplateManagerPage({ addToast }) {
             <div style={{ display:"flex", gap:10 }}>
               <button className={`btn-primary ${saving?"loading":""}`}
                 onClick={save} disabled={saving}
-                style={{ background:`linear-gradient(135deg,${editing.accent},${editing.accent}dd)` }}>
+                style={{ background:`${editing.accent}` }}>
                 {saving ? "Saving..." : "💾 Save Template"}
               </button>
               <button className="btn-ghost" onClick={() => setEditing(null)}>Cancel</button>
@@ -8004,7 +8004,7 @@ function AIAssistantPage({ addToast }) {
                     padding:"4px 11px", borderRadius:99, fontSize:11, fontWeight:600, cursor:"pointer",
                     border:"1.5px solid", whiteSpace:"nowrap",
                     borderColor: tool===t.id ? "#7c3aed" : "var(--border)",
-                    background: tool===t.id ? "linear-gradient(135deg,#7c3aed,#2563eb)" : "var(--surface)",
+                    background: tool===t.id ? "#7c3aed" : "var(--surface)",
                     color: tool===t.id ? "#fff" : "var(--text-muted)",
                   }}>{t.icon} {t.label}</button>
               ))}
@@ -8019,14 +8019,14 @@ function AIAssistantPage({ addToast }) {
         {messages.map((m, i) => (
           <div key={i} style={{ display:"flex", justifyContent: m.role==="user"?"flex-end":"flex-start", gap:8, alignItems:"flex-start" }}>
             {m.role==="ai" && (
-              <div style={{ width:30, height:30, borderRadius:"50%", background:"linear-gradient(135deg,#7c3aed,#2563eb)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, flexShrink:0, marginTop:2 }}>✨</div>
+              <div style={{ width:30, height:30, borderRadius:"50%", background:"#7c3aed", display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, flexShrink:0, marginTop:2 }}>✨</div>
             )}
             <div style={{ maxWidth:"82%" }}>
               <div style={{
                 padding:"10px 14px", borderRadius:12,
                 borderTopLeftRadius: m.role==="ai"?4:12,
                 borderTopRightRadius: m.role==="user"?4:12,
-                background: m.role==="user" ? "linear-gradient(135deg,#7c3aed,#2563eb)" : m.isError ? "#fee2e2" : "var(--surface)",
+                background: m.role==="user" ? "#7c3aed" : m.isError ? "#fee2e2" : "var(--surface)",
                 color: m.role==="user" ? "#fff" : m.isError ? "#991b1b" : "var(--text-700,#374151)",
                 border: m.role==="ai" ? "1px solid var(--border)" : "none",
                 fontSize:13, lineHeight:1.7,
@@ -8052,7 +8052,7 @@ function AIAssistantPage({ addToast }) {
 
         {loading && (
           <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-            <div style={{ width:30, height:30, borderRadius:"50%", background:"linear-gradient(135deg,#7c3aed,#2563eb)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:15 }}>✨</div>
+            <div style={{ width:30, height:30, borderRadius:"50%", background:"#7c3aed", display:"flex", alignItems:"center", justifyContent:"center", fontSize:15 }}>✨</div>
             <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, borderTopLeftRadius:4, padding:"10px 16px", fontSize:12, color:"var(--text-muted)" }}>
               <span style={{ display:"flex", gap:4, alignItems:"center" }}>
                 <span style={{ width:6,height:6,borderRadius:"50%",background:"#7c3aed",animation:"pulse 1.2s ease-in-out 0s infinite" }}/>
@@ -8088,7 +8088,7 @@ function AIAssistantPage({ addToast }) {
           <button onClick={send} disabled={loading || !input.trim()}
             style={{
               padding:"10px 20px", borderRadius:12, fontWeight:700, fontSize:14,
-              background:"linear-gradient(135deg,#7c3aed,#2563eb)", color:"#fff",
+              background:"#7c3aed", color:"#fff",
               border:"none", cursor: loading||!input.trim() ? "not-allowed":"pointer",
               opacity: loading||!input.trim() ? 0.5:1, flexShrink:0
             }}>➤</button>
@@ -8290,7 +8290,7 @@ function InterviewsPage({ addToast }) {
       {/* Upcoming banner */}
       {upcoming.length > 0 && (
         <div style={{
-          background:"linear-gradient(135deg,#fef3c7,#fef9c3)",
+          background:"#fef3c7",
           border:"1.5px solid #fde047", borderRadius:12,
           padding:"12px 18px", marginBottom:16
         }}>
@@ -8388,7 +8388,7 @@ function InterviewsPage({ addToast }) {
                   {/* Avatar */}
                   <div style={{
                     width:40, height:40, borderRadius:10, flexShrink:0,
-                    background:`linear-gradient(135deg,${STAGE_COLORS[iv.stage]||"#2563eb"},${STAGE_COLORS[iv.stage]||"#7c3aed"}88)`,
+                    background:`${STAGE_COLORS[iv.stage]||"#2563eb"}`,
                     display:"flex", alignItems:"center", justifyContent:"center",
                     color:"#fff", fontWeight:800, fontSize:14
                   }}>
@@ -8559,7 +8559,7 @@ function BulkSendPage({ addToast, contacts }) {
           </label>
           <button className={`btn-primary ${sending?"loading":""}`}
             onClick={send} disabled={sending || !selected.size}
-            style={{ background:"linear-gradient(135deg,#7c3aed,#2563eb)", marginLeft:"auto" }}>
+            style={{ background:"#7c3aed", marginLeft:"auto" }}>
             {sending ? "Sending..." : `⚡ Send ${selected.size} Emails`}
           </button>
         </div>

@@ -11,115 +11,116 @@
 /* ─── Light theme ────────────────────────────────────────────────────────────── */
 :root,
 [data-theme="light"] {
-  --bg:            #faf9f6;
+  --bg:            #f7f7f8;
   --surface:       #ffffff;
-  --surface-2:     #f6f5f1;
-  --surface-3:     #efeee9;
-  --border:        #e6e3db;
-  --border-focus:  #c8791f;
+  --surface-2:     #f2f2f4;
+  --surface-3:     #e9e9ec;
+  --border:        #dfdfe3;
+  --border-focus:  #1e3a5f;
 
-  --blue:          #6d5ef0;
-  --blue-light:    #ece9fe;
-  --blue-dark:     #5643d6;
-  --blue-glow:     rgba(109,94,240,0.16);
+  --blue:          #1e3a5f;
+  --blue-light:    #e8edf3;
+  --blue-dark:     #14283f;
+  --blue-glow:     rgba(30,58,95,0.14);
 
-  --purple:        #6d5ef0;
-  --purple-light:  #ece9fe;
+  --purple:        #1e3a5f;
+  --purple-light:  #e8edf3;
 
-  --green:         #16825d;
-  --green-light:   #dbf3e8;
-  --green-border:  #8bd9b9;
+  --green:         #146c43;
+  --green-light:   #e3f3ea;
+  --green-border:  #a3d4bb;
 
-  --amber:         #c8791f;
-  --amber-light:   #fbead2;
-  --amber-border:  #f0cd97;
-  --amber-glow:    rgba(200,121,31,0.22);
+  --amber:         #92400e;
+  --amber-light:   #f8ede1;
+  --amber-border:  #e3c49a;
+  --amber-glow:    rgba(146,64,14,0.16);
 
-  --red:           #c9433f;
-  --red-light:     #fbe4e2;
-  --red-border:    #f0b3af;
+  --red:           #a3282e;
+  --red-light:     #f7e6e6;
+  --red-border:    #e2b3b3;
 
-  --text-900:      #1c1a17;
-  --text-700:      #4a463e;
-  --text-500:      #837c6d;
-  --text-400:      #b0a996;
-  --text-muted:    #837c6d; /* alias for --text-500 — used throughout App.js */
-  --text:          #1c1a17; /* alias for --text-900 */
+  --text-900:      #17181c;
+  --text-700:      #46474e;
+  --text-500:      #797a83;
+  --text-400:      #a9aab2;
+  --text-muted:    #797a83; /* alias for --text-500 — used throughout App.js */
+  --text:          #17181c; /* alias for --text-900 */
   --card-bg:       #ffffff; /* alias for --surface */
-  --surface-hover: #f6f5f1; /* alias for --surface-2 */
-  --blue-50:       #ece9fe; /* light tint of the violet accent, for selected-row backgrounds */
+  --surface-hover: #f2f2f4; /* alias for --surface-2 */
+  --blue-50:       #e8edf3; /* light tint of the primary accent, for selected-row backgrounds */
 
-  --sidebar-bg:    #1c1a22;
-  --sidebar-text:  #a9a3b5;
-  --sidebar-hover: #28242f;
-  --sidebar-active:#6d5ef0;
+  --sidebar-bg:    #14161c;
+  --sidebar-text:  #9b9ca6;
+  --sidebar-hover: #1e2028;
+  --sidebar-active:#3d5a80;
   --sidebar-w:     230px;
 
   --header-bg:     #ffffff;
-  --header-border: #e6e3db;
+  --header-border: #dfdfe3;
 
-  --radius:    14px;
-  --radius-sm: 9px;
-  --radius-xs: 6px;
-  --shadow-sm: 0 1px 3px rgba(28,26,23,0.06);
-  --shadow:    0 8px 28px rgba(28,26,23,0.08), 0 1px 4px rgba(28,26,23,0.04);
-  --shadow-lg: 0 24px 64px rgba(28,26,23,0.16);
-  --t:         0.18s cubic-bezier(0.4,0,0.2,1);
+  --radius:    10px;
+  --radius-sm: 7px;
+  --radius-xs: 5px;
+  --shadow-sm: 0 1px 2px rgba(15,15,18,0.05);
+  --shadow:    0 4px 16px rgba(15,15,18,0.07), 0 1px 3px rgba(15,15,18,0.05);
+  --shadow-lg: 0 16px 44px rgba(15,15,18,0.14);
+  --t:         0.16s cubic-bezier(0.4,0,0.2,1);
   --font:      'Inter', sans-serif;
   --mono:      'JetBrains Mono', monospace;
 }
 
 /* ─── Dark theme ─────────────────────────────────────────────────────────────── */
 [data-theme="dark"] {
-  --bg:            #0b0c10;
-  --surface:       #15161c;
-  --surface-2:     #0e0f13;
-  --surface-3:     #1e2027;
-  --border:        #2a2c35;
-  --border-focus:  #f0a63a;
+  --bg:            #0a0b0e;
+  --surface:       #141519;
+  --surface-2:     #0e0f12;
+  --surface-3:     #1c1d22;
+  --border:        #292a30;
+  --border-focus:  #7a9cc6;
 
-  --blue:          #a599ff;
-  --blue-light:    #241f3d;
-  --blue-dark:     #8b7cf6;
-  --blue-glow:     rgba(165,153,255,0.22);
+  --blue:          #7a9cc6;
+  --blue-light:    #1c2733;
+  --blue-dark:     #5f81a8;
+  --blue-glow:     rgba(122,156,198,0.18);
 
-  --purple:        #a599ff;
-  --purple-light:  #241f3d;
+  --purple:        #7a9cc6;
+  --purple-light:  #1c2733;
 
-  --green:         #3ecf8e;
-  --green-light:   #10261d;
-  --green-border:  #1e6e4c;
+  --green:         #4fae7f;
+  --green-light:   #10221a;
+  --green-border:  #1d5c41;
 
-  --amber:         #f0a63a;
-  --amber-light:   #2b2110;
-  --amber-border:  #6b4a14;
-  --amber-glow:    rgba(240,166,58,0.28);
+  --amber:         #c99257;
+  --amber-light:   #29200f;
+  --amber-border:  #5c4322;
 
-  --red:           #f2707a;
-  --red-light:     #2c1518;
-  --red-border:    #7a2c33;
+  --amber-glow:    rgba(201,146,87,0.2);
 
-  --text-900:      #edecf0;
-  --text-700:      #c6c3d0;
-  --text-500:      #8b8894;
-  --text-400:      #4e4c57;
-  --text-muted:    #8b8894; /* alias for --text-500 — used throughout App.js */
-  --text:          #edecf0; /* alias for --text-900 */
-  --card-bg:       #15161c; /* alias for --surface */
-  --surface-hover: #1e2027; /* alias for --surface-2/3 */
-  --blue-50:       #241f3d; /* dark tint of the violet accent, for selected-row backgrounds */
+  --red:           #c96b6f;
+  --red-light:     #291616;
+  --red-border:    #5c2b2d;
 
-  --sidebar-bg:    #08090c;
-  --sidebar-text:  #8b8894;
-  --sidebar-hover: #17181e;
-  --sidebar-active:#8b7cf6;
+  --text-900:      #eaeaec;
+  --text-700:      #bfc0c6;
+  --text-500:      #86878f;
+  --text-400:      #4c4d54;
+  --text-muted:    #86878f; /* alias for --text-500 — used throughout App.js */
+  --text:          #eaeaec; /* alias for --text-900 */
+  --card-bg:       #141519; /* alias for --surface */
+  --surface-hover: #1c1d22; /* alias for --surface-2/3 */
+  --blue-50:       #1c2733; /* dark tint of the primary accent, for selected-row backgrounds */
 
-  --header-bg:     #15161c;
-  --header-border: #2a2c35;
+  --sidebar-bg:    #08090b;
+  --sidebar-text:  #86878f;
+  --sidebar-hover: #16171c;
+  --sidebar-active:#3d5a80;
 
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.35);
-  --shadow:    0 8px 28px rgba(0,0,0,0.45);
-  --shadow-lg: 0 24px 64px rgba(0,0,0,0.65);
+  --header-bg:     #141519;
+  --header-border: #292a30;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow:    0 4px 16px rgba(0,0,0,0.4), 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-lg: 0 16px 44px rgba(0,0,0,0.55);
 }
 
 /* ─── Reset ──────────────────────────────────────────────────────────────────── */
@@ -170,7 +171,7 @@ input, textarea, select { font-family: var(--font); }
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--blue) 0%, var(--amber) 100%);
+  background: var(--blue);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -204,7 +205,7 @@ input, textarea, select { font-family: var(--font); }
 }
 .nav-item:hover { background: var(--sidebar-hover); color: #f2f1f5; }
 .nav-item-active {
-  background: linear-gradient(135deg, var(--sidebar-active) 0%, #6d5ef0 100%) !important;
+  background: var(--sidebar-active) !important;
   color: #fff !important;
   box-shadow: 0 3px 14px rgba(139,124,246,0.35);
 }
@@ -290,7 +291,7 @@ input, textarea, select { font-family: var(--font); }
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--blue) 0%, var(--amber) 100%);
+  background: var(--blue);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -419,13 +420,13 @@ input, textarea, select { font-family: var(--font); }
 .contacts-list { overflow: visible; }
 .contact-card:hover { border-color: var(--blue-light); box-shadow: var(--shadow); transform: translateY(-1px); }
 .contact-card-reminder { border-left: 3px solid var(--amber); }
-.contact-card-replied  { border-left: 3px solid var(--green); background: linear-gradient(135deg, var(--surface) 90%, var(--green-light) 150%); }
+.contact-card-replied  { border-left: 3px solid var(--green); background: var(--surface); }
 
 .contact-avatar {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--blue) 0%, var(--amber) 100%);
+  background: var(--blue);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -636,9 +637,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
   padding: 10px 22px; border-radius: var(--radius-sm);
   font-size: 13px; font-weight: 700; color: #fff; transition: all var(--t);
 }
-.btn-primary  { background: linear-gradient(135deg, var(--amber) 0%, #e8934a 100%); box-shadow: 0 3px 14px var(--amber-glow); }
+.btn-primary  { background: var(--amber); box-shadow: 0 3px 14px var(--amber-glow); }
 .btn-primary:hover:not(:disabled)  { transform: translateY(-1px); box-shadow: 0 6px 20px var(--amber-glow); }
-.btn-followup { background: linear-gradient(135deg, var(--green) 0%, #10b981 100%); box-shadow: 0 3px 12px rgba(5,150,105,0.2); }
+.btn-followup { background: var(--green); box-shadow: 0 3px 12px rgba(5,150,105,0.2); }
 .btn-followup:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 5px 18px rgba(5,150,105,0.3); }
 .btn-primary:disabled, .btn-followup:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
 
@@ -883,7 +884,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 
 .msg-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 
-.btn-copied { background: linear-gradient(135deg, var(--green) 0%, #10b981 100%) !important; }
+.btn-copied { background: var(--green) !important; }
 
 .btn-whatsapp {
   display: inline-flex; align-items: center; gap: 6px;
@@ -1050,7 +1051,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 
 .inbox-row-avatar {
   width: 36px; height: 36px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--blue) 0%, var(--amber) 100%);
+  background: var(--blue);
   color: #fff; font-size: 14px; font-weight: 700;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
@@ -1131,7 +1132,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 
 .thread-msg-avatar {
   width: 32px; height: 32px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--blue) 0%, var(--amber) 100%);
+  background: var(--blue);
   color: #fff; font-size: 12px; font-weight: 700;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
@@ -1227,7 +1228,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 
 .prospect-avatar {
   width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
-  background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
+  background: #7c3aed;
   color: #fff; font-size: 15px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
 }
@@ -1389,7 +1390,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 .activity-row:hover { background: var(--surface-2); }
 .activity-avatar {
   width: 34px; height: 34px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--blue) 0%, var(--purple) 100%);
+  background: var(--blue);
   display: flex; align-items: center; justify-content: center;
   font-size: 12px; font-weight: 800; color: #fff; flex-shrink: 0;
 }
@@ -1459,7 +1460,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 .kanban-card-top { display: flex; align-items: center; gap: 8px; }
 .kanban-avatar {
   width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
-  background: linear-gradient(135deg, var(--blue), var(--purple));
+  background: var(--blue, var(--purple));
   display: flex; align-items: center; justify-content: center;
   font-size: 10px; font-weight: 800; color: #fff;
 }
@@ -1534,7 +1535,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 .ref-card:hover { box-shadow: var(--shadow); }
 .ref-card-avatar {
   width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
-  background: linear-gradient(135deg, #7c3aed, #059669);
+  background: #7c3aed;
   display: flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: 800; color: #fff;
 }
@@ -1639,22 +1640,22 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 
 /* ─── Sidebar — Glassmorphism + Glow ────────────────────────────────────────── */
 .sidebar {
-  background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%) !important;
+  background: #0f172a !important;
   border-right: 1px solid rgba(255,255,255,0.06);
   box-shadow: 4px 0 24px rgba(0,0,0,0.2);
 }
 [data-theme="dark"] .sidebar {
-  background: linear-gradient(180deg, #010409 0%, #0d1117 100%) !important;
+  background: #010409 !important;
 }
 
 .sidebar-avatar {
-  background: linear-gradient(135deg, #3b82f6, #7c3aed) !important;
+  background: #3b82f6 !important;
   box-shadow: 0 0 0 2px rgba(59,130,246,0.4), 0 4px 12px rgba(59,130,246,0.3);
   animation: pulse-glow 3s ease infinite;
 }
 
 .sidebar-name { 
-  background: linear-gradient(135deg, #e2e8f0, #94a3b8);
+  background: #e2e8f0;
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
 }
 
@@ -1678,7 +1679,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
   transform: translateX(2px);
 }
 .nav-item-active {
-  background: linear-gradient(135deg, rgba(59,130,246,0.25), rgba(124,58,237,0.15)) !important;
+  background: rgba(59, rgba(124,58,237,0.15)) !important;
   border: 1px solid rgba(59,130,246,0.3) !important;
   color: #60a5fa !important;
 }
@@ -1686,12 +1687,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 
 .nav-badge {
   animation: badge-pop 0.3s ease both;
-  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+  background: #ef4444 !important;
   box-shadow: 0 2px 6px rgba(239,68,68,0.4) !important;
 }
 
 .ss-val { 
-  background: linear-gradient(135deg, #60a5fa, #a78bfa);
+  background: #60a5fa;
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   animation: count-up 0.5s ease both;
 }
@@ -1708,7 +1709,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 }
 
 .header-avatar {
-  background: linear-gradient(135deg, #3b82f6, #7c3aed) !important;
+  background: #3b82f6 !important;
   box-shadow: 0 0 0 2px rgba(59,130,246,0.3), 0 3px 10px rgba(59,130,246,0.25);
   transition: all 0.2s ease;
 }
@@ -1717,13 +1718,13 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 .plink { transition: all 0.2s ease !important; }
 .plink:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(37,99,235,0.15) !important; }
 .plink-resume {
-  background: linear-gradient(135deg, #dbeafe, #ede9fe) !important;
+  background: #dbeafe !important;
   box-shadow: 0 2px 6px rgba(37,99,235,0.15) !important;
 }
 
 /* ─── Page Header ────────────────────────────────────────────────────────────── */
 .page-title {
-  background: linear-gradient(135deg, var(--text-900), var(--text-700));
+  background: var(--text-900, var(--text-700));
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   animation: slide-up 0.3s ease both;
 }
@@ -1751,11 +1752,11 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
   border-color: transparent !important;
 }
 .stat-card:hover::before { opacity: 1; }
-.stat-card-blue::before   { background: linear-gradient(90deg,#3b82f6,#2563eb); }
-.stat-card-purple::before { background: linear-gradient(90deg,#7c3aed,#a855f7); }
-.stat-card-green::before  { background: linear-gradient(90deg,#059669,#10b981); }
-.stat-card-amber::before  { background: linear-gradient(90deg,#d97706,#f59e0b); }
-.stat-card-red::before    { background: linear-gradient(90deg,#dc2626,#ef4444); }
+.stat-card-blue::before   { background: #3b82f6; }
+.stat-card-purple::before { background: #7c3aed; }
+.stat-card-green::before  { background: #059669; }
+.stat-card-amber::before  { background: #d97706; }
+.stat-card-red::before    { background: #dc2626; }
 
 .stat-icon-wrap {
   font-size: 22px !important;
@@ -1767,17 +1768,17 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 }
 .stat-card:hover .stat-icon-wrap { transform: scale(1.12) rotate(-3deg); }
 
-.stat-card-blue   .stat-icon-wrap { background: linear-gradient(135deg,#dbeafe,#bfdbfe); }
-.stat-card-purple .stat-icon-wrap { background: linear-gradient(135deg,#ede9fe,#ddd6fe); }
-.stat-card-green  .stat-icon-wrap { background: linear-gradient(135deg,#d1fae5,#a7f3d0); }
-.stat-card-amber  .stat-icon-wrap { background: linear-gradient(135deg,#fef3c7,#fde68a); }
+.stat-card-blue   .stat-icon-wrap { background: #dbeafe; }
+.stat-card-purple .stat-icon-wrap { background: #ede9fe; }
+.stat-card-green  .stat-icon-wrap { background: #d1fae5; }
+.stat-card-amber  .stat-icon-wrap { background: #fef3c7; }
 
 .stat-value {
   font-size: 26px !important;
   font-weight: 800 !important;
   letter-spacing: -1px !important;
   animation: count-up 0.5s ease both;
-  background: linear-gradient(135deg, var(--text-900), var(--text-700));
+  background: var(--text-900, var(--text-700));
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
 }
 .stat-label { font-size: 11px !important; font-weight: 600 !important; color: var(--text-500) !important; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -1819,14 +1820,14 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 .quick-btn:hover .quick-icon { transform: scale(1.2) rotate(-5deg); animation: float 1s ease infinite; }
 .quick-label { font-size: 11px !important; text-align: center; line-height: 1.3; }
 
-.qb-blue   { background: linear-gradient(135deg,#dbeafe,#bfdbfe) !important; color:#1d4ed8 !important; border-color:#bfdbfe !important; }
-.qb-blue:hover   { background: linear-gradient(135deg,#2563eb,#3b82f6) !important; color:#fff !important; border-color:transparent !important; }
-.qb-purple { background: linear-gradient(135deg,#ede9fe,#ddd6fe) !important; color:#5b21b6 !important; border-color:#ddd6fe !important; }
-.qb-purple:hover { background: linear-gradient(135deg,#7c3aed,#a855f7) !important; color:#fff !important; border-color:transparent !important; }
-.qb-green  { background: linear-gradient(135deg,#d1fae5,#a7f3d0) !important; color:#065f46 !important; border-color:#a7f3d0 !important; }
-.qb-green:hover  { background: linear-gradient(135deg,#059669,#10b981) !important; color:#fff !important; border-color:transparent !important; }
-.qb-amber  { background: linear-gradient(135deg,#fef3c7,#fde68a) !important; color:#92400e !important; border-color:#fde68a !important; }
-.qb-amber:hover  { background: linear-gradient(135deg,#d97706,#f59e0b) !important; color:#fff !important; border-color:transparent !important; }
+.qb-blue   { background: #dbeafe !important; color:#1d4ed8 !important; border-color:#bfdbfe !important; }
+.qb-blue:hover   { background: #2563eb !important; color:#fff !important; border-color:transparent !important; }
+.qb-purple { background: #ede9fe !important; color:#5b21b6 !important; border-color:#ddd6fe !important; }
+.qb-purple:hover { background: #7c3aed !important; color:#fff !important; border-color:transparent !important; }
+.qb-green  { background: #d1fae5 !important; color:#065f46 !important; border-color:#a7f3d0 !important; }
+.qb-green:hover  { background: #059669 !important; color:#fff !important; border-color:transparent !important; }
+.qb-amber  { background: #fef3c7 !important; color:#92400e !important; border-color:#fde68a !important; }
+.qb-amber:hover  { background: #d97706 !important; color:#fff !important; border-color:transparent !important; }
 
 /* ─── Health Bar ─────────────────────────────────────────────────────────────── */
 .health-bar-fill {
@@ -1861,7 +1862,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 }
 .activity-avatar {
   width: 34px; height: 34px; border-radius: 50%;
-  background: linear-gradient(135deg,#3b82f6,#7c3aed);
+  background: #3b82f6;
   display: flex; align-items: center; justify-content: center;
   font-size: 12px; font-weight: 800; color: #fff; flex-shrink: 0;
   transition: transform 0.2s;
@@ -1881,11 +1882,11 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 }
 .contact-card-replied {
   border-left: 3px solid #0d9488 !important;
-  background: linear-gradient(135deg, var(--surface) 85%, rgba(13,148,136,0.05) 100%) !important;
+  background: var(--surface) !important;
 }
 .contact-card-reminder {
   border-left: 3px solid var(--amber) !important;
-  background: linear-gradient(135deg, var(--surface) 85%, rgba(217,119,6,0.04) 100%) !important;
+  background: var(--surface) !important;
 }
 .contact-avatar {
   transition: transform 0.2s ease, box-shadow 0.2s ease !important;
@@ -1901,7 +1902,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 
 /* ─── Buttons — Enhanced ─────────────────────────────────────────────────────── */
 .btn-primary {
-  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #2563eb 100%) !important;
+  background: #2563eb !important;
   background-size: 200% 100% !important;
   transition: all 0.25s ease !important;
   box-shadow: 0 4px 14px rgba(37,99,235,0.35) !important;
@@ -1913,7 +1914,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 }
 
 .btn-followup {
-  background: linear-gradient(135deg, #059669 0%, #10b981 50%, #059669 100%) !important;
+  background: #059669 !important;
   background-size: 200% 100% !important;
   box-shadow: 0 4px 14px rgba(5,150,105,0.3) !important;
   transition: all 0.25s ease !important;
@@ -1950,7 +1951,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
   border-color: var(--blue) !important;
 }
 .template-card-active {
-  background: linear-gradient(135deg, #dbeafe, #ede9fe) !important;
+  background: #dbeafe !important;
   border-color: var(--blue) !important;
   box-shadow: 0 0 0 3px var(--blue-glow), 0 4px 12px rgba(37,99,235,0.2) !important;
   transform: translateY(-2px);
@@ -1965,15 +1966,15 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
   box-shadow: 0 3px 8px rgba(37,99,235,0.12) !important;
 }
 .chip-active {
-  background: linear-gradient(135deg, var(--blue), #3b82f6) !important;
+  background: var(--blue, #3b82f6) !important;
   box-shadow: 0 3px 10px rgba(37,99,235,0.3) !important;
 }
 
 /* ─── Badges ─────────────────────────────────────────────────────────────────── */
 .badge { animation: badge-pop 0.25s ease both; transition: all 0.2s ease; }
-.badge-opened  { background: linear-gradient(135deg,#d1fae5,#a7f3d0) !important; box-shadow: 0 1px 4px rgba(5,150,105,0.2); }
-.badge-reply   { background: linear-gradient(135deg,#dbeafe,#bfdbfe) !important; box-shadow: 0 1px 4px rgba(37,99,235,0.2); }
-.badge-reminder{ background: linear-gradient(135deg,#fef3c7,#fde68a) !important; box-shadow: 0 1px 4px rgba(217,119,6,0.2); }
+.badge-opened  { background: #d1fae5 !important; box-shadow: 0 1px 4px rgba(5,150,105,0.2); }
+.badge-reply   { background: #dbeafe !important; box-shadow: 0 1px 4px rgba(37,99,235,0.2); }
+.badge-reminder{ background: #fef3c7 !important; box-shadow: 0 1px 4px rgba(217,119,6,0.2); }
 
 .days-badge { transition: all 0.2s ease; }
 .days-badge:hover { transform: scale(1.05); }
@@ -1991,7 +1992,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 }
 .inbox-row-unread {
   border-left: 3px solid var(--blue) !important;
-  background: linear-gradient(135deg, var(--surface) 90%, rgba(37,99,235,0.03) 100%) !important;
+  background: var(--surface) !important;
 }
 
 /* ─── Kanban Board ───────────────────────────────────────────────────────────── */
@@ -2025,7 +2026,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 
 /* ─── Reminder Banner ────────────────────────────────────────────────────────── */
 .reminder-banner {
-  background: linear-gradient(135deg, var(--amber-light), #fffbeb) !important;
+  background: var(--amber-light, #fffbeb) !important;
   animation: slide-up 0.3s ease both !important;
   border-radius: 12px !important;
 }
@@ -2072,7 +2073,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
 /* ─── View buttons (List/Pipeline) ──────────────────────────────────────────── */
 .view-btn { transition: all 0.2s ease !important; }
 .view-btn-active {
-  background: linear-gradient(135deg, var(--blue), #3b82f6) !important;
+  background: var(--blue, #3b82f6) !important;
   color: #fff !important;
   box-shadow: 0 3px 8px rgba(37,99,235,0.3) !important;
 }
