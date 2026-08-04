@@ -1756,16 +1756,8 @@ function FollowUpModal({ contact, onClose, onSent }) {
             </div>
             <div className="form-group">
               <label className="form-label">Template</label>
-              <div className="template-grid">
-                {templates.map(t => (
-                  <button key={t.id} type="button"
-                    className={`template-card ${form.templateType === t.id ? "template-card-active" : ""}`}
-                    onClick={() => setForm(p => ({ ...p, templateType: t.id }))}>
-                    <span className="tcard-icon">{t.icon}</span>
-                    <span className="tcard-name">{t.name}</span>
-                  </button>
-                ))}
-              </div>
+              <TemplatePicker templates={templates} value={form.templateType}
+                onChange={id => setForm(p => ({ ...p, templateType: id }))} />
               <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:4 }}>
                 Defaults to the template originally sent to this contact — change it to send this follow-up with a different one.
               </p>
@@ -2218,6 +2210,164 @@ function Popover({ trigger, children, align = "left" }) {
   );
 }
 
+// ─── TemplatePicker — collapsed dropdown showing the selected template; click
+// to expand into the full card grid (was always-expanded everywhere before) ──
+function TemplatePicker({ templates, value, onChange, width = "100%" }) {
+  const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+  const btnRef = useRef(null);
+  const popRef = useRef(null);
+  const selected = templates.find(t => t.id === value);
+
+  const reposition = () => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    setCoords({ top: r.bottom + 6, left: r.left, width: r.width });
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const handleOutside = (e) => {
+      if (btnRef.current?.contains(e.target)) return;
+      if (popRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    const close = () => setOpen(false);
+    document.addEventListener("mousedown", handleOutside);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
+
+  return (
+    <div style={{ width }}>
+      <button type="button" ref={btnRef}
+        onClick={() => { if (!open) reposition(); setOpen(o => !o); }}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "9px 12px", borderRadius: "var(--radius-sm)", border: "1.5px solid var(--border)",
+          background: "var(--surface)", cursor: "pointer", fontSize: 13, color: "var(--text-900)",
+        }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          <span style={{ fontSize: 15, flexShrink: 0 }}>{selected?.icon || "📄"}</span>
+          <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {selected?.name || "Select template"}
+          </span>
+        </span>
+        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ flexShrink: 0, marginLeft: 8, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>
+          <path d="M1 1L5 5L9 1" stroke="var(--text-muted)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && createPortal(
+        <div ref={popRef} onClick={e => e.stopPropagation()} style={{
+          position: "fixed", top: coords.top, left: coords.left, width: Math.max(coords.width, 320), zIndex: 9999,
+          background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius)",
+          boxShadow: "var(--shadow-lg, var(--shadow))", padding: 10, maxHeight: 320, overflowY: "auto",
+        }}>
+          <div className="template-grid">
+            {templates.map(t => (
+              <button key={t.id} type="button"
+                className={`template-card ${value === t.id ? "template-card-active" : ""}`}
+                onClick={() => { onChange(t.id); setOpen(false); }}>
+                <span className="tcard-icon">{t.icon}</span>
+                <span className="tcard-name">{t.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+function ContactFilterDropdown({ tabs, activeTab, counts, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const btnRef = useRef(null);
+  const popRef = useRef(null);
+  const active = tabs.find(t => t.key === activeTab) || tabs[0];
+
+  const reposition = () => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    setCoords({ top: r.bottom + 6, left: r.left });
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const handleOutside = (e) => {
+      if (btnRef.current?.contains(e.target)) return;
+      if (popRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    const close = () => setOpen(false);
+    document.addEventListener("mousedown", handleOutside);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <button type="button" ref={btnRef}
+        onClick={() => { if (!open) reposition(); setOpen(o => !o); }}
+        style={{
+          display: "flex", alignItems: "center", gap: 8, padding: "8px 14px",
+          borderRadius: 99, border: `1.5px solid ${active.color}`, background: `${active.color}18`,
+          color: active.color, fontWeight: 700, fontSize: 13, cursor: "pointer",
+        }}>
+        <span>{active.icon}</span>
+        <span>{active.label}</span>
+        {counts[active.key] > 0 && (
+          <span style={{ background: active.color, color: "#fff", borderRadius: 99, padding: "1px 8px", fontSize: 11 }}>
+            {counts[active.key]}
+          </span>
+        )}
+        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ marginLeft: 2, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>
+          <path d="M1 1L5 5L9 1" stroke={active.color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && createPortal(
+        <div ref={popRef} onClick={e => e.stopPropagation()} style={{
+          position: "fixed", top: coords.top, left: coords.left, minWidth: 240, zIndex: 9999,
+          background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius)",
+          boxShadow: "var(--shadow-lg, var(--shadow))", padding: 6,
+        }}>
+          {tabs.map(tab => (
+            <button key={tab.key} type="button" onClick={() => { onChange(tab.key); setOpen(false); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "8px 10px",
+                borderRadius: 7, border: "none", textAlign: "left", cursor: "pointer",
+                background: activeTab === tab.key ? "var(--surface-2)" : "transparent",
+                fontWeight: activeTab === tab.key ? 700 : 500, fontSize: 13, color: "var(--text-900)",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "var(--surface-2)"}
+              onMouseLeave={e => e.currentTarget.style.background = activeTab === tab.key ? "var(--surface-2)" : "transparent"}>
+              <span>{tab.icon}</span>
+              <span style={{ flex: 1 }}>{tab.label}</span>
+              {counts[tab.key] > 0 && (
+                <span style={{ fontSize: 11, color: tab.color, fontWeight: 700, background: `${tab.color}18`, borderRadius: 99, padding: "1px 8px" }}>
+                  {counts[tab.key]}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 function DropdownSelect({ value, onChange, options=[], placeholder, width="auto", size="md" }) {
   const h = size==="sm" ? 30 : 36;
   const fs = size==="sm" ? 12 : 13;
@@ -2553,25 +2703,8 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
         </div>
       )}
 
-      {/* ── Filter Tabs ── */}
-      <div className="contact-filter-tabs">
-        {FILTER_TABS.map(tab => (
-          <button
-            key={tab.key}
-            className={`cft-btn ${activeTab === tab.key ? "cft-active" : ""}`}
-            style={activeTab === tab.key ? { "--tab-color": tab.color } : {}}
-            onClick={() => setActiveTab(tab.key)}
-          >
-            <span className="cft-icon">{tab.icon}</span>
-            <span className="cft-label">{tab.label}</span>
-            {counts[tab.key] > 0 && (
-              <span className="cft-count" style={activeTab === tab.key ? { background: tab.color } : {}}>
-                {counts[tab.key]}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      {/* ── Filter (collapsed dropdown — was 8 always-visible tabs) ── */}
+      <ContactFilterDropdown tabs={FILTER_TABS} activeTab={activeTab} counts={counts} onChange={setActiveTab} />
 
       {/* ── Professional Toolbar: Search + Filters + Sort + Per-page ── */}
       <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", marginBottom:10 }}>
@@ -3227,17 +3360,7 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
         <button className="btn-ghost btn-sm" onClick={() => setShowEditor(true)}>🎨 Edit Template</button>
       </div>
 
-      <div className="template-grid">
-        {allTemplates().map(t => (
-          <button key={t.id} type="button"
-            className={`template-card ${templateId === t.id ? "template-card-active" : ""}`}
-            style={templateId === t.id ? { borderColor: t.accent } : {}}
-            onClick={() => selectTemplate(t)}>
-            <span className="tcard-icon">{t.icon}</span>
-            <span className="tcard-name">{t.name}</span>
-          </button>
-        ))}
-      </div>
+      <TemplatePicker templates={allTemplates()} value={templateId} onChange={id => selectTemplate(allTemplates().find(t => t.id === id))} />
 
       {/* Custom template indicator */}
       {customTpl && (customTpl.customIntro || customTpl.headerTheme !== "blue") && (
@@ -4470,16 +4593,7 @@ function WhatsAppPage({ addToast }) {
 
         <div className="form-group">
           <label className="form-label">Template</label>
-          <div className="template-grid">
-            {templates.map(t => (
-              <button key={t.id} type="button"
-                className={`template-card ${templateId === t.id ? "template-card-active" : ""}`}
-                onClick={() => setTemplateId(t.id)}>
-                <span className="tcard-icon">{t.icon}</span>
-                <span className="tcard-name">{t.name}</span>
-              </button>
-            ))}
-          </div>
+          <TemplatePicker templates={templates} value={templateId} onChange={setTemplateId} />
         </div>
 
         <button className={`btn-ghost ${generating?"loading":""}`} onClick={generate} disabled={generating} style={{ marginTop:4 }}>
@@ -5985,16 +6099,7 @@ function ScheduledPage({ addToast }) {
             <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:4, marginBottom:16 }}>📅 Weekends auto-skip to Monday</p>
 
             <label className="form-label" style={{ fontSize:11 }}>Template</label>
-            <div className="template-grid">
-              {editTemplates.map(t => (
-                <button key={t.id} type="button"
-                  className={`template-card ${newTemplate === t.id ? "template-card-active" : ""}`}
-                  onClick={() => setNewTemplate(t.id)}>
-                  <span className="tcard-icon">{t.icon}</span>
-                  <span className="tcard-name">{t.name}</span>
-                </button>
-              ))}
-            </div>
+            <TemplatePicker templates={editTemplates} value={newTemplate} onChange={setNewTemplate} />
           </div>
           <div className="modal-footer">
             <button className="btn-ghost" onClick={() => setRescheduleJob(null)}>Cancel</button>
