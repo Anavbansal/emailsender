@@ -2368,6 +2368,87 @@ function ContactFilterDropdown({ tabs, activeTab, counts, onChange }) {
   );
 }
 
+function ToolPicker({ tools, groups, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const btnRef = useRef(null);
+  const popRef = useRef(null);
+  const selected = tools.find(t => t.id === value);
+
+  const reposition = () => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    setCoords({ top: r.bottom + 6, left: r.left });
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const handleOutside = (e) => {
+      if (btnRef.current?.contains(e.target)) return;
+      if (popRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    const close = () => setOpen(false);
+    document.addEventListener("mousedown", handleOutside);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button type="button" ref={btnRef}
+        onClick={() => { if (!open) reposition(); setOpen(o => !o); }}
+        style={{
+          display: "flex", alignItems: "center", gap: 7, padding: "6px 12px",
+          borderRadius: 99, border: "1.5px solid #7c3aed", background: "#7c3aed18",
+          color: "#7c3aed", fontWeight: 700, fontSize: 12, cursor: "pointer",
+        }}>
+        <span>{selected?.icon || "✨"}</span>
+        <span>{selected?.label || "Choose a tool"}</span>
+        <svg width="9" height="6" viewBox="0 0 10 6" fill="none" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>
+          <path d="M1 1L5 5L9 1" stroke="#7c3aed" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && createPortal(
+        <div ref={popRef} onClick={e => e.stopPropagation()} style={{
+          position: "fixed", top: coords.top, left: coords.left, width: 280, maxHeight: 400, overflowY: "auto",
+          zIndex: 9999, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius)",
+          boxShadow: "var(--shadow-lg, var(--shadow))", padding: 8,
+        }}>
+          {groups.map(group => (
+            <div key={group} style={{ marginBottom: 6 }}>
+              <div style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", padding: "4px 8px" }}>
+                {group}
+              </div>
+              {tools.filter(t => t.group === group).map(t => (
+                <button key={t.id} type="button" onClick={() => { onChange(t.id); setOpen(false); }}
+                  title={t.desc}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "7px 8px",
+                    borderRadius: 7, border: "none", textAlign: "left", cursor: "pointer",
+                    background: value === t.id ? "var(--surface-2)" : "transparent",
+                    fontWeight: value === t.id ? 700 : 500, fontSize: 12.5, color: "var(--text-900)",
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = "var(--surface-2)"}
+                  onMouseLeave={e => e.currentTarget.style.background = value === t.id ? "var(--surface-2)" : "transparent"}>
+                  <span>{t.icon}</span>
+                  <span>{t.label}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
 function DropdownSelect({ value, onChange, options=[], placeholder, width="auto", size="md" }) {
   const h = size==="sm" ? 30 : 36;
   const fs = size==="sm" ? 12 : 13;
@@ -7443,20 +7524,10 @@ function SettingsPage({ addToast }) {
     <div className="page">
       <div className="page-header"><h2 className="page-title">⚙️ Settings</h2></div>
 
-      {/* Tab switcher */}
-      <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setActiveTab(t.id)}
-            style={{
-              padding:"7px 16px", borderRadius:99, border:"1.5px solid",
-              borderColor: activeTab===t.id ? "var(--blue)" : "var(--border)",
-              background: activeTab===t.id ? "var(--blue)" : "var(--surface)",
-              color: activeTab===t.id ? "#fff" : "var(--text-500,#6b7280)",
-              fontWeight:600, fontSize:12, cursor:"pointer"
-            }}>
-            {t.label}
-          </button>
-        ))}
+      {/* Tab switcher (collapsed dropdown — was 5 always-visible tab buttons) */}
+      <div style={{ marginBottom:16 }}>
+        <DropdownSelect value={activeTab} onChange={setActiveTab} width="220px"
+          options={TABS.map(t => ({ value: t.id, label: t.label }))} />
       </div>
 
       {/* ── Tab: Profile ── */}
@@ -8286,25 +8357,9 @@ function AIAssistantPage({ addToast }) {
           }}>↺ Clear</button>
         </div>
 
-        {/* Tool groups */}
-        <div style={{ display:"flex", flexWrap:"wrap", gap:6, paddingBottom:8 }}>
-          {GROUPS.map(group => (
-            <div key={group} style={{ display:"flex", gap:4, alignItems:"center" }}>
-              <span style={{ fontSize:10, color:"var(--text-muted)", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.05em", marginRight:2 }}>{group}</span>
-              {TOOLS.filter(t => t.group===group).map(t => (
-                <button key={t.id} onClick={() => setTool(t.id)}
-                  title={t.desc}
-                  style={{
-                    padding:"4px 11px", borderRadius:99, fontSize:11, fontWeight:600, cursor:"pointer",
-                    border:"1.5px solid", whiteSpace:"nowrap",
-                    borderColor: tool===t.id ? "#7c3aed" : "var(--border)",
-                    background: tool===t.id ? "#7c3aed" : "var(--surface)",
-                    color: tool===t.id ? "#fff" : "var(--text-muted)",
-                  }}>{t.icon} {t.label}</button>
-              ))}
-              <span style={{ width:1, height:16, background:"var(--border)", margin:"0 4px" }} />
-            </div>
-          ))}
+        {/* Tool picker (collapsed — was always-visible grouped button rows) */}
+        <div style={{ paddingBottom: 8 }}>
+          <ToolPicker tools={TOOLS} groups={GROUPS} value={tool} onChange={setTool} />
         </div>
       </div>
 
