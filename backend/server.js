@@ -379,8 +379,8 @@ function getUserConfig(user) {
     noticePeriod:     user.noticePeriod     || (isOwner ? "Serving Notice Period" : ""),
     currentLocation:  user.currentLocation  || (isOwner ? "Faridabad, Haryana" : ""),
     preferredLocation:user.preferredLocation|| (isOwner ? "PAN India" : ""),
-    totalExp:         user.totalExp         || (isOwner ? "4.8+ Years" : ""),
-    relevantExp:         user.relevantExp         || (isOwner ? "4.8+ Years" : ""),
+    totalExp:         user.totalExp         || (isOwner ? "4.9+ Years" : ""),
+    relevantExp:         user.relevantExp         || (isOwner ? "4.9+ Years" : ""),
     offerInHand:      user.offerInHand      || (isOwner ? "Yes — ₹12 LPA" : "No"),
     dateOfBirth:      user.dateOfBirth      || (isOwner ? "06 October 1999" : ""),
     yearOfPassing:    user.yearOfPassing    || (isOwner ? "2021" : ""),
@@ -1202,28 +1202,28 @@ const HEADER_THEMES = {
   emerald:"linear-gradient(135deg,#052e16 0%,#16a34a 100%)",
 };
 const DEFAULT_HIGHLIGHTS = [
-  "4.8+ years · Node.js, AngularJS, Express.js, REST APIs, AWS Lambda, DynamoDB/MySQL",
+  "4.9+ years · Node.js, AngularJS, Express.js, REST APIs, AWS Lambda, DynamoDB/MySQL",
   "Serverless Architecture: AWS Lambda · DynamoDB · S3 · Amazon Connect · Render · Vercel",
   "10+ enterprise CTI integrations (Avaya, Genesys, Webex, Zoom, Amazon Connect)",
   "CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics, CDK Global, COX Automotive",
   "AI-assisted development: Claude, GitHub Copilot, ChatGPT",
 ];
 const CTI_HIGHLIGHTS = [
-  "4.8+ years · CTI/Telephony Integration Specialist",
+  "4.9+ years · CTI/Telephony Integration Specialist",
   "Avaya (AACC, AES, IPO) · Genesys · Webex · Zoom · Amazon Connect",
   "10+ enterprise CTI integrations delivered end-to-end",
   "CRM: ServiceNow, Salesforce, Freshdesk, Zendesk, CDK Global",
   "AWS Lambda · DynamoDB · IVR/ACD Design · Chatbot Development",
 ];
 const CRM_HIGHLIGHTS = [
-  "4.8+ years · Senior CRM Integration Expert",
+  "4.9+ years · Senior CRM Integration Expert",
   "ServiceNow: ITSM · HRSD · CSM · Flow Designer · IntegrationHub · Virtual Agent · Scripted REST APIs · Marketplace Listing",
   "Freshdesk (FDK, Marketplace Apps, CTI API) · Salesforce Open CTI · Zendesk Apps Framework · MS Dynamics 365",
   "3 published enterprise marketplace apps: ServiceNow Store · Freshdesk · Webex App Hub",
   "CTI Screen Pop · Click-to-Dial · Real-Time Ticket Automation · CRM-Telephony Sync",
 ];
 const SERVICENOW_HIGHLIGHTS = [
-  "4.7+ years · Senior ServiceNow Developer & CRM Integration Expert",
+  "4.9+ years · Senior ServiceNow Developer & CRM Integration Expert",
   "ServiceNow Platform: ITSM · CSM · CMDB/Asset · Flow Designer · IntegrationHub · Scripted REST APIs · Business Rules · ACLs · Virtual Agent",
   "SecOps exposure: CMDB/Asset matching & dedup, Vulnerability Response lifecycle (scan → triage → prioritize → remediate → verify), scanner ingestion (Qualys, Tenable, Rapid7)",
   "IntegrationHub spoke development cut ITSM ticket-creation time by 60%",
@@ -1436,7 +1436,7 @@ function buildCRMHTML({ hrName, company, role, customNote, trackUrl = "", custom
   const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
   const intro     = customIntro ||
     `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}.
-     With <strong>4.8+ years as a CRM Integration Expert</strong>, I specialize in <strong>ServiceNow platform development</strong>
+     With <strong>4.9+ years as a CRM Integration Expert</strong>, I specialize in <strong>ServiceNow platform development</strong>
      (ITSM, HRSD, CSM, Flow Designer, IntegrationHub, Virtual Agent, Scripted REST APIs, Marketplace Listing) and
      <strong>CTI integrations</strong> across Freshdesk, Salesforce, Zendesk, and MS Dynamics —
      delivering enterprise-grade solutions that automate ticket workflows, enable real-time telephony-to-CRM sync,
@@ -1484,7 +1484,7 @@ function buildServiceNowHTML({ hrName, company, role, customNote, trackUrl = "",
   const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
   const intro     = customIntro ||
     `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}.
-     With <strong>4.7+ years as a Senior ServiceNow Developer</strong>, I specialize in the <strong>ServiceNow platform</strong>
+     With <strong>4.9+ years as a Senior ServiceNow Developer</strong>, I specialize in the <strong>ServiceNow platform</strong>
      (ITSM, CSM, Flow Designer, IntegrationHub, Scripted REST APIs, Business Rules, ACLs, CMDB/Asset data) with working
      exposure to <strong>Security Operations concepts</strong> — Vulnerability Response lifecycle, CMDB/asset matching, and
      scanner data ingestion — alongside CRM integrations across Freshdesk, Salesforce, Zendesk, and MS Dynamics.
@@ -1569,7 +1569,7 @@ function buildMohitHTML({ hrName, company, role, customNote, trackUrl = "", temp
   // Template-specific content (intro + highlights — no repetition)
   const templates = {
     crm: {
-      intro: `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}. With <b>4.8+ years</b> specializing in <b>CRM & CTI integrations</b> across MS Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse, I have delivered 7+ enterprise solutions for Fortune 500 clients — resolving critical P1/P2 incidents and leading end-to-end projects from requirement gathering to production support.`,
+      intro: `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}. With <b>4.9+ years</b> specializing in <b>CRM & CTI integrations</b> across MS Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse, I have delivered 7+ enterprise solutions for Fortune 500 clients — resolving critical P1/P2 incidents and leading end-to-end projects from requirement gathering to production support.`,
       highlights: [
         "7+ Enterprise CRM Integrations — MS Dynamics 365, ServiceNow, Salesforce, HubSpot, Zoho CRM, Cisco Finesse",
         "Key Clients: Bank Albilad, J&K Bank (Salesforce + Cisco Finesse), Misr Digital Innovation, Deliverect",
@@ -1579,7 +1579,7 @@ function buildMohitHTML({ hrName, company, role, customNote, trackUrl = "", temp
       ]
     },
     backend: {
-      intro: `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}. With <b>4.8+ years</b> as a Senior Backend Developer, I specialize in <b>Java, Spring Boot, Node.js, Microservices, REST APIs, and Webhook-driven architectures</b> — delivering scalable, high-availability backend solutions across banking and enterprise contact center domains.`,
+      intro: `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}. With <b>4.9+ years</b> as a Senior Backend Developer, I specialize in <b>Java, Spring Boot, Node.js, Microservices, REST APIs, and Webhook-driven architectures</b> — delivering scalable, high-availability backend solutions across banking and enterprise contact center domains.`,
       highlights: [
         "Backend Stack: Java, Spring Boot, Node.js, Express.js, REST APIs, Webhook Architecture, Microservices",
         "Databases: MySQL, SQL, Hibernate JPA, Query Optimization, Cisco UCCE Data Integration",
@@ -1589,7 +1589,7 @@ function buildMohitHTML({ hrName, company, role, customNote, trackUrl = "", temp
       ]
     },
     java: {
-      intro: `I am applying${roleText} at <strong>${company||"your organization"}</strong>. As a Senior Java Developer with <b>4.8+ years</b> in <b>Spring Boot, Microservices, REST APIs, SQL, Apache Tomcat</b>, and Apache HTTP Server, I have owned full project lifecycles — including high-availability deployments for Bank Albilad and J&K Bank using clustering and reverse proxy configurations.`,
+      intro: `I am applying${roleText} at <strong>${company||"your organization"}</strong>. As a Senior Java Developer with <b>4.9+ years</b> in <b>Spring Boot, Microservices, REST APIs, SQL, Apache Tomcat</b>, and Apache HTTP Server, I have owned full project lifecycles — including high-availability deployments for Bank Albilad and J&K Bank using clustering and reverse proxy configurations.`,
       highlights: [
         "Java · Spring Boot · Microservices · REST APIs · Hibernate JPA · SQL · Apache Tomcat",
         "Delivered Bank Albilad CTI-CRM (MS Dynamics 365 + ServiceNow) — 15 months, production-grade",
@@ -1599,9 +1599,9 @@ function buildMohitHTML({ hrName, company, role, customNote, trackUrl = "", temp
       ]
     },
     formal: {
-      intro: `I am respectfully submitting my application${roleText} at <strong>${company||"your organization"}</strong>. With 4.8+ years of enterprise software development experience — spanning CRM integrations, backend engineering, and contact center solutions across banking and Fortune 500 clients — I am confident my background aligns strongly with your requirements.`,
+      intro: `I am respectfully submitting my application${roleText} at <strong>${company||"your organization"}</strong>. With 4.9+ years of enterprise software development experience — spanning CRM integrations, backend engineering, and contact center solutions across banking and Fortune 500 clients — I am confident my background aligns strongly with your requirements.`,
       highlights: [
-        "4.8+ Years · Senior Software Developer · CRM & CTI Integration Specialist",
+        "4.9+ Years · Senior Software Developer · CRM & CTI Integration Specialist",
         "7+ Enterprise Integrations: MS Dynamics 365, ServiceNow, Salesforce, HubSpot, Zoho CRM",
         "Key Clients: Bank Albilad, J&K Bank, Misr Digital Innovation, Deliverect, iLearna",
         "8 'Pat on the Back' Awards + Performance of the Year — NovelVox PVT Ltd",
@@ -1734,7 +1734,7 @@ function buildFullstackHTML({ hrName, company, role, customNote, trackUrl = "", 
   const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
   const intro     = customIntro ||
     `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}.
-     With <strong>4.8+ years of hands-on experience</strong> as a Senior Full-Stack Developer, I have architected and
+     With <strong>4.9+ years of hands-on experience</strong> as a Senior Full-Stack Developer, I have architected and
      shipped production-grade applications across Node.js, AngularJS, Express.js, REST APIs, AWS Lambda, and DynamoDB/MySQL — with deep expertise
      in CTI/Telephony integrations for enterprise platforms. I am currently serving my notice period with a 4.8-year tenure at NovelVox, and am available to join by late August 2026 or earlier for the right opportunity.`;
   const items     = (customHighlights && customHighlights.length) ? customHighlights : DEFAULT_HIGHLIGHTS;
@@ -1774,7 +1774,7 @@ function buildCTIHTML({ hrName, company, role, customNote, trackUrl = "", custom
   const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
   const intro     = customIntro ||
     `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}.
-     With <strong>4.8+ years specializing in CTI/Telephony integrations</strong>, I have architected enterprise-grade solutions
+     With <strong>4.9+ years specializing in CTI/Telephony integrations</strong>, I have architected enterprise-grade solutions
      across Avaya AACC, Avaya AES, Genesys, Webex Contact Center, Zoom, and Amazon Connect — enabling seamless agent workflows,
      real-time call controls, screen popups, and CRM synchronization at scale. I am currently serving my notice period with a 4.8-year tenure at NovelVox, and am available to join by late August 2026 or earlier for the right opportunity.`;
   const items     = (customHighlights && customHighlights.length) ? customHighlights : CTI_HIGHLIGHTS;
@@ -1816,7 +1816,7 @@ function buildFormalHTML({ hrName, company, role, customNote, trackUrl = "", cus
   const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
   const intro     = customIntro ||
     `I am respectfully submitting my application${roleText} at <strong>${company||"your organization"}</strong>.
-     I am a Senior Software Developer with <strong>4.8+ years of professional experience</strong> in full-stack development,
+     I am a Senior Software Developer with <strong>4.9+ years of professional experience</strong> in full-stack development,
      cloud architecture, and enterprise system integrations. I am currently serving my notice period with a 4.8-year tenure at NovelVox, and am available to join by late August 2026 or earlier for the right opportunity.`;
   const items  = (customHighlights && customHighlights.length) ? customHighlights : DEFAULT_HIGHLIGHTS;
   const hlHtml = items.map(h => `<li>${h}</li>`).join("");
@@ -1827,7 +1827,7 @@ function buildFormalHTML({ hrName, company, role, customNote, trackUrl = "", cus
   <div style="background:${gradient};padding:36px 40px;">
     <p style="margin:0 0 6px;color:#bfdbfe;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Senior Software Developer</p>
     <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Anav Bansal</h1>
-    <p style="margin:6px 0 0;color:#bfdbfe;font-size:14px;">B.Tech Computer Science · 4.8+ Years Experience</p>
+    <p style="margin:6px 0 0;color:#bfdbfe;font-size:14px;">B.Tech Computer Science · 4.9+ Years Experience</p>
   </div>
   <div style="padding:36px 40px;">
     <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
@@ -1871,11 +1871,11 @@ function buildFollowUpHTML({ hrName, company, role, originalDate, customNote, tr
   let theme = THEMES[templateType] || THEMES.fullstack;
   let senderTitle = theme.title;
   const BODY_TEXT = {
-    crm:       `I remain very enthusiastic and confident that my <strong>4.7+ years of experience</strong> architecting CRM integrations across ServiceNow, Salesforce, Freshdesk, and Zendesk — with deep ServiceNow platform development (Flow Designer, Scripted REST APIs, IntegrationHub) — would be a strong fit for your team.`,
-    cti:       `I remain very enthusiastic and confident that my <strong>4.7+ years of experience</strong> architecting CTI/Telephony integrations across Avaya, Genesys Cloud, Webex Contact Center, and Amazon Connect — real-time screen-pop and CRM sync for enterprise contact centers — would be a strong fit for your team.`,
-    formal:    `I remain very enthusiastic and confident that my <strong>4.7+ years of experience</strong> across full-stack development, CRM integrations, and CTI/Telephony systems would be a strong fit for your team.`,
-    fullstack: `I remain very enthusiastic and confident that my <strong>4.7+ years of experience</strong> in full-stack development, Node.js, AngularJS, and AWS Lambda serverless architectures would be a strong fit for your team.`,
-    servicenow:`I remain very enthusiastic and confident that my <strong>4.7+ years of experience</strong> on the ServiceNow platform — ITSM, CSM, Flow Designer, IntegrationHub, CMDB/Asset, and Vulnerability Response concepts — would be a strong fit for your team.`,
+    crm:       `I remain very enthusiastic and confident that my <strong>4.9+ years of experience</strong> architecting CRM integrations across ServiceNow, Salesforce, Freshdesk, and Zendesk — with deep ServiceNow platform development (Flow Designer, Scripted REST APIs, IntegrationHub) — would be a strong fit for your team.`,
+    cti:       `I remain very enthusiastic and confident that my <strong>4.9+ years of experience</strong> architecting CTI/Telephony integrations across Avaya, Genesys Cloud, Webex Contact Center, and Amazon Connect — real-time screen-pop and CRM sync for enterprise contact centers — would be a strong fit for your team.`,
+    formal:    `I remain very enthusiastic and confident that my <strong>4.9+ years of experience</strong> across full-stack development, CRM integrations, and CTI/Telephony systems would be a strong fit for your team.`,
+    fullstack: `I remain very enthusiastic and confident that my <strong>4.9+ years of experience</strong> in full-stack development, Node.js, AngularJS, and AWS Lambda serverless architectures would be a strong fit for your team.`,
+    servicenow:`I remain very enthusiastic and confident that my <strong>4.9+ years of experience</strong> on the ServiceNow platform — ITSM, CSM, Flow Designer, IntegrationHub, CMDB/Asset, and Vulnerability Response concepts — would be a strong fit for your team.`,
   };
   let bodyText = BODY_TEXT[templateType] || BODY_TEXT.fullstack;
   let resumeNote = theme.resumeName;
@@ -1892,7 +1892,7 @@ function buildFollowUpHTML({ hrName, company, role, originalDate, customNote, tr
   } else if (isMohit) {
     theme = { gradient: "#1e3a5f 0%,#1d4ed8 100%", accent: "#1d4ed8" };
     senderTitle = "Senior Software Developer · CRM & CTI Integration Specialist · Follow-Up";
-    bodyText = `I remain very enthusiastic about this opportunity and confident that my <strong>4.8+ years</strong> in CRM & CTI integrations across MS Dynamics 365, ServiceNow, Salesforce, and Cisco Finesse would be a strong fit for your team.`;
+    bodyText = `I remain very enthusiastic about this opportunity and confident that my <strong>4.9+ years</strong> in CRM & CTI integrations across MS Dynamics 365, ServiceNow, Salesforce, and Cisco Finesse would be a strong fit for your team.`;
     resumeNote = "Mohit_Singh_CRMExpert_v3.pdf";
   } else if (isPriyal) {
     theme = { gradient: "#7c2d12 0%,#ea580c 100%", accent: "#ea580c" };
@@ -1948,7 +1948,7 @@ function buildReferralHTML({ employeeName, company, role, customNote, trackUrl =
     </p>
     ${noteBlock}
     <p style="color:#374151;line-height:1.8;margin:0 0 16px;">
-      A quick background — I have <strong>4.8+ years of experience</strong> in full-stack development
+      A quick background — I have <strong>4.9+ years of experience</strong> in full-stack development
       with Node.js, Angular, AWS serverless, and enterprise CTI/Telephony integrations. I'd love the
       opportunity to contribute to your team.
     </p>
@@ -4374,8 +4374,8 @@ app.post("/api/auth/init-mohit", async (req, res) => {
         profileSummary:   "Senior Software Backend Engineer with 4.7 years of experience in Java, Spring Boot, REST APIs, Microservices, and CRM/CTI integrations including MS Dynamics 365, ServiceNow, HubSpot, Salesforce, and Cisco Finesse.",
         keySkills:        "Java, Spring Boot, Microservices, REST APIs, SQL, MySQL, CRM Integration, CTI Integration, Cisco Finesse, Salesforce, Microsoft Dynamics 365, ServiceNow, HubSpot, Git, CI/CD, Postman",
         currentCompany:   "NovelVox Pvt Ltd",
-        totalExp:         "4.7+ Years",
-        relevantExp:      "4.7+ Years",
+        totalExp:         "4.9+ Years",
+        relevantExp:      "4.9+ Years",
         noticePeriod:     "Serving Notice Period",
         currentLocation:  "Gurugram, Haryana",
         preferredLocation:"PAN India",
@@ -4867,7 +4867,7 @@ app.post("/api/ai/chat", requireAuth, async (req, res) => {
     const userCfg = getUserConfig(req.user);
     const pf = {
       name:      userCfg?.profileName    || req.user.displayName || "Candidate",
-      exp:       userCfg?.totalExp       || "4.8+",
+      exp:       userCfg?.totalExp       || "4.9+",
       skills:    userCfg?.keySkills      || "Full Stack, CRM, CTI",
       company:   userCfg?.currentCompany || "NovelVox",
       notice:    userCfg?.noticePeriod   || "Serving Notice Period",
@@ -6122,6 +6122,15 @@ app.get("/api/template-override", requireAuth, async (req, res) => {
     const map = {};
     overrides.forEach(o => { map[o.templateId] = o; });
     res.json({ success: true, overrides: map });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─── DELETE /api/template-override/:templateId — clear a saved customization,
+// reverting that template back to its built-in defaults ─────────────────────
+app.delete("/api/template-override/:templateId", requireAuth, async (req, res) => {
+  try {
+    await EmailTemplate.deleteOne({ userId: req.userId, templateId: req.params.templateId, isOverride: true });
+    res.json({ success: true, message: "Reset to default ✅" });
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 

@@ -31,8 +31,8 @@ const DRIVE_LINK = "https://drive.google.com/file/d/1LKc-w9Ggd5I1eZ3t7Wvm9psU-4I
 // ── HR Profile answers — edit these anytime ──────────────────────────────────
 const HR_PROFILE_ANAV = {
   keySkills:        "Node.js, Angular, AWS, ExpressJS, TypeScript, CTI Integrations, ServiceNow, Chatbot Development",
-  totalExp:         "4.7+ Years",
-  relevantExp:      "4.7+ Years",
+  totalExp:         "4.9+ Years",
+  relevantExp:      "4.9+ Years",
   currentCompany:   "NovelVox Pvt. Ltd.",
   reasonForChange:  "Personal and professional growth",
   noticePeriod:     "Serving Notice Period",
@@ -64,8 +64,8 @@ const getHRProfile = () => {
   if (user?.username === "priyal") return HR_PROFILE_PRIYAL;
   if (user?.username === "mohit") return {
     keySkills:        "Java, Spring Boot, Microservices, REST APIs, SQL, MySQL, CRM Integration, CTI Integration, Cisco Finesse, Salesforce, MS Dynamics 365, ServiceNow, HubSpot, Git, CI/CD",
-    totalExp:         "4.8+ Years",
-    relevantExp:      "4.8+ Years",
+    totalExp:         "4.9+ Years",
+    relevantExp:      "4.9+ Years",
     currentCompany:   "NovelVox Pvt Ltd",
     reasonForChange:  "Personal and professional growth",
     noticePeriod:     "Serving Notice Period",
@@ -186,15 +186,15 @@ const EMAIL_TEMPLATES_ANAV = [
   { id: "fullstack", name: "Full Stack", icon: "⚡", accent: "#2563eb",
     customNote: "I am excited to apply for this opportunity. My full-stack expertise in Node.js and AWS Lambda makes me an ideal candidate for building scalable, production-ready applications." },
   { id: "cti",      name: "CTI Expert", icon: "📞", accent: "#7c3aed",
-    customNote: "With 4.7+ years specializing in CTI/telephony integrations, I have architected enterprise-grade solutions across Avaya AACC, Genesys, Webex, and Amazon Connect." },
+    customNote: "With 4.9+ years specializing in CTI/telephony integrations, I have architected enterprise-grade solutions across Avaya AACC, Genesys, Webex, and Amazon Connect." },
   { id: "formal",   name: "Formal",     icon: "🎯", accent: "#1d4ed8",
     customNote: "I am respectfully submitting my application for this position. I am confident that my technical background aligns closely with your requirements." },
   { id: "startup",  name: "Startup",    icon: "🚀", accent: "#059669",
     customNote: "I build fast, ship quality, and love environments where impact matters. My Node.js + AWS stack has powered real-time enterprise solutions." },
   { id: "crm",      name: "CRM Expert", icon: "🏆", accent: "#0d9488",
-    customNote: "With 4.7+ years as a CRM Integration Expert, I specialize in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent) and Freshdesk CTI." },
+    customNote: "With 4.9+ years as a CRM Integration Expert, I specialize in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent) and Freshdesk CTI." },
   { id: "servicenow", name: "ServiceNow Expert", icon: "🟢", accent: "#16a34a",
-    customNote: "With 4.7+ years as a Senior ServiceNow Developer, I specialize in ITSM, CSM, Flow Designer, IntegrationHub, CMDB/Asset data, and Vulnerability Response concepts." },
+    customNote: "With 4.9+ years as a Senior ServiceNow Developer, I specialize in ITSM, CSM, Flow Designer, IntegrationHub, CMDB/Asset data, and Vulnerability Response concepts." },
 ];
 
 const EMAIL_TEMPLATES_PRIYAL = [
@@ -210,13 +210,13 @@ const EMAIL_TEMPLATES_PRIYAL = [
 
 const EMAIL_TEMPLATES_MOHIT = [
   { id: "crm",     name: "CRM Specialist", icon: "🔗", accent: "#1d4ed8",
-    customNote: "With 4.8+ years specializing in CRM & CTI integrations — MS Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse — I have delivered 7+ enterprise solutions for Fortune 500 clients, resolved critical P1/P2 incidents, and earned 8 'Pat on the Back' awards at NovelVox PVT Ltd." },
+    customNote: "With 4.9+ years specializing in CRM & CTI integrations — MS Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse — I have delivered 7+ enterprise solutions for Fortune 500 clients, resolved critical P1/P2 incidents, and earned 8 'Pat on the Back' awards at NovelVox PVT Ltd." },
   { id: "backend", name: "Backend Dev",    icon: "☕", accent: "#1e3a5f",
-    customNote: "With 4.8+ years in Java, Spring Boot, Node.js, Microservices, and REST APIs, I specialize in scalable backend architectures and webhook-driven CRM/CTI integrations. I have independently delivered high-availability deployments for banking clients including Bank Albilad and J&K Bank." },
+    customNote: "With 4.9+ years in Java, Spring Boot, Node.js, Microservices, and REST APIs, I specialize in scalable backend architectures and webhook-driven CRM/CTI integrations. I have independently delivered high-availability deployments for banking clients including Bank Albilad and J&K Bank." },
   { id: "java",    name: "Java Expert",    icon: "🚀", accent: "#0369a1",
-    customNote: "As a Senior Java Developer with 4.8+ years in Spring Boot, Microservices, Apache Tomcat, and SQL, I have delivered enterprise-grade CTI solutions for Bank Albilad (MS Dynamics 365 + ServiceNow), J&K Bank (Salesforce + Cisco Finesse), and Misr Digital Innovation — including Apache Reverse Proxy and Tomcat Clustering deployments." },
+    customNote: "As a Senior Java Developer with 4.9+ years in Spring Boot, Microservices, Apache Tomcat, and SQL, I have delivered enterprise-grade CTI solutions for Bank Albilad (MS Dynamics 365 + ServiceNow), J&K Bank (Salesforce + Cisco Finesse), and Misr Digital Innovation — including Apache Reverse Proxy and Tomcat Clustering deployments." },
   { id: "formal",  name: "Formal",         icon: "🎯", accent: "#1e40af",
-    customNote: "With 4.8+ years of enterprise CRM and CTI integration experience across banking and contact center domains, I am confident my background aligns strongly with your requirements. I have earned 8 'Pat on the Back' awards and the Performance of the Year Award at NovelVox PVT Ltd." },
+    customNote: "With 4.9+ years of enterprise CRM and CTI integration experience across banking and contact center domains, I am confident my background aligns strongly with your requirements. I have earned 8 'Pat on the Back' awards and the Performance of the Year Award at NovelVox PVT Ltd." },
 ];
 
 const getEmailTemplates = () => {
@@ -253,7 +253,7 @@ const DEFAULT_TEMPLATE_ANAV = {
   headerTheme: "blue",
   customIntro: "",
   highlights: [
-    "4.7+ years · Node.js, AngularJS, Express.js",
+    "4.9+ years · Node.js, AngularJS, Express.js",
     "AWS Lambda · DynamoDB · S3 · Amazon Connect",
     "10+ enterprise CTI integrations (Avaya, Genesys, Webex, Zoom)",
     "CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics, CDK Global",
@@ -275,6 +275,49 @@ const DEFAULT_TEMPLATE_PRIYAL = {
 
 // getDefaultTemplate() is computed dynamically
 const getDefaultTemplate = () => getUser()?.username === "anav" ? DEFAULT_TEMPLATE_ANAV : DEFAULT_TEMPLATE_PRIYAL;
+
+// Per-template highlight defaults — mirrors backend's DEFAULT_HIGHLIGHTS/
+// CTI_HIGHLIGHTS/CRM_HIGHLIGHTS/SERVICENOW_HIGHLIGHTS. Used to seed the
+// Template Editor with the RIGHT starting content for whichever template is
+// actually open, instead of always falling back to Full Stack's highlights
+// (the earlier bug — loadCustomTemplate()/getDefaultTemplate() ignored which
+// template was being edited entirely).
+const BUILTIN_HIGHLIGHTS_BY_TEMPLATE = {
+  fullstack: [
+    "4.9+ years · Node.js, AngularJS, Express.js, REST APIs, AWS Lambda, DynamoDB/MySQL",
+    "Serverless Architecture: AWS Lambda · DynamoDB · S3 · Amazon Connect · Render · Vercel",
+    "10+ enterprise CTI integrations (Avaya, Genesys, Webex, Zoom, Amazon Connect)",
+    "CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics, CDK Global, COX Automotive",
+    "AI-assisted development: Claude, GitHub Copilot, ChatGPT",
+  ],
+  cti: [
+    "4.9+ years · CTI/Telephony Integration Specialist",
+    "Avaya (AACC, AES, IPO) · Genesys · Webex · Zoom · Amazon Connect",
+    "10+ enterprise CTI integrations delivered end-to-end",
+    "CRM: ServiceNow, Salesforce, Freshdesk, Zendesk, CDK Global",
+    "AWS Lambda · DynamoDB · IVR/ACD Design · Chatbot Development",
+  ],
+  crm: [
+    "4.9+ years · Senior CRM Integration Expert",
+    "ServiceNow: ITSM · HRSD · CSM · Flow Designer · IntegrationHub · Virtual Agent · Scripted REST APIs · Marketplace Listing",
+    "Freshdesk (FDK, Marketplace Apps, CTI API) · Salesforce Open CTI · Zendesk Apps Framework · MS Dynamics 365",
+    "3 published enterprise marketplace apps: ServiceNow Store · Freshdesk · Webex App Hub",
+    "CTI Screen Pop · Click-to-Dial · Real-Time Ticket Automation · CRM-Telephony Sync",
+  ],
+  servicenow: [
+    "4.9+ years · Senior ServiceNow Developer & CRM Integration Expert",
+    "ServiceNow Platform: ITSM · CSM · CMDB/Asset · Flow Designer · IntegrationHub · Scripted REST APIs · Business Rules · ACLs · Virtual Agent",
+    "SecOps exposure: CMDB/Asset matching & dedup, Vulnerability Response lifecycle (scan → triage → prioritize → remediate → verify), scanner ingestion (Qualys, Tenable, Rapid7)",
+    "IntegrationHub spoke development cut ITSM ticket-creation time by 60%",
+    "3 published marketplace apps: ServiceNow Store · Freshdesk Marketplace · Webex App Hub",
+  ],
+  formal: [
+    "4.9+ years · Senior Software Developer",
+    "Full-stack development, CRM integrations, and CTI/Telephony systems",
+    "10+ enterprise integrations delivered across contact center and CRM platforms",
+    "AI-assisted development: Claude, GitHub Copilot, ChatGPT",
+  ],
+};
 
 
 const MSG_TEMPLATES_PRIYAL = [
@@ -367,7 +410,7 @@ const MSG_TEMPLATES_ANAV = [
 
 Hope you're doing well! I came across your profile and wanted to reach out.
 
-I'm Anav Bansal — a Senior Full Stack Developer with 4.7+ years of experience building production-grade applications using Node.js, Angular, AWS Lambda, and DynamoDB. I've worked extensively on enterprise CTI integrations and serverless architectures.
+I'm Anav Bansal — a Senior Full Stack Developer with 4.9+ years of experience building production-grade applications using Node.js, Angular, AWS Lambda, and DynamoDB. I've worked extensively on enterprise CTI integrations and serverless architectures.
 
 I'm currently exploring a job switch and would love to connect with someone at ${c}. If there are any openings that might be a good fit, or if you'd be open to a referral, I'd really appreciate it!
 
@@ -393,7 +436,7 @@ Anav Bansal
 
 I hope this message finds you well!
 
-I'm Anav Bansal, a Senior Full Stack Developer with 4.7+ years of experience delivering scalable, end-to-end applications — Node.js, Angular, AWS, and enterprise CRM/CTI integrations across platforms like ServiceNow, Salesforce, and Freshdesk.
+I'm Anav Bansal, a Senior Full Stack Developer with 4.9+ years of experience delivering scalable, end-to-end applications — Node.js, Angular, AWS, and enterprise CRM/CTI integrations across platforms like ServiceNow, Salesforce, and Freshdesk.
 
 I'm at a stage in my career where I'm actively evaluating exciting new opportunities, and ${c} has caught my attention. I'd be grateful if you'd consider referring me, or simply connecting me with the right person on your team.
 
@@ -417,7 +460,7 @@ Anav Bansal
 
 Hope you're having a great week!
 
-I'm Anav Bansal — a Senior CRM Integration Expert with 4.7+ years of specialization in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent, Scripted REST APIs), Freshdesk, Salesforce, and Zendesk. I've published 3 enterprise marketplace apps and led CTI integrations for Fortune 500 contact centers.
+I'm Anav Bansal — a Senior CRM Integration Expert with 4.9+ years of specialization in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent, Scripted REST APIs), Freshdesk, Salesforce, and Zendesk. I've published 3 enterprise marketplace apps and led CTI integrations for Fortune 500 contact centers.
 
 I'm currently looking for a new challenge and exploring opportunities where I can make an impact with my CRM & ServiceNow expertise. If ${c} has any relevant openings or if you'd be open to referring me, I'd truly appreciate it!
 
@@ -439,7 +482,7 @@ const MSG_TEMPLATES_MOHIT = [
     build: (name, company) => {
       const n = (name||"there").split(" ")[0];
       const c = company || "your organization";
-      return `Hi ${n},\n\nHope you are doing well! I came across your profile and wanted to connect.\n\nI am Mohit Singh — a Senior Software Backend Engineer with 4.7+ years of experience in Java, Spring Boot, Microservices, and enterprise CRM/CTI integrations (MS Dynamics 365, ServiceNow, Salesforce, Cisco Finesse).\n\nI am currently exploring new opportunities and would love to connect with someone at ${c}. If there are any suitable openings or if you would be open to a referral, I would truly appreciate it!\n\nBest regards,\nMohit Singh\n📞 +91 7982092042 | ✉ mohit310ggn@gmail.com`;
+      return `Hi ${n},\n\nHope you are doing well! I came across your profile and wanted to connect.\n\nI am Mohit Singh — a Senior Software Backend Engineer with 4.9+ years of experience in Java, Spring Boot, Microservices, and enterprise CRM/CTI integrations (MS Dynamics 365, ServiceNow, Salesforce, Cisco Finesse).\n\nI am currently exploring new opportunities and would love to connect with someone at ${c}. If there are any suitable openings or if you would be open to a referral, I would truly appreciate it!\n\nBest regards,\nMohit Singh\n📞 +91 7982092042 | ✉ mohit310ggn@gmail.com`;
     }
   },
   {
@@ -447,7 +490,7 @@ const MSG_TEMPLATES_MOHIT = [
     build: (name, company) => {
       const n = (name||"there").split(" ")[0];
       const c = company || "your organization";
-      return `Hi ${n},\n\nI hope this message finds you well!\n\nI am Mohit Singh, a Senior Software Developer at NovelVox with 4.8+ years specializing in CRM/CTI integrations — MS Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse. I have received 8 Pat on the Back awards and the Performance of the Year Award.\n\nI am exploring new opportunities and ${c} caught my attention. I would be grateful if you could refer me or connect me with the right person.\n\nBest regards,\nMohit Singh\n📞 +91 7982092042 | ✉ mohit310ggn@gmail.com`;
+      return `Hi ${n},\n\nI hope this message finds you well!\n\nI am Mohit Singh, a Senior Software Developer at NovelVox with 4.9+ years specializing in CRM/CTI integrations — MS Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse. I have received 8 Pat on the Back awards and the Performance of the Year Award.\n\nI am exploring new opportunities and ${c} caught my attention. I would be grateful if you could refer me or connect me with the right person.\n\nBest regards,\nMohit Singh\n📞 +91 7982092042 | ✉ mohit310ggn@gmail.com`;
     }
   },
   {
@@ -455,7 +498,7 @@ const MSG_TEMPLATES_MOHIT = [
     build: (name, company) => {
       const n = (name||"there").split(" ")[0];
       const c = company || "your organization";
-      return `Hi ${n},\n\nI am Mohit Singh — a Senior Java Developer with 4.8+ years in Spring Boot, Microservices, REST APIs, SQL, and enterprise integrations. I have delivered end-to-end projects for banking clients like Bank Albilad, J&K Bank, and Misr Digital Innovation.\n\nI am exploring opportunities at ${c} and would love to connect. Happy to share my resume!\n\nBest regards,\nMohit Singh\n📞 +91 7982092042 | ✉ mohit310ggn@gmail.com`;
+      return `Hi ${n},\n\nI am Mohit Singh — a Senior Java Developer with 4.9+ years in Spring Boot, Microservices, REST APIs, SQL, and enterprise integrations. I have delivered end-to-end projects for banking clients like Bank Albilad, J&K Bank, and Misr Digital Innovation.\n\nI am exploring opportunities at ${c} and would love to connect. Happy to share my resume!\n\nBest regards,\nMohit Singh\n📞 +91 7982092042 | ✉ mohit310ggn@gmail.com`;
     }
   },
 ];
@@ -1079,10 +1122,15 @@ function TemplateEditorModal({ templateType, onClose, onSave }) {
     : templateType === "startup" ? "Startup"
     : BACKEND_TEMPLATE_MAP[templateType] ? "Full Stack" : (templateType || "Custom");
 
-  const [tpl, setTpl] = useState(() => ({
-    ...loadCustomTemplate(),
-    customSubject: "",
-  }));
+  const [tpl, setTpl] = useState(() => {
+    const builtinHighlights = BUILTIN_HIGHLIGHTS_BY_TEMPLATE[TMAP];
+    if (builtinHighlights) {
+      // Known built-in template — seed with ITS OWN correct defaults, not
+      // the generic Full-Stack ones from loadCustomTemplate()/getDefaultTemplate().
+      return { headerTheme: "blue", customIntro: "", highlights: builtinHighlights, customSubject: "" };
+    }
+    return { ...loadCustomTemplate(), customSubject: "" };
+  });
   const [previewHtml, setPreview] = useState("");
   const [previewLoading, setPL]   = useState(false);
   const [saved, setSaved]         = useState(false);
@@ -1208,9 +1256,12 @@ Write a short custom note (1-2 sentences) that fits naturally in a "${tplName}" 
   };
 
   const reset = async () => {
-    setTpl({ ...getDefaultTemplate(), customSubject: "" });
+    const builtinHighlights = BUILTIN_HIGHLIGHTS_BY_TEMPLATE[TMAP];
+    setTpl(builtinHighlights
+      ? { headerTheme: "blue", customIntro: "", highlights: builtinHighlights, customSubject: "" }
+      : { ...getDefaultTemplate(), customSubject: "" });
     localStorage.removeItem("customEmailTemplate");
-    try { await axios.post(`${API}/api/template-override`, { templateId: TMAP, intro:"", highlights:[], customNote:"", subject:"" }); } catch {}
+    try { await axios.delete(`${API}/api/template-override/${TMAP}`); } catch {}
   };
 
   const AiBtn = ({ field, label }) => (
@@ -5142,7 +5193,7 @@ function ReferralPage({ addToast }) {
 
 Hope you're doing well! I saw that ${company || "your company"} has an opening for ${role || "a relevant position"} and I'm really excited about it.
 
-I have 4.7+ years of experience as a Senior Full Stack Developer with expertise in:
+I have 4.9+ years of experience as a Senior Full Stack Developer with expertise in:
 • Node.js, AngularJS, AWS Lambda
 • CTI Integrations: Avaya, Genesys, Webex, Amazon Connect
 • CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics
@@ -5166,7 +5217,7 @@ Maine dekha ki *${company || "tumhari company"}* mein *${role || "ek role"}* ka 
 Kya tum mujhe refer kar sakte ho? Tumhare jaise *${relation.toLowerCase()}* ka referral bahut valuable hoga! 🙏
 
 *Meri profile:*
-• 4.7+ years — Node.js, AWS Lambda
+• 4.9+ years — Node.js, AWS Lambda
 • CTI Expert: Avaya, Genesys, Webex, Amazon Connect
 • CRM: ServiceNow, Salesforce, Freshdesk
 
@@ -7291,27 +7342,27 @@ function SettingsPage({ addToast }) {
     { id:"fullstack", name:"Full Stack",  icon:"⚡", accent:"#2563eb",
       subject:"Job Application — Anav Bansal",
       customNote:"I am excited to apply for this opportunity. My full-stack expertise in Node.js and AWS Lambda makes me an ideal candidate for building scalable, production-ready applications.",
-      highlights:["4.7+ years · Node.js, AngularJS, Express.js","AWS Lambda · DynamoDB · S3 · Amazon Connect","10+ enterprise CTI integrations (Avaya, Genesys, Webex, Zoom)","CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics"],
+      highlights:["4.9+ years · Node.js, AngularJS, Express.js","AWS Lambda · DynamoDB · S3 · Amazon Connect","10+ enterprise CTI integrations (Avaya, Genesys, Webex, Zoom)","CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics"],
       resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
     { id:"servicenow", name:"ServiceNow Expert", icon:"🟢", accent:"#16a34a",
       subject:"Job Application — Anav Bansal (Senior ServiceNow Developer)",
-      customNote:"With 4.7+ years as a Senior ServiceNow Developer, I specialize in ITSM, CSM, Flow Designer, IntegrationHub, CMDB/Asset data, and Vulnerability Response concepts.",
-      highlights:["4.7+ years · Senior ServiceNow Developer","ServiceNow: ITSM, CSM, Flow Designer, IntegrationHub, Scripted REST APIs","SecOps: CMDB/Asset matching, Vulnerability Response lifecycle","IntegrationHub spoke dev cut ITSM ticket time by 60%"],
+      customNote:"With 4.9+ years as a Senior ServiceNow Developer, I specialize in ITSM, CSM, Flow Designer, IntegrationHub, CMDB/Asset data, and Vulnerability Response concepts.",
+      highlights:["4.9+ years · Senior ServiceNow Developer","ServiceNow: ITSM, CSM, Flow Designer, IntegrationHub, Scripted REST APIs","SecOps: CMDB/Asset matching, Vulnerability Response lifecycle","IntegrationHub spoke dev cut ITSM ticket time by 60%"],
       resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
     { id:"cti", name:"CTI Expert", icon:"📞", accent:"#7c3aed",
       subject:"Job Application — Anav Bansal (CTI/Telephony Specialist)",
-      customNote:"With 4.7+ years specializing in CTI/telephony integrations, I have architected enterprise-grade solutions across Avaya AACC, Genesys, Webex, and Amazon Connect.",
-      highlights:["4.7+ years CTI/Telephony Integration Specialist","Avaya AACC/AES, Genesys Cloud, Webex, Amazon Connect","10+ enterprise contact center integrations","Node.js, AWS Lambda, REST APIs, WebSockets"],
+      customNote:"With 4.9+ years specializing in CTI/telephony integrations, I have architected enterprise-grade solutions across Avaya AACC, Genesys, Webex, and Amazon Connect.",
+      highlights:["4.9+ years CTI/Telephony Integration Specialist","Avaya AACC/AES, Genesys Cloud, Webex, Amazon Connect","10+ enterprise contact center integrations","Node.js, AWS Lambda, REST APIs, WebSockets"],
       resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
     { id:"crm", name:"CRM Expert", icon:"🏆", accent:"#0d9488",
       subject:"Job Application — Anav Bansal (Senior CRM & ServiceNow Expert)",
-      customNote:"With 4.7+ years as a CRM Integration Expert, I specialize in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent) and Freshdesk CTI.",
-      highlights:["4.7+ years CRM Integration Expert","ServiceNow: Flow Designer, IntegrationHub, Virtual Agent, Scripted REST","6+ enterprise CRM integrations (ServiceNow, Salesforce, Freshdesk, Zendesk)","3 marketplace apps published"],
+      customNote:"With 4.9+ years as a CRM Integration Expert, I specialize in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent) and Freshdesk CTI.",
+      highlights:["4.9+ years CRM Integration Expert","ServiceNow: Flow Designer, IntegrationHub, Virtual Agent, Scripted REST","6+ enterprise CRM integrations (ServiceNow, Salesforce, Freshdesk, Zendesk)","3 marketplace apps published"],
       resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
     { id:"formal", name:"Formal", icon:"🎯", accent:"#1d4ed8",
       subject:"Job Application — Anav Bansal",
       customNote:"I am respectfully submitting my application for this position. I am confident that my technical background aligns closely with your requirements.",
-      highlights:["4.7+ years Full Stack Development","Node.js, Angular, AWS — production-grade applications","10+ enterprise integrations delivered","ServiceNow, Salesforce, Freshdesk expertise"],
+      highlights:["4.9+ years Full Stack Development","Node.js, Angular, AWS — production-grade applications","10+ enterprise integrations delivered","ServiceNow, Salesforce, Freshdesk expertise"],
       resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
   ];
 
@@ -7324,10 +7375,10 @@ function SettingsPage({ addToast }) {
       { id:"genai",    name:"GenAI Focus",    icon:"🤖", accent:"#7c3aed", subject:"Job Application — Priyal Goyal (GenAI & Digital Lending)", customNote:"I have hands-on experience contributing to GenAI-powered credit automation platforms, SLOS integration, and AI-driven workflow optimization — contributing to a 2.9% reduction in TAT at Tata Capital.", highlights:["GenAI-powered Credit Automation Platform","SLOS Integration · Pan-India Rollout","AI Bot Integration — Jocata to FinnOne workflow automation","2.9% TAT reduction achieved"], resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
     ];
     if (u?.username === "mohit") return [
-      { id:"backend", name:"Backend Dev",    icon:"☕", accent:"#1e3a5f", subject:"Job Application — Mohit Singh", customNote:"With 4.7+ years in Java, Spring Boot, Microservices and REST APIs, I specialize in building scalable backend applications and enterprise CRM/CTI integrations.", highlights:["4.7+ Years · Java, Spring Boot, Microservices, REST APIs","CRM/CTI: MS Dynamics 365, ServiceNow, Salesforce, HubSpot, Cisco Finesse","8 Pat on the Back Awards + Performance of the Year — NovelVox","P1/P2 Incident Management · Root Cause Analysis"], resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
-      { id:"crm",     name:"CRM Specialist", icon:"🔗", accent:"#2563eb", subject:"Job Application — Mohit Singh (CRM Integration Specialist)", customNote:"With 4.7+ years in enterprise CRM/CTI integrations — MS Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse — I deliver high-performance solutions.", highlights:["Enterprise CRM: MS Dynamics 365, ServiceNow, Salesforce, HubSpot","CTI: Cisco Finesse, Avaya, Amazon Connect","Banking clients: Bank Albilad, J&K Bank, Misr Digital Innovation","8 Pat on Back Awards + Performance of the Year"], resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
-      { id:"java",    name:"Java Expert",    icon:"🚀", accent:"#0369a1", subject:"Job Application — Mohit Singh (Senior Java Developer)", customNote:"As a Senior Java Developer with Spring Boot and Microservices expertise, I have delivered enterprise-grade solutions for banking clients.", highlights:["Java · Spring Boot · Microservices · REST APIs · SQL","Hibernate · JPA · MySQL · CI/CD · Git","Banking: Bank Albilad, J&K Bank, Salesforce/Cisco Finesse","4.7+ Years NovelVox — End-to-end project ownership"], resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
-      { id:"formal",  name:"Formal",         icon:"🎯", accent:"#1d4ed8", subject:"Job Application — Mohit Singh", customNote:"I am respectfully submitting my application. With 4.7+ years of enterprise software development experience, I am confident my background aligns with your requirements.", highlights:["4.7+ Years · Java, Spring Boot, Microservices","CRM/CTI Integration Specialist · NovelVox","Banking & Enterprise Clients · Fortune 500","Performance of the Year Award"], resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
+      { id:"backend", name:"Backend Dev",    icon:"☕", accent:"#1e3a5f", subject:"Job Application — Mohit Singh", customNote:"With 4.9+ years in Java, Spring Boot, Microservices and REST APIs, I specialize in building scalable backend applications and enterprise CRM/CTI integrations.", highlights:["4.9+ Years · Java, Spring Boot, Microservices, REST APIs","CRM/CTI: MS Dynamics 365, ServiceNow, Salesforce, HubSpot, Cisco Finesse","8 Pat on the Back Awards + Performance of the Year — NovelVox","P1/P2 Incident Management · Root Cause Analysis"], resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
+      { id:"crm",     name:"CRM Specialist", icon:"🔗", accent:"#2563eb", subject:"Job Application — Mohit Singh (CRM Integration Specialist)", customNote:"With 4.9+ years in enterprise CRM/CTI integrations — MS Dynamics 365, ServiceNow, Salesforce, HubSpot, and Cisco Finesse — I deliver high-performance solutions.", highlights:["Enterprise CRM: MS Dynamics 365, ServiceNow, Salesforce, HubSpot","CTI: Cisco Finesse, Avaya, Amazon Connect","Banking clients: Bank Albilad, J&K Bank, Misr Digital Innovation","8 Pat on Back Awards + Performance of the Year"], resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
+      { id:"java",    name:"Java Expert",    icon:"🚀", accent:"#0369a1", subject:"Job Application — Mohit Singh (Senior Java Developer)", customNote:"As a Senior Java Developer with Spring Boot and Microservices expertise, I have delivered enterprise-grade solutions for banking clients.", highlights:["Java · Spring Boot · Microservices · REST APIs · SQL","Hibernate · JPA · MySQL · CI/CD · Git","Banking: Bank Albilad, J&K Bank, Salesforce/Cisco Finesse","4.9+ Years NovelVox — End-to-end project ownership"], resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
+      { id:"formal",  name:"Formal",         icon:"🎯", accent:"#1d4ed8", subject:"Job Application — Mohit Singh", customNote:"I am respectfully submitting my application. With 4.9+ years of enterprise software development experience, I am confident my background aligns with your requirements.", highlights:["4.9+ Years · Java, Spring Boot, Microservices","CRM/CTI Integration Specialist · NovelVox","Banking & Enterprise Clients · Fortune 500","Performance of the Year Award"], resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
     ];
     return DEFAULT_TEMPLATES_ANAV;
   };
@@ -7550,7 +7601,7 @@ function SettingsPage({ addToast }) {
               Used in screening replies and email body. Keep it 2-3 lines.
             </p>
             <Field k="profileSummary" label="Summary" area
-              ph="Senior Full Stack Developer with 4.7+ years of experience in Node.js, AWS, and CTI integrations..." />
+              ph="Senior Full Stack Developer with 4.9+ years of experience in Node.js, AWS, and CTI integrations..." />
             <SaveBtn />
           </Section>
         </div>
@@ -7562,8 +7613,8 @@ function SettingsPage({ addToast }) {
           <Section title="💼 Current Job">
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
               <Field k="currentCompany"    label="Current Company"     ph="NovelVox Pvt Ltd" />
-              <Field k="totalExp"          label="Total Experience"    ph="4.7+ Years" />
-              <Field k="relevantExp"       label="Relevant Experience" ph="4.7+ Years" />
+              <Field k="totalExp"          label="Total Experience"    ph="4.9+ Years" />
+              <Field k="relevantExp"       label="Relevant Experience" ph="4.9+ Years" />
               <Field k="currentCTC"        label="Current CTC"         ph="₹9 LPA" />
               <Field k="expectedCTC"       label="Expected CTC"        ph="₹15 LPA" />
               <Field k="noticePeriod"      label="Notice Period"       ph="Serving Notice Period" />
@@ -8142,7 +8193,7 @@ function TemplateManagerPage({ addToast }) {
                   </span>
                 </label>
                 <textarea className="form-textarea" rows={3} style={{ fontSize:13 }}
-                  placeholder={`I am writing to express my strong interest in joining [company]. With 4.7+ years of experience in...`}
+                  placeholder={`I am writing to express my strong interest in joining [company]. With 4.9+ years of experience in...`}
                   value={editing.intro} onChange={e=>h("intro",e.target.value)} />
               </div>
 
@@ -8166,7 +8217,7 @@ function TemplateManagerPage({ addToast }) {
                   <div key={i} style={{ display:"flex", gap:6, marginBottom:6 }}>
                     <span style={{ color:"var(--text-muted)", paddingTop:8, fontSize:12, minWidth:16 }}>{i+1}.</span>
                     <input className="form-input" style={{ fontSize:13 }}
-                      placeholder={`Highlight ${i+1} — e.g. 4.7+ years · Node.js, AWS Lambda`}
+                      placeholder={`Highlight ${i+1} — e.g. 4.9+ years · Node.js, AWS Lambda`}
                       value={hl} onChange={e=>hHighlight(i,e.target.value)} />
                     <button type="button" onClick={() => {
                       const hl2=[...(editing.highlights||[])]; hl2.splice(i,1); h("highlights",hl2);
