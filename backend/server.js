@@ -1344,7 +1344,7 @@ async function sendApplicationEmail({
   // from the DB and rendered dynamically, not silently fall back to a hardcoded one.
   const BUILTIN_IDS = isMohit  ? ["backend", "crm", "java", "formal"]
                     : isPriyal ? ["finance", "credit", "formal", "genai"]
-                    :            ["fullstack", "cti", "crm", "formal"];
+                    :            ["fullstack", "cti", "crm", "formal", "servicenow"];
   const isCustomTemplate = !BUILTIN_IDS.includes(templateType);
 
   // Check if user has a custom DB template (non built-in users, OR built-in users
@@ -3427,7 +3427,7 @@ app.post("/api/whatsapp/message", requireAuth, async (req, res) => {
 
     const BUILTIN_IDS = isMohit  ? ["backend", "crm", "java", "formal"]
                        : isPriyal ? ["finance", "credit", "formal", "genai"]
-                       :            ["fullstack", "cti", "crm", "formal"];
+                       :            ["fullstack", "cti", "crm", "formal", "servicenow"];
     const isCustom = !BUILTIN_IDS.includes(templateType);
 
     let dbTemplate = null;
