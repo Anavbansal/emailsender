@@ -1127,10 +1127,11 @@ function TemplateEditorModal({ templateType, onClose, onSave }) {
     if (builtinHighlights) {
       // Known built-in template — seed with ITS OWN correct defaults, not
       // the generic Full-Stack ones from loadCustomTemplate()/getDefaultTemplate().
-      return { headerTheme: "blue", customIntro: "", highlights: builtinHighlights, customSubject: "" };
+      return { headerTheme: "blue", customIntro: "", fullBody: "", highlights: builtinHighlights, customSubject: "" };
     }
-    return { ...loadCustomTemplate(), customSubject: "" };
+    return { ...loadCustomTemplate(), fullBody: loadCustomTemplate().fullBody || "", customSubject: "" };
   });
+  const [loadingBody, setLoadingBody] = useState(false);
   const [previewHtml, setPreview] = useState("");
   const [previewLoading, setPL]   = useState(false);
   const [saved, setSaved]         = useState(false);
@@ -1150,6 +1151,7 @@ function TemplateEditorModal({ templateType, onClose, onSave }) {
         if (ov) setTpl(p => ({
           ...p,
           ...(ov.intro       && { customIntro:    ov.intro }),
+          ...(ov.fullBody    && { fullBody:       ov.fullBody }),
           ...(ov.highlights?.length && { highlights: ov.highlights }),
           ...(ov.customNote  && { customNote:      ov.customNote }),
           ...(ov.subject     && { customSubject:   ov.subject }),
@@ -1165,6 +1167,7 @@ function TemplateEditorModal({ templateType, onClose, onSave }) {
       customNote: "I am very excited about this opportunity.",
       templateType: TMAP,
       customIntro:      debouncedTpl.customIntro      || undefined,
+      customFullBody:   debouncedTpl.fullBody         || undefined,
       customHighlights: debouncedTpl.highlights.length ? debouncedTpl.highlights : undefined,
       headerTheme:      debouncedTpl.headerTheme,
     }).then(r => setPreview(r.data.html || "")).catch(() => {}).finally(() => setPL(false));
@@ -1185,6 +1188,8 @@ function TemplateEditorModal({ templateType, onClose, onSave }) {
     const prompts = {
       intro: `${context}
 Write a compelling email introduction paragraph (3-4 sentences, plain text, no markdown) for a job application email of type "${tplName}". ${customInstruction || "Make it confident, specific to the template type, and mention key skills naturally."}`,
+      fullBody: `${context}
+Write the full body text of a job application email (2 short paragraphs, plain text, no markdown, separated by a blank line) for a template of type "${tplName}". First paragraph: why I'm interested and my relevant expertise. Second paragraph: a concrete achievement or two. ${customInstruction || "Confident, specific, not generic."}`,
       highlights: `${context}
 Generate exactly 5 powerful bullet points for a job application email of type "${tplName}". ${customInstruction || "Each bullet should be concise (under 80 chars), specific, and impressive."}
 Return ONLY a JSON array of 5 strings, no markdown, no preamble. Example: ["Point 1","Point 2","Point 3","Point 4","Point 5"]`,
@@ -1223,6 +1228,8 @@ Write a short custom note (1-2 sentences) that fits naturally in a "${tplName}" 
         }
       } else if (field === "intro") {
         setTpl(p => ({ ...p, customIntro: reply }));
+      } else if (field === "fullBody") {
+        setTpl(p => ({ ...p, fullBody: reply }));
       } else if (field === "customNote") {
         setTpl(p => ({ ...p, customNote: reply }));
       }
@@ -1239,6 +1246,7 @@ Write a short custom note (1-2 sentences) that fits naturally in a "${tplName}" 
       await axios.post(`${API}/api/template-override`, {
         templateId: TMAP,
         intro:      tpl.customIntro     || "",
+        fullBody:   tpl.fullBody        || "",
         highlights: tpl.highlights.filter(Boolean),
         customNote: tpl.customNote      || "",
         subject:    tpl.customSubject   || "",
@@ -1258,10 +1266,20 @@ Write a short custom note (1-2 sentences) that fits naturally in a "${tplName}" 
   const reset = async () => {
     const builtinHighlights = BUILTIN_HIGHLIGHTS_BY_TEMPLATE[TMAP];
     setTpl(builtinHighlights
-      ? { headerTheme: "blue", customIntro: "", highlights: builtinHighlights, customSubject: "" }
-      : { ...getDefaultTemplate(), customSubject: "" });
+      ? { headerTheme: "blue", customIntro: "", fullBody: "", highlights: builtinHighlights, customSubject: "" }
+      : { ...getDefaultTemplate(), fullBody: "", customSubject: "" });
     localStorage.removeItem("customEmailTemplate");
     try { await axios.delete(`${API}/api/template-override/${TMAP}`); } catch {}
+  };
+
+  const loadDefaultBody = async () => {
+    if (tpl.fullBody?.trim() && !window.confirm("This will replace your current Email Body text with the default. Continue?")) return;
+    setLoadingBody(true);
+    try {
+      const r = await axios.get(`${API}/api/templates/default-body/${TMAP}`, { params: { company: "[Company]" } });
+      if (r.data.body) setTpl(p => ({ ...p, fullBody: r.data.body }));
+    } catch {}
+    finally { setLoadingBody(false); }
   };
 
   const AiBtn = ({ field, label }) => (
@@ -1315,10 +1333,9 @@ Write a short custom note (1-2 sentences) that fits naturally in a "${tplName}" 
                 disabled={aiLoading}
                 onClick={async () => {
                   setAiLoading(true);
-                  await aiRewrite("intro", aiPrompt);
+                  await aiRewrite("fullBody", aiPrompt);
                   await aiRewrite("highlights", aiPrompt);
                   await aiRewrite("subject", aiPrompt);
-                  await aiRewrite("customNote", aiPrompt);
                   setAiLoading(false);
                 }}
               >
@@ -1364,31 +1381,29 @@ Write a short custom note (1-2 sentences) that fits naturally in a "${tplName}" 
               )}
             </div>
 
-            {/* Intro paragraph */}
+            {/* Email Body — full editable text, exactly as it's sent */}
             <div className="form-group" style={{ marginBottom:0 }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
                 <label className="form-label" style={{ margin:0, fontSize:11 }}>
-                  Opening Introduction
-                  <span className="label-hint" style={{ marginLeft:6 }}>Blank = use default</span>
+                  Email Body
+                  <span className="label-hint" style={{ marginLeft:6 }}>Full text, exactly as sent — blank line = new paragraph</span>
                 </label>
-                <AiBtn field="intro" label="Intro" />
+                <div style={{ display:"flex", gap:6 }}>
+                  <button type="button" style={{
+                      padding:"3px 10px", borderRadius:99, fontSize:11, fontWeight:600, cursor:"pointer",
+                      border:"1.5px solid var(--border)", background:"transparent", color:"var(--text-muted)",
+                    }}
+                    disabled={loadingBody}
+                    onClick={loadDefaultBody}>
+                    {loadingBody ? "Loading…" : "📋 Load Current Text"}
+                  </button>
+                  <AiBtn field="fullBody" label="Email Body" />
+                </div>
               </div>
-              <textarea className="form-textarea" rows={5} style={{ fontSize:12 }}
-                placeholder="e.g. I am writing to express my strong interest in joining…"
-                value={tpl.customIntro}
-                onChange={e => setTpl(p => ({ ...p, customIntro: e.target.value }))} />
-            </div>
-
-            {/* Custom note */}
-            <div className="form-group" style={{ marginBottom:0 }}>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
-                <label className="form-label" style={{ margin:0, fontSize:11 }}>Extra Note <span style={{ fontWeight:400, color:"var(--text-muted)" }}>(optional)</span></label>
-                <AiBtn field="customNote" label="Note" />
-              </div>
-              <textarea className="form-textarea" rows={2} style={{ fontSize:12 }}
-                placeholder="Any extra line to add after the intro…"
-                value={tpl.customNote || ""}
-                onChange={e => setTpl(p => ({ ...p, customNote: e.target.value }))} />
+              <textarea className="form-textarea" rows={9} style={{ fontSize:12, lineHeight:1.6 }}
+                placeholder="Click “Load Current Text” to see and edit exactly what this template currently sends — or leave blank to keep using the built-in default."
+                value={tpl.fullBody || ""}
+                onChange={e => setTpl(p => ({ ...p, fullBody: e.target.value }))} />
             </div>
 
             {/* Highlights */}
@@ -3413,6 +3428,7 @@ function SendApplicationPage({ onContactsRefresh, prefill, onPrefillConsumed, ad
       readReceipt,
       headerTheme: tpl.headerTheme || "blue",
       customIntro: tpl.customIntro || undefined,
+      customFullBody: tpl.fullBody || undefined,
       customHighlights: tpl.highlights?.length ? tpl.highlights : undefined,
     };
   }, [form, templateId, readReceipt, customTpl]);
