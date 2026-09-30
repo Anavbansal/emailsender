@@ -635,7 +635,13 @@ function NotificationBell({ onNavigate }) {
       if (popRef.current?.contains(e.target)) return;
       setOpen(false);
     };
-    const close = () => setOpen(false);
+    const close = (e) => {
+      // Ignore scroll events from inside the popup's own scrollable content —
+      // only close when the page BEHIND it scrolls (which would move the
+      // trigger button and make the popup's fixed position stale).
+      if (popRef.current?.contains(e?.target)) return;
+      setOpen(false);
+    };
     document.addEventListener("mousedown", handleOutside);
     window.addEventListener("scroll", close, true);
     window.addEventListener("resize", close);
@@ -2245,7 +2251,13 @@ function Popover({ trigger, children, align = "left" }) {
       if (popRef.current?.contains(e.target)) return;
       setOpen(false);
     };
-    const close = () => setOpen(false);
+    const close = (e) => {
+      // Ignore scroll events from inside the popup's own scrollable content —
+      // only close when the page BEHIND it scrolls (which would move the
+      // trigger button and make the popup's fixed position stale).
+      if (popRef.current?.contains(e?.target)) return;
+      setOpen(false);
+    };
     document.addEventListener("mousedown", handleOutside);
     window.addEventListener("scroll", close, true);
     window.addEventListener("resize", close);
@@ -2298,7 +2310,13 @@ function TemplatePicker({ templates, value, onChange, width = "100%" }) {
       if (popRef.current?.contains(e.target)) return;
       setOpen(false);
     };
-    const close = () => setOpen(false);
+    const close = (e) => {
+      // Ignore scroll events from inside the popup's own scrollable content —
+      // only close when the page BEHIND it scrolls (which would move the
+      // trigger button and make the popup's fixed position stale).
+      if (popRef.current?.contains(e?.target)) return;
+      setOpen(false);
+    };
     document.addEventListener("mousedown", handleOutside);
     window.addEventListener("scroll", close, true);
     window.addEventListener("resize", close);
@@ -2371,7 +2389,13 @@ function ContactFilterDropdown({ tabs, activeTab, counts, onChange }) {
       if (popRef.current?.contains(e.target)) return;
       setOpen(false);
     };
-    const close = () => setOpen(false);
+    const close = (e) => {
+      // Ignore scroll events from inside the popup's own scrollable content —
+      // only close when the page BEHIND it scrolls (which would move the
+      // trigger button and make the popup's fixed position stale).
+      if (popRef.current?.contains(e?.target)) return;
+      setOpen(false);
+    };
     document.addEventListener("mousedown", handleOutside);
     window.addEventListener("scroll", close, true);
     window.addEventListener("resize", close);
@@ -2454,7 +2478,13 @@ function ToolPicker({ tools, groups, value, onChange }) {
       if (popRef.current?.contains(e.target)) return;
       setOpen(false);
     };
-    const close = () => setOpen(false);
+    const close = (e) => {
+      // Ignore scroll events from inside the popup's own scrollable content —
+      // only close when the page BEHIND it scrolls (which would move the
+      // trigger button and make the popup's fixed position stale).
+      if (popRef.current?.contains(e?.target)) return;
+      setOpen(false);
+    };
     document.addEventListener("mousedown", handleOutside);
     window.addEventListener("scroll", close, true);
     window.addEventListener("resize", close);
