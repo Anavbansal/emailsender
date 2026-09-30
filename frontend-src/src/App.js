@@ -7501,10 +7501,12 @@ function SettingsPage({ addToast }) {
             resumeUrl:        tpl.resumeDriveUrl   || "",
             resumeUploadPath: tpl.resumeUploadPath || "",
             resumeFileName:   tpl.resumeFileName   || "",
+            ...(tpl.resumeData ? { resumeData: tpl.resumeData } : {}),
           });
         } else {
-          // Built-in template — only save what the user actually customized
-          const hasCustom = tpl.intro || tpl.highlights?.some(Boolean) || tpl.subject || tpl.customNote;
+          // Built-in template — save if the user customized any text OR the resume
+          const hasCustom = tpl.intro || tpl.highlights?.some(Boolean) || tpl.subject || tpl.customNote
+            || tpl.resumeData || tpl.resumeDriveUrl || (tpl.resumeType && tpl.resumeType !== "default");
           if (!hasCustom) continue;
           await axios.post(`${API}/api/template-override`, {
             templateId: tid,
@@ -7512,6 +7514,10 @@ function SettingsPage({ addToast }) {
             highlights: tpl.highlights || [],
             subject:    tpl.subject    || "",
             customNote: tpl.customNote || "",
+            resumeType:     tpl.resumeType       || undefined,
+            resumeUrl:      tpl.resumeDriveUrl   || undefined,
+            resumeFileName: tpl.resumeFileName   || undefined,
+            ...(tpl.resumeData ? { resumeData: tpl.resumeData } : {}),
           });
         }
       }
@@ -7532,11 +7538,11 @@ function SettingsPage({ addToast }) {
       fd.append("resume", file);
       const r = await axios.post(`${API}/api/templates/upload-resume`, fd,
         { headers: {"Content-Type":"multipart/form-data"} });
-      updateTpl(idx, "resumeUploadPath", r.data.path);
+      updateTpl(idx, "resumeData",       r.data.resumeData); // base64 PDF bytes — saved to MongoDB on "Save Template"
       updateTpl(idx, "resumeFileName",   r.data.filename);
       updateTpl(idx, "resumeType",       "upload");
-      addToast && addToast("✅ Resume uploaded!");
-    } catch(e) { addToast && addToast("❌ Upload failed", "error"); }
+      addToast && addToast("✅ Resume uploaded — click Save Template to make it permanent!");
+    } catch(e) { addToast && addToast("❌ Upload failed: " + (e.response?.data?.message || e.message), "error"); }
     finally { setUploading(false); }
   };
 

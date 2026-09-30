@@ -114,6 +114,7 @@ const UserSchema = new mongoose.Schema({
   linkedinSheetId:    { type: String, default: "" },
   resumePath:         { type: String, default: "" },
   resumeFileName:     { type: String, default: "" },
+  resumeData:         { type: Buffer, default: null }, // actual PDF bytes — persists across restarts, unlike a local disk path
   // Profile info
   profileName:        { type: String, default: "Anav Bansal" },
   profilePhone:       { type: String, default: "+91 7827855635" },
@@ -220,6 +221,7 @@ const emailTemplateSchema = new mongoose.Schema({
   resumeDriveUrl:   { type: String, default: "" },
   resumeUploadPath: { type: String, default: "" },
   resumeFileName:   { type: String, default: "" },
+  resumeData:       { type: Buffer, default: null }, // actual PDF bytes — persists across restarts, unlike a local disk path
 }, { timestamps: true });
 emailTemplateSchema.index({ userId: 1, templateId: 1 }, { unique: true });
 const EmailTemplate = mongoose.model("EmailTemplate", emailTemplateSchema);
@@ -454,6 +456,13 @@ async function sendViaGmailAPI({ to, subject, html, inReplyTo = null, references
   } else if (isMohitGmail && fs.existsSync(MOHIT_RESUME_PATH)) {
     resumeFile = MOHIT_RESUME_PATH;
     resumeName = "Mohit_Singh_CRMExpert_v3.pdf";
+  } else if (isPriyalGmail && user?.resumeData && user.resumeData.length) {
+    try {
+      const tmpPath = path.join(require("os").tmpdir(), `resume_${user._id}_default.pdf`);
+      fs.writeFileSync(tmpPath, user.resumeData);
+      resumeFile = tmpPath;
+      resumeName = user.resumeFileName || "Priyal_Goyal_Resume.pdf";
+    } catch (e) { console.error("Failed to materialize uploaded resume:", e.message); }
   } else if (isPriyalGmail && user?.resumePath && fs.existsSync(user.resumePath)) {
     resumeFile = user.resumePath;
     resumeName = user.resumeFileName || "Priyal_Goyal_Resume.pdf";
@@ -1243,12 +1252,29 @@ async function resolveResumeForTemplate(templateType, user, userCfg) {
     ? await EmailTemplate.findOne({ userId: String(user._id), templateId: templateType }).lean()
     : null;
 
+  if (dbTpl?.resumeData && dbTpl.resumeData.length) {
+    // Regenerate a fresh temp file from the persisted DB bytes every send —
+    // this is what actually survives Render restarts/redeploys, unlike a
+    // one-time disk write. os.tmpdir() is always writable, unlike __dirname.
+    try {
+      const tmpPath = path.join(require("os").tmpdir(), `resume_${user._id}_${templateType}.pdf`);
+      fs.writeFileSync(tmpPath, dbTpl.resumeData);
+      return { filename: dbTpl.resumeFileName || "Resume.pdf", path: tmpPath, contentType: "application/pdf" };
+    } catch (e) { console.error("Failed to materialize uploaded resume:", e.message); }
+  }
   if (dbTpl?.resumeUploadPath && fs.existsSync(dbTpl.resumeUploadPath)) {
     return { filename: dbTpl.resumeFileName || "Resume.pdf", path: dbTpl.resumeUploadPath, contentType: "application/pdf" };
   }
   if (dbTpl?.resumeDriveUrl) return null; // linked in HTML body, not attached
   if (isMohitUser && fs.existsSync(MOHIT_RESUME_PATH)) {
     return { filename: "Mohit_Singh_CRMExpert_v3.pdf", path: MOHIT_RESUME_PATH, contentType: "application/pdf" };
+  }
+  if (isPriyalUser && user?.resumeData && user.resumeData.length) {
+    try {
+      const tmpPath = path.join(require("os").tmpdir(), `resume_${user._id}_default.pdf`);
+      fs.writeFileSync(tmpPath, user.resumeData);
+      return { filename: user.resumeFileName || "Priyal_Goyal_Resume.pdf", path: tmpPath, contentType: "application/pdf" };
+    } catch (e) { console.error("Failed to materialize uploaded resume:", e.message); }
   }
   if (isPriyalUser && user?.resumePath && fs.existsSync(user.resumePath)) {
     return { filename: user.resumeFileName || "Priyal_Goyal_Resume.pdf", path: user.resumePath, contentType: "application/pdf" };
@@ -4528,6 +4554,7 @@ app.post("/api/templates", requireAuth, async (req, res) => {
             resumeDriveUrl:   tpl.resumeUrl || tpl.resumeDriveUrl || "",
             resumeUploadPath: tpl.resumeUploadPath || "",
             resumeFileName:   tpl.resumeFileName    || "",
+            ...(tpl.resumeData ? { resumeData: Buffer.from(tpl.resumeData, "base64") } : {}),
           }},
           { upsert: true, new: true }
         );
@@ -4538,7 +4565,7 @@ app.post("/api/templates", requireAuth, async (req, res) => {
 
     // Single template save (from TemplatesPage edit modal)
     const { templateId, name, icon, accent, headerTheme, resumeUrl, resumeUploadPath, resumeType, resumeFileName,
-            subject, customNote, intro, highlights, isDefault } = req.body;
+            resumeData, subject, customNote, intro, highlights, isDefault } = req.body;
     if (!templateId) return res.status(400).json({ success: false, message: "templateId required" });
 
     const tpl = await EmailTemplate.findOneAndUpdate(
@@ -4546,6 +4573,7 @@ app.post("/api/templates", requireAuth, async (req, res) => {
       { $set: { name, icon, accent, headerTheme,
                 resumeType: resumeType || "default",
                 resumeDriveUrl: resumeUrl || "", resumeUploadPath: resumeUploadPath || "", resumeFileName,
+                ...(resumeData ? { resumeData: Buffer.from(resumeData, "base64") } : {}),
                 subject, customNote, intro, highlights: highlights || [], isDefault } },
       { upsert: true, new: true }
     );
@@ -4576,18 +4604,21 @@ app.get("/api/templates/:templateId", requireAuth, async (req, res) => {
 app.post("/api/templates/upload-resume", requireAuth, async (req, res) => {
   try {
     const multer = require("multer");
-    const storage = multer.diskStorage({
-      destination: __dirname,
-      filename: (req, file, cb) => cb(null, `resume_${req.userId}_${Date.now()}.pdf`)
-    });
-    const upload = multer({ storage, limits: { fileSize: 5*1024*1024 },
+    // Memory storage — never touches disk. Writing to __dirname (the backend's
+    // own source folder) was the actual bug: that directory is read-only /
+    // ephemeral on Render, so the write failed (500) — and even on a host
+    // where it succeeded, the file would vanish on the next deploy/restart.
+    const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5*1024*1024 },
       fileFilter: (req, file, cb) => cb(null, file.mimetype === "application/pdf")
     }).single("resume");
 
     upload(req, res, async (err) => {
       if (err) return res.status(400).json({ success: false, message: err.message });
       if (!req.file) return res.status(400).json({ success: false, message: "No PDF uploaded" });
-      res.json({ success: true, path: req.file.path, filename: req.file.originalname });
+      // Return the file's bytes as base64 — the frontend carries this along and
+      // includes it in the Save Template call, which persists it to MongoDB
+      // (the only genuinely persistent storage available here).
+      res.json({ success: true, filename: req.file.originalname, resumeData: req.file.buffer.toString("base64") });
     });
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -4773,14 +4804,7 @@ app.delete("/api/admin/users/:id", requireAdmin, async (req, res) => {
 app.post("/api/admin/users/:id/resume", requireAdmin, async (req, res) => {
   try {
     const multer  = require("multer");
-    const storage = multer.diskStorage({
-      destination: __dirname,
-      filename: (req2, file, cb) => {
-        const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
-        cb(null, safe);
-      }
-    });
-    const upload = multer({ storage, limits: { fileSize: 10*1024*1024 },
+    const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10*1024*1024 },
       fileFilter: (r, f, cb) => cb(null, f.mimetype === "application/pdf")
     }).single("resume");
 
@@ -4788,10 +4812,10 @@ app.post("/api/admin/users/:id/resume", requireAdmin, async (req, res) => {
       if (err) return res.status(400).json({ success: false, message: err.message });
       if (!req.file) return res.status(400).json({ success: false, message: "No PDF" });
       await User.updateOne({ _id: req.params.id }, { $set: {
-        resumePath:     req.file.path,
+        resumeData:     req.file.buffer,
         resumeFileName: req.file.originalname,
       }});
-      res.json({ success: true, path: req.file.path, filename: req.file.originalname });
+      res.json({ success: true, filename: req.file.originalname });
     });
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -6095,7 +6119,7 @@ app.get("/api/extension/whoami", requireAuth, async (req, res) => {
 // the built-in templates at send time (instead of replacing them entirely).
 app.post("/api/template-override", requireAuth, async (req, res) => {
   try {
-    const { templateId, intro, highlights, subject, customNote } = req.body;
+    const { templateId, intro, highlights, subject, customNote, resumeType, resumeUrl, resumeDriveUrl, resumeFileName, resumeData } = req.body;
     if (!templateId) return res.status(400).json({ success: false, message: "templateId required" });
 
     await EmailTemplate.findOneAndUpdate(
@@ -6106,6 +6130,10 @@ app.post("/api/template-override", requireAuth, async (req, res) => {
         ...(highlights  !== undefined && { highlights: highlights.filter(Boolean) }),
         ...(subject     !== undefined && { subject }),
         ...(customNote  !== undefined && { customNote }),
+        ...(resumeType  !== undefined && { resumeType }),
+        ...((resumeUrl !== undefined || resumeDriveUrl !== undefined) && { resumeDriveUrl: resumeUrl || resumeDriveUrl || "" }),
+        ...(resumeFileName !== undefined && { resumeFileName }),
+        ...(resumeData && { resumeData: Buffer.from(resumeData, "base64") }),
         isOverride: true,  // flag: only override specific fields, don't replace full template
       }},
       { upsert: true, new: true }
