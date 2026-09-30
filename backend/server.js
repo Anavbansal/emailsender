@@ -373,7 +373,7 @@ function getUserConfig(user) {
     profileLocation:  user.profileLocation  || (isOwner ? "Faridabad, Haryana" : ""),
     profileTitle:     user.profileTitle     || (isOwner ? "Senior Full Stack Developer" : ""),
     keySkills:        user.keySkills        || (isOwner ? "Node.js, Angular, AWS, ExpressJS, TypeScript, CTI Integrations, ServiceNow, Chatbot Development" : ""),
-    currentCompany:   user.currentCompany   || (isOwner ? "NovelVox Pvt. Ltd." : ""),
+    currentCompany:   user.currentCompany   || (isOwner ? "HCLTech Pvt. Ltd." : ""),
     currentCTC:       user.currentCTC       || (isOwner ? "₹9 LPA" : ""),
     expectedCTC:      user.expectedCTC      || (isOwner ? "₹15 LPA" : ""),
     noticePeriod:     user.noticePeriod     || (isOwner ? "Serving Notice Period" : ""),
@@ -4373,7 +4373,7 @@ app.post("/api/auth/init-mohit", async (req, res) => {
         profileTitle:     "Senior Software Developer | CRM & CTI Integration Specialist",
         profileSummary:   "Senior Software Backend Engineer with 4.7 years of experience in Java, Spring Boot, REST APIs, Microservices, and CRM/CTI integrations including MS Dynamics 365, ServiceNow, HubSpot, Salesforce, and Cisco Finesse.",
         keySkills:        "Java, Spring Boot, Microservices, REST APIs, SQL, MySQL, CRM Integration, CTI Integration, Cisco Finesse, Salesforce, Microsoft Dynamics 365, ServiceNow, HubSpot, Git, CI/CD, Postman",
-        currentCompany:   "NovelVox Pvt Ltd",
+        currentCompany:   "HCLTech Pvt Ltd",
         totalExp:         "4.9+ Years",
         relevantExp:      "4.9+ Years",
         noticePeriod:     "Serving Notice Period",
@@ -4869,7 +4869,7 @@ app.post("/api/ai/chat", requireAuth, async (req, res) => {
       name:      userCfg?.profileName    || req.user.displayName || "Candidate",
       exp:       userCfg?.totalExp       || "4.9+",
       skills:    userCfg?.keySkills      || "Full Stack, CRM, CTI",
-      company:   userCfg?.currentCompany || "NovelVox",
+      company:   userCfg?.currentCompany || "HCLTech",
       notice:    userCfg?.noticePeriod   || "Serving Notice Period",
       curCTC:    userCfg?.currentCTC     || "",
       expCTC:    userCfg?.expectedCTC    || "",
@@ -5126,7 +5126,7 @@ app.post("/api/ai/write-email", requireAuth, async (req, res) => {
     const userName  = userCfg.profileName  || req.user.displayName || "Anav Bansal";
     const exp       = userCfg.totalExp     || req.user.totalExp    || "4+ years";
     const skills    = userCfg.keySkills    || req.user.keySkills   || "Node.js, AngularJS, AWS";
-    const company2  = userCfg.currentCompany || req.user.currentCompany || "NovelVox";
+    const company2  = userCfg.currentCompany || req.user.currentCompany || "HCLTech";
     const title     = userCfg.profileTitle || req.user.profileTitle || "Software Developer";
 
     const toneMap = {
