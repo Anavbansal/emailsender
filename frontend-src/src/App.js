@@ -7437,12 +7437,12 @@ function SettingsPage({ addToast }) {
     const newTpl = aiData ? {
       id: newId, templateId: newId,
       name: aiData.name || "New Template", icon: aiData.icon || "⚡", accent: "#2563eb",
-      subject: aiData.subject || "", customNote: "", intro: aiData.intro || "",
+      subject: aiData.subject || "", customNote: "", intro: aiData.intro || "", fullBody: aiData.intro || "",
       highlights: (aiData.highlights?.length ? aiData.highlights : ["", "", "", ""]).slice(0, 4),
       resumeType: "default", resumeDriveUrl: "", resumeFileName: "", isCustom: true,
     } : {
       id: newId, templateId: newId, name: "New Template", icon: "⚡", accent: "#2563eb",
-      subject: "", customNote: "", intro: "", highlights: ["", "", "", ""],
+      subject: "", customNote: "", intro: "", fullBody: "", highlights: ["", "", "", ""],
       resumeType: "default", resumeDriveUrl: "", resumeFileName: "", isCustom: true,
     };
     setTemplates(prev => {

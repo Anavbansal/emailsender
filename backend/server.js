@@ -1568,6 +1568,11 @@ function buildDynamicHTML({ hrName, company, role, customNote, trackUrl = "", db
   const intro      = dbTemplate.intro  || `I am writing to express my strong interest in joining <strong>${co}</strong>${roleText}.`;
   const highlights = (dbTemplate.highlights || []).map(h => `<li>${h}</li>`).join("");
   const resumeName = dbTemplate.resumeFileName || "Resume.pdf";
+  // fullBody (the single "Email Body" editor field) takes priority when set —
+  // supports multiple paragraphs; falls back to the older single-line intro.
+  const bodyBlock = dbTemplate.fullBody
+    ? dbTemplate.fullBody.split(/\n\s*\n/).map(p => `<p style="color:#374151;line-height:1.8;margin:0 0 16px;">${p.trim().replace(/\n/g,"<br/>")}</p>`).join("")
+    : `<p style="color:#374151;line-height:1.8;margin:0 0 16px;">${intro}</p>\n    ${noteBlock}`;
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',sans-serif;">
@@ -1578,8 +1583,7 @@ function buildDynamicHTML({ hrName, company, role, customNote, trackUrl = "", db
   </div>
   <div style="padding:36px 40px;">
     <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
-    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${intro}</p>
-    ${noteBlock}
+    ${bodyBlock}
     ${highlights ? `<div style="background:#f8fafc;border-left:4px solid ${accent};border-radius:0 8px 8px 0;padding:20px 24px;margin-bottom:24px;">
       <p style="margin:0 0 12px;font-weight:600;font-size:14px;">🏆 Key Highlights</p>
       <ul style="margin:0;padding-left:20px;color:#374151;font-size:14px;line-height:2;">${highlights}</ul>
