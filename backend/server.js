@@ -216,6 +216,7 @@ const emailTemplateSchema = new mongoose.Schema({
   subject:     { type: String, default: "" },
   customNote:  { type: String, default: "" },
   intro:       { type: String, default: "" },
+  fullBody:    { type: String, default: "" }, // full editable email body prose — when set, overrides intro + the built-in achievement paragraph together as one continuous editable text
   highlights:  [{ type: String }],
   resumeType:  { type: String, default: "default" },
   resumeDriveUrl:   { type: String, default: "" },
@@ -1336,7 +1337,7 @@ async function sendFollowUpEmail({ hrEmail, hrName="", company, role, customNote
 async function sendApplicationEmail({
   hrEmail, hrName = "", company, role, customNote,
   templateType = "fullstack", readReceipt = false,
-  customIntro = "", customHighlights = null, headerTheme = "blue",
+  customIntro = "", customHighlights = null, customFullBody = "", headerTheme = "blue",
   userCfg = null, user = null,
 }) {
   // If company is blank, try to derive it from the HR email domain
@@ -1353,7 +1354,7 @@ async function sendApplicationEmail({
 
   const trackRecord = createTrackingRecord({ hrEmail, hrName, company, role, subject, type: "application", username: user?.username });
   const trackUrl    = `${BASE_URL}/api/track/${trackRecord.trackingId}`;
-  const tplOpts     = { hrName, company, role, customNote, trackUrl, customIntro, customHighlights, headerTheme };
+  const tplOpts     = { hrName, company, role, customNote, trackUrl, customIntro, customHighlights, customFullBody, headerTheme };
 
   let html;
   const isPriyal = !!(userCfg?.profileName?.toLowerCase().includes("priyal") || user?.profileName?.toLowerCase().includes("priyal"));
@@ -1392,6 +1393,7 @@ async function sendApplicationEmail({
     if (userOverride.intro)      tplOpts.customIntro      = userOverride.intro;
     if (userOverride.highlights?.length) tplOpts.customHighlights = userOverride.highlights;
     if (userOverride.customNote) tplOpts.customNote       = tplOpts.customNote || userOverride.customNote;
+    if (userOverride.fullBody)   tplOpts.customFullBody   = userOverride.fullBody;
   }
 
   if (dbTemplate && (isCustomTemplate || !isBuiltInUser)) {
@@ -1454,7 +1456,7 @@ function footer(accentColor = "#2563eb") {
 
 
 // ─── HTML: CRM Expert ─────────────────────────────────────────────────────────
-function buildCRMHTML({ hrName, company, role, customNote, trackUrl = "", customIntro = "", customHighlights = null, headerTheme = "teal" }) {
+function buildCRMHTML({ hrName, company, role, customNote, trackUrl = "", customIntro = "", customHighlights = null, customFullBody = "", headerTheme = "teal" }) {
   const gradient  = HEADER_THEMES[headerTheme] || HEADER_THEMES.teal;
   const greeting  = hrName ? `Dear ${hrName},` : "Dear Hiring Manager,";
   const roleText  = role   ? ` for the <strong>${role}</strong> position` : "";
@@ -1469,6 +1471,16 @@ function buildCRMHTML({ hrName, company, role, customNote, trackUrl = "", custom
      and measurably reduce agent handle time. I am currently with HCLTech and immediately available to join.`;
   const items     = (customHighlights && customHighlights.length) ? customHighlights : CRM_HIGHLIGHTS;
   const hlHtml    = items.map(h => `<li>${h}</li>`).join("");
+  const bodyBlock = customFullBody
+    ? customFullBody.split(/\n\s*\n/).map(p => `<p style="color:#374151;line-height:1.8;margin:0 0 16px;">${p.trim().replace(/\n/g,"<br/>")}</p>`).join("")
+    : `<p style="color:#374151;line-height:1.8;margin:0 0 16px;">${intro}</p>
+       ${noteBlock}
+       <p style="color:#374151;line-height:1.8;margin:0 0 24px;">
+         At <strong>Novelvox PVT Ltd</strong>, I published <strong>3 enterprise marketplace apps</strong>
+         (ServiceNow Store, Freshdesk Marketplace, Webex App Hub) and delivered CRM integrations across
+         <strong>6+ platforms</strong> — each reducing manual agent effort by 30–40%.
+         Nominated for <em>Performance of the Year</em> and received three <em>'Pat on the Back'</em> awards.
+       </p>`;
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',sans-serif;">
@@ -1480,14 +1492,7 @@ function buildCRMHTML({ hrName, company, role, customNote, trackUrl = "", custom
   </div>
   <div style="padding:36px 40px;">
     <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
-    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${intro}</p>
-    ${noteBlock}
-    <p style="color:#374151;line-height:1.8;margin:0 0 24px;">
-      At <strong>Novelvox PVT Ltd</strong>, I published <strong>3 enterprise marketplace apps</strong>
-      (ServiceNow Store, Freshdesk Marketplace, Webex App Hub) and delivered CRM integrations across
-      <strong>6+ platforms</strong> — each reducing manual agent effort by 30–40%.
-      Nominated for <em>Performance of the Year</em> and received three <em>'Pat on the Back'</em> awards.
-    </p>
+    ${bodyBlock}
     <div style="background:#f0fdfa;border-left:4px solid #0d9488;border-radius:0 8px 8px 0;padding:20px 24px;margin-bottom:24px;">
       <p style="margin:0 0 12px;font-weight:600;color:#134e4a;font-size:14px;">🏆 CRM & ServiceNow Expertise</p>
       <ul style="margin:0;padding-left:20px;color:#374151;font-size:14px;line-height:2;">${hlHtml}</ul>
@@ -1502,7 +1507,7 @@ function buildCRMHTML({ hrName, company, role, customNote, trackUrl = "", custom
 
 
 // ─── HTML: Dynamic DB Template ───────────────────────────────────────────────
-function buildServiceNowHTML({ hrName, company, role, customNote, trackUrl = "", customIntro = "", customHighlights = null, headerTheme = "emerald" }) {
+function buildServiceNowHTML({ hrName, company, role, customNote, trackUrl = "", customIntro = "", customHighlights = null, customFullBody = "", headerTheme = "emerald" }) {
   const gradient  = HEADER_THEMES[headerTheme] || HEADER_THEMES.emerald;
   const greeting  = hrName ? `Dear ${hrName},` : "Dear Hiring Manager,";
   const roleText  = role   ? ` for the <strong>${role}</strong> position` : "";
@@ -1517,6 +1522,17 @@ function buildServiceNowHTML({ hrName, company, role, customNote, trackUrl = "",
      I am currently with HCLTech and immediately available to join.`;
   const items     = (customHighlights && customHighlights.length) ? customHighlights : SERVICENOW_HIGHLIGHTS;
   const hlHtml    = items.map(h => `<li>${h}</li>`).join("");
+  const bodyBlock = customFullBody
+    ? customFullBody.split(/\n\s*\n/).map(p => `<p style="color:#374151;line-height:1.8;margin:0 0 16px;">${p.trim().replace(/\n/g,"<br/>")}</p>`).join("")
+    : `<p style="color:#374151;line-height:1.8;margin:0 0 16px;">${intro}</p>
+       ${noteBlock}
+       <p style="color:#374151;line-height:1.8;margin:0 0 24px;">
+         At <strong>Novelvox PVT Ltd</strong>, I led ServiceNow IntegrationHub spoke development that cut ITSM ticket-creation
+         time by <strong>60%</strong>, published <strong>3 enterprise marketplace apps</strong>
+         (ServiceNow Store, Freshdesk Marketplace, Webex App Hub), and delivered <strong>6+ CRM/ServiceNow integrations</strong> —
+         each reducing manual agent effort by 30–40%. Nominated for <em>Performance of the Year</em> and received three
+         <em>'Pat on the Back'</em> awards.
+       </p>`;
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',sans-serif;">
@@ -1528,15 +1544,7 @@ function buildServiceNowHTML({ hrName, company, role, customNote, trackUrl = "",
   </div>
   <div style="padding:36px 40px;">
     <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
-    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${intro}</p>
-    ${noteBlock}
-    <p style="color:#374151;line-height:1.8;margin:0 0 24px;">
-      At <strong>Novelvox PVT Ltd</strong>, I led ServiceNow IntegrationHub spoke development that cut ITSM ticket-creation
-      time by <strong>60%</strong>, published <strong>3 enterprise marketplace apps</strong>
-      (ServiceNow Store, Freshdesk Marketplace, Webex App Hub), and delivered <strong>6+ CRM/ServiceNow integrations</strong> —
-      each reducing manual agent effort by 30–40%. Nominated for <em>Performance of the Year</em> and received three
-      <em>'Pat on the Back'</em> awards.
-    </p>
+    ${bodyBlock}
     <div style="background:#f0fdf4;border-left:4px solid #16a34a;border-radius:0 8px 8px 0;padding:20px 24px;margin-bottom:24px;">
       <p style="margin:0 0 12px;font-weight:600;color:#14532d;font-size:14px;">🏆 ServiceNow & CRM Expertise</p>
       <ul style="margin:0;padding-left:20px;color:#374151;font-size:14px;line-height:2;">${hlHtml}</ul>
@@ -1752,7 +1760,7 @@ function buildPriyalHTML({ hrName, company, role, customNote, trackUrl = "", tem
 }
 
 // ─── HTML: Full Stack Developer ───────────────────────────────────────────────
-function buildFullstackHTML({ hrName, company, role, customNote, trackUrl = "", customIntro = "", customHighlights = null, headerTheme = "blue" }) {
+function buildFullstackHTML({ hrName, company, role, customNote, trackUrl = "", customIntro = "", customHighlights = null, customFullBody = "", headerTheme = "blue" }) {
   const gradient  = HEADER_THEMES[headerTheme] || HEADER_THEMES.blue;
   const greeting  = hrName ? `Dear ${hrName},` : "Dear Hiring Manager,";
   const roleText  = role   ? ` for the <strong>${role}</strong> position` : "";
@@ -1765,6 +1773,14 @@ function buildFullstackHTML({ hrName, company, role, customNote, trackUrl = "", 
      in CTI/Telephony integrations for enterprise platforms. I am currently with HCLTech and immediately available to join.`;
   const items     = (customHighlights && customHighlights.length) ? customHighlights : DEFAULT_HIGHLIGHTS;
   const hlHtml    = items.map(h => `<li>${h}</li>`).join("");
+  const bodyBlock = customFullBody
+    ? customFullBody.split(/\n\s*\n/).map(p => `<p style="color:#374151;line-height:1.8;margin:0 0 16px;">${p.trim().replace(/\n/g,"<br/>")}</p>`).join("")
+    : `<p style="color:#374151;line-height:1.8;margin:0 0 16px;">${intro}</p>
+       ${noteBlock}
+       <p style="color:#374151;line-height:1.8;margin:0 0 24px;">
+         At <strong>Novelvox PVT Ltd</strong>, I delivered 10+ full-stack products across contact center ecosystems,
+         published apps on ServiceNow, Freshdesk, and Webex marketplaces, and received three <em>'Pat on the Back'</em> awards.
+       </p>`;
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',sans-serif;">
@@ -1775,12 +1791,7 @@ function buildFullstackHTML({ hrName, company, role, customNote, trackUrl = "", 
   </div>
   <div style="padding:36px 40px;">
     <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
-    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${intro}</p>
-    ${noteBlock}
-    <p style="color:#374151;line-height:1.8;margin:0 0 24px;">
-      At <strong>Novelvox PVT Ltd</strong>, I delivered 10+ full-stack products across contact center ecosystems,
-      published apps on ServiceNow, Freshdesk, and Webex marketplaces, and received three <em>'Pat on the Back'</em> awards.
-    </p>
+    ${bodyBlock}
     <div style="background:#f0f7ff;border-left:4px solid #2563eb;border-radius:0 8px 8px 0;padding:20px 24px;margin-bottom:24px;">
       <p style="margin:0 0 12px;font-weight:600;color:#1e3a5f;font-size:14px;">⚡ Quick Highlights</p>
       <ul style="margin:0;padding-left:20px;color:#374151;font-size:14px;line-height:2;">${hlHtml}</ul>
@@ -1792,7 +1803,7 @@ function buildFullstackHTML({ hrName, company, role, customNote, trackUrl = "", 
 }
 
 // ─── HTML: CTI Expert ─────────────────────────────────────────────────────────
-function buildCTIHTML({ hrName, company, role, customNote, trackUrl = "", customIntro = "", customHighlights = null, headerTheme = "purple" }) {
+function buildCTIHTML({ hrName, company, role, customNote, trackUrl = "", customIntro = "", customHighlights = null, customFullBody = "", headerTheme = "purple" }) {
   const gradient  = HEADER_THEMES[headerTheme] || HEADER_THEMES.purple;
   const greeting  = hrName ? `Dear ${hrName},` : "Dear Hiring Manager,";
   const roleText  = role   ? ` for the <strong>${role}</strong> position` : "";
@@ -1805,6 +1816,15 @@ function buildCTIHTML({ hrName, company, role, customNote, trackUrl = "", custom
      real-time call controls, screen popups, and CRM synchronization at scale. I am currently with HCLTech and immediately available to join.`;
   const items     = (customHighlights && customHighlights.length) ? customHighlights : CTI_HIGHLIGHTS;
   const hlHtml    = items.map(h => `<li>${h}</li>`).join("");
+  const bodyBlock = customFullBody
+    ? customFullBody.split(/\n\s*\n/).map(p => `<p style="color:#374151;line-height:1.8;margin:0 0 16px;">${p.trim().replace(/\n/g,"<br/>")}</p>`).join("")
+    : `<p style="color:#374151;line-height:1.8;margin:0 0 16px;">${intro}</p>
+       ${noteBlock}
+       <p style="color:#374151;line-height:1.8;margin:0 0 24px;">
+         At <strong>Novelvox PVT Ltd</strong>, I engineered serverless AWS Lambda pipelines for Amazon Connect, built
+         multi-channel campaign automation, and delivered CTI integrations across 6+ CRM platforms.
+         Nominated for <em>Performance of the Year</em> and received three <em>'Pat on the Back'</em> awards.
+       </p>`;
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',sans-serif;">
@@ -1816,13 +1836,7 @@ function buildCTIHTML({ hrName, company, role, customNote, trackUrl = "", custom
   </div>
   <div style="padding:36px 40px;">
     <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
-    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${intro}</p>
-    ${noteBlock}
-    <p style="color:#374151;line-height:1.8;margin:0 0 24px;">
-      At <strong>Novelvox PVT Ltd</strong>, I engineered serverless AWS Lambda pipelines for Amazon Connect, built
-      multi-channel campaign automation, and delivered CTI integrations across 6+ CRM platforms.
-      Nominated for <em>Performance of the Year</em> and received three <em>'Pat on the Back'</em> awards.
-    </p>
+    ${bodyBlock}
     <div style="background:#f5f3ff;border-left:4px solid #7c3aed;border-radius:0 8px 8px 0;padding:20px 24px;margin-bottom:24px;">
       <p style="margin:0 0 12px;font-weight:600;color:#4c1d95;font-size:14px;">📞 CTI Expertise Highlights</p>
       <ul style="margin:0;padding-left:20px;color:#374151;font-size:14px;line-height:2;">${hlHtml}</ul>
@@ -1834,7 +1848,7 @@ function buildCTIHTML({ hrName, company, role, customNote, trackUrl = "", custom
 }
 
 // ─── HTML: Formal ─────────────────────────────────────────────────────────────
-function buildFormalHTML({ hrName, company, role, customNote, trackUrl = "", customIntro = "", customHighlights = null, headerTheme = "blue" }) {
+function buildFormalHTML({ hrName, company, role, customNote, trackUrl = "", customIntro = "", customHighlights = null, customFullBody = "", headerTheme = "blue" }) {
   const gradient  = HEADER_THEMES[headerTheme] || HEADER_THEMES.blue;
   const greeting  = hrName ? `Dear ${hrName},` : "Dear Hiring Manager,";
   const roleText  = role   ? ` for the <strong>${role}</strong> position` : "";
@@ -1846,6 +1860,14 @@ function buildFormalHTML({ hrName, company, role, customNote, trackUrl = "", cus
      cloud architecture, and enterprise system integrations. I am currently with HCLTech and immediately available to join.`;
   const items  = (customHighlights && customHighlights.length) ? customHighlights : DEFAULT_HIGHLIGHTS;
   const hlHtml = items.map(h => `<li>${h}</li>`).join("");
+  const bodyBlock = customFullBody
+    ? customFullBody.split(/\n\s*\n/).map(p => `<p style="color:#374151;line-height:1.8;margin:0 0 16px;">${p.trim().replace(/\n/g,"<br/>")}</p>`).join("")
+    : `<p style="color:#374151;line-height:1.8;margin:0 0 16px;">${intro}</p>
+       ${noteBlock}
+       <p style="color:#374151;line-height:1.8;margin:0 0 24px;">
+         Throughout my career at <strong>Novelvox PVT Ltd</strong>, I consistently delivered high-quality software
+         for enterprise clients. Recognised with three <em>'Pat on the Back'</em> awards and nominated for Performance of the Year.
+       </p>`;
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',sans-serif;">
@@ -1857,12 +1879,7 @@ function buildFormalHTML({ hrName, company, role, customNote, trackUrl = "", cus
   </div>
   <div style="padding:36px 40px;">
     <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
-    <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${intro}</p>
-    ${noteBlock}
-    <p style="color:#374151;line-height:1.8;margin:0 0 24px;">
-      Throughout my career at <strong>Novelvox PVT Ltd</strong>, I consistently delivered high-quality software
-      for enterprise clients. Recognised with three <em>'Pat on the Back'</em> awards and nominated for Performance of the Year.
-    </p>
+    ${bodyBlock}
     <div style="background:#f0f7ff;border-left:4px solid #1d4ed8;border-radius:0 8px 8px 0;padding:20px 24px;margin-bottom:24px;">
       <p style="margin:0 0 12px;font-weight:600;color:#1e3a5f;font-size:14px;">📋 Professional Qualifications</p>
       <ul style="margin:0;padding-left:20px;color:#374151;font-size:14px;line-height:2;">${hlHtml}</ul>
@@ -3499,8 +3516,8 @@ app.post("/api/whatsapp/message", requireAuth, async (req, res) => {
 });
 
 app.post("/api/preview-email", requireAuth, async (req, res) => {
-  const { hrName, company, role, customNote, templateType = "fullstack", customIntro, customHighlights, headerTheme } = req.body;
-  const opts     = { hrName, company, role, customNote, customIntro, customHighlights, headerTheme };
+  const { hrName, company, role, customNote, templateType = "fullstack", customIntro, customHighlights, customFullBody, headerTheme } = req.body;
+  const opts     = { hrName, company, role, customNote, customIntro, customHighlights, customFullBody, headerTheme };
   const userCfg  = getUserConfig(req.user);
   const isPriyal = !!(userCfg?.profileName?.toLowerCase().includes("priyal") || req.user?.profileName?.toLowerCase().includes("priyal"));
   const isMohit  = !!(userCfg?.profileName?.toLowerCase().includes("mohit")  || req.user?.profileName?.toLowerCase().includes("mohit"));
@@ -3515,7 +3532,45 @@ app.post("/api/preview-email", requireAuth, async (req, res) => {
   res.json({ success: true, html });
 });
 
-// ─── LinkedIn Connections Sheet ───────────────────────────────────────────────
+// ─── GET /api/templates/default-body/:templateType — plain-text default body,
+// for seeding the "Email Body" editor with exactly what would be sent ─────────
+app.get("/api/templates/default-body/:templateType", requireAuth, async (req, res) => {
+  const { templateType } = req.params;
+  const company = req.query.company || "[Company]";
+  const role    = req.query.role || "";
+  const roleText = role ? ` for the ${role} position` : "";
+
+  const DEFAULT_BODIES = {
+    servicenow:
+`I am writing to express my strong interest in joining ${company}${roleText}. With 4.9+ years as a Senior ServiceNow Developer, I specialize in the ServiceNow platform (ITSM, CSM, Flow Designer, IntegrationHub, Scripted REST APIs, Business Rules, ACLs, CMDB/Asset data) with working exposure to Security Operations concepts — Vulnerability Response lifecycle, CMDB/asset matching, and scanner data ingestion — alongside CRM integrations across Freshdesk, Salesforce, Zendesk, and MS Dynamics. I am currently with HCLTech and immediately available to join.
+
+At Novelvox PVT Ltd, I led ServiceNow IntegrationHub spoke development that cut ITSM ticket-creation time by 60%, published 3 enterprise marketplace apps (ServiceNow Store, Freshdesk Marketplace, Webex App Hub), and delivered 6+ CRM/ServiceNow integrations — each reducing manual agent effort by 30–40%. Nominated for Performance of the Year and received three 'Pat on the Back' awards.`,
+
+    crm:
+`I am writing to express my strong interest in joining ${company}${roleText}. With 4.9+ years as a CRM Integration Expert, I specialize in ServiceNow platform development (ITSM, HRSD, CSM, Flow Designer, IntegrationHub, Virtual Agent, Scripted REST APIs, Marketplace Listing) and CTI integrations across Freshdesk, Salesforce, Zendesk, and MS Dynamics — delivering enterprise-grade solutions that automate ticket workflows, enable real-time telephony-to-CRM sync, and measurably reduce agent handle time. I am currently with HCLTech and immediately available to join.
+
+At Novelvox PVT Ltd, I published 3 enterprise marketplace apps (ServiceNow Store, Freshdesk Marketplace, Webex App Hub) and delivered CRM integrations across 6+ platforms — each reducing manual agent effort by 30–40%. Nominated for Performance of the Year and received three 'Pat on the Back' awards.`,
+
+    cti:
+`I am writing to express my strong interest in joining ${company}${roleText}. With 4.9+ years specializing in CTI/Telephony integrations, I have architected enterprise-grade solutions across Avaya AACC, Avaya AES, Genesys, Webex Contact Center, Zoom, and Amazon Connect — enabling seamless agent workflows, real-time call controls, screen popups, and CRM synchronization at scale. I am currently with HCLTech and immediately available to join.
+
+At Novelvox PVT Ltd, I engineered serverless AWS Lambda pipelines for Amazon Connect, built multi-channel campaign automation, and delivered CTI integrations across 6+ CRM platforms. Nominated for Performance of the Year and received three 'Pat on the Back' awards.`,
+
+    formal:
+`I am respectfully submitting my application${roleText} at ${company}. I am a Senior Software Developer with 4.9+ years of professional experience in full-stack development, cloud architecture, and enterprise system integrations. I am currently with HCLTech and immediately available to join.
+
+Throughout my career at Novelvox PVT Ltd, I consistently delivered high-quality software for enterprise clients. Recognised with three 'Pat on the Back' awards and nominated for Performance of the Year.`,
+
+    fullstack:
+`I am writing to express my strong interest in joining ${company}${roleText}. With 4.9+ years of hands-on experience as a Senior Full-Stack Developer, I have architected and shipped production-grade applications across Node.js, AngularJS, Express.js, REST APIs, AWS Lambda, and DynamoDB/MySQL — with deep expertise in CTI/Telephony integrations for enterprise platforms. I am currently with HCLTech and immediately available to join.
+
+At Novelvox PVT Ltd, I delivered 10+ full-stack products across contact center ecosystems, published apps on ServiceNow, Freshdesk, and Webex marketplaces, and received three 'Pat on the Back' awards.`,
+  };
+
+  res.json({ success: true, body: DEFAULT_BODIES[templateType] || "" });
+});
+
+
 const LINKEDIN_SHEET_ID = "1xQAzAY8hRjmfYhMXB2R7oaw5HPqJZf13BjXM33wWQ5Q";
 const LINKEDIN_TAB      = "Connections";
 
@@ -4549,6 +4604,7 @@ app.post("/api/templates", requireAuth, async (req, res) => {
             subject:        tpl.subject       || "",
             customNote:     tpl.customNote    || "",
             intro:          tpl.intro         || "",
+            fullBody:       tpl.fullBody      || "",
             highlights:     Array.isArray(tpl.highlights) ? tpl.highlights.filter(Boolean) : [],
             resumeType:       tpl.resumeType       || "default",
             resumeDriveUrl:   tpl.resumeUrl || tpl.resumeDriveUrl || "",
@@ -4565,7 +4621,7 @@ app.post("/api/templates", requireAuth, async (req, res) => {
 
     // Single template save (from TemplatesPage edit modal)
     const { templateId, name, icon, accent, headerTheme, resumeUrl, resumeUploadPath, resumeType, resumeFileName,
-            resumeData, subject, customNote, intro, highlights, isDefault } = req.body;
+            resumeData, subject, customNote, intro, fullBody, highlights, isDefault } = req.body;
     if (!templateId) return res.status(400).json({ success: false, message: "templateId required" });
 
     const tpl = await EmailTemplate.findOneAndUpdate(
@@ -4574,7 +4630,7 @@ app.post("/api/templates", requireAuth, async (req, res) => {
                 resumeType: resumeType || "default",
                 resumeDriveUrl: resumeUrl || "", resumeUploadPath: resumeUploadPath || "", resumeFileName,
                 ...(resumeData ? { resumeData: Buffer.from(resumeData, "base64") } : {}),
-                subject, customNote, intro, highlights: highlights || [], isDefault } },
+                subject, customNote, intro, fullBody: fullBody || "", highlights: highlights || [], isDefault } },
       { upsert: true, new: true }
     );
     res.json({ success: true, template: tpl });
@@ -6119,7 +6175,7 @@ app.get("/api/extension/whoami", requireAuth, async (req, res) => {
 // the built-in templates at send time (instead of replacing them entirely).
 app.post("/api/template-override", requireAuth, async (req, res) => {
   try {
-    const { templateId, intro, highlights, subject, customNote, resumeType, resumeUrl, resumeDriveUrl, resumeFileName, resumeData } = req.body;
+    const { templateId, intro, highlights, subject, customNote, fullBody, resumeType, resumeUrl, resumeDriveUrl, resumeFileName, resumeData } = req.body;
     if (!templateId) return res.status(400).json({ success: false, message: "templateId required" });
 
     await EmailTemplate.findOneAndUpdate(
@@ -6130,6 +6186,7 @@ app.post("/api/template-override", requireAuth, async (req, res) => {
         ...(highlights  !== undefined && { highlights: highlights.filter(Boolean) }),
         ...(subject     !== undefined && { subject }),
         ...(customNote  !== undefined && { customNote }),
+        ...(fullBody    !== undefined && { fullBody }),
         ...(resumeType  !== undefined && { resumeType }),
         ...((resumeUrl !== undefined || resumeDriveUrl !== undefined) && { resumeDriveUrl: resumeUrl || resumeDriveUrl || "" }),
         ...(resumeFileName !== undefined && { resumeFileName }),

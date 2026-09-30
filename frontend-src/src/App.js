@@ -7387,6 +7387,7 @@ function SettingsPage({ addToast }) {
   const [tplSaving, setTplSaving]   = useState(false);
   const [editIdx,   setEditIdx]     = useState(null); // which template is being edited
   const [uploading, setUploading]   = useState(false);
+  const [loadingBodyIdx, setLoadingBodyIdx] = useState(null);
 
   // Load user's permanent template overrides on mount
   useEffect(() => {
@@ -7401,6 +7402,7 @@ function SettingsPage({ addToast }) {
             return {
               ...tpl,
               ...(ov.intro      && { intro:      ov.intro }),
+              ...(ov.fullBody   && { fullBody:   ov.fullBody }),
               ...(ov.highlights?.length && { highlights: ov.highlights }),
               ...(ov.subject    && { subject:    ov.subject }),
               ...(ov.customNote && { customNote: ov.customNote }),
@@ -7420,7 +7422,7 @@ function SettingsPage({ addToast }) {
           .map(t => ({
             id: t.templateId, templateId: t.templateId,
             name: t.name || t.templateId, icon: t.icon || "⚡", accent: t.accent || "#2563eb",
-            subject: t.subject || "", customNote: t.customNote || "", intro: t.intro || "",
+            subject: t.subject || "", customNote: t.customNote || "", intro: t.intro || "", fullBody: t.fullBody || "",
             highlights: t.highlights?.length ? t.highlights : ["", "", "", ""],
             resumeType: t.resumeType || (t.resumeUploadPath ? "upload" : t.resumeDriveUrl ? "drive" : "default"),
             resumeDriveUrl: t.resumeDriveUrl || "", resumeUploadPath: t.resumeUploadPath || "", resumeFileName: t.resumeFileName || "",
@@ -7496,6 +7498,7 @@ function SettingsPage({ addToast }) {
             subject:    tpl.subject    || "",
             customNote: tpl.customNote || "",
             intro:      tpl.intro      || "",
+            fullBody:   tpl.fullBody   || "",
             highlights: (tpl.highlights || []).filter(Boolean),
             resumeType:       tpl.resumeType       || "default",
             resumeUrl:        tpl.resumeDriveUrl   || "",
@@ -7505,12 +7508,13 @@ function SettingsPage({ addToast }) {
           });
         } else {
           // Built-in template — save if the user customized any text OR the resume
-          const hasCustom = tpl.intro || tpl.highlights?.some(Boolean) || tpl.subject || tpl.customNote
+          const hasCustom = tpl.intro || tpl.fullBody || tpl.highlights?.some(Boolean) || tpl.subject || tpl.customNote
             || tpl.resumeData || tpl.resumeDriveUrl || (tpl.resumeType && tpl.resumeType !== "default");
           if (!hasCustom) continue;
           await axios.post(`${API}/api/template-override`, {
             templateId: tid,
             intro:      tpl.intro      || "",
+            fullBody:   tpl.fullBody   || "",
             highlights: tpl.highlights || [],
             subject:    tpl.subject    || "",
             customNote: tpl.customNote || "",
@@ -7529,6 +7533,18 @@ function SettingsPage({ addToast }) {
   const updateTpl = (idx, key, val) => setTemplates(prev =>
     prev.map((t,i) => i===idx ? {...t, [key]: val} : t)
   );
+
+  const loadDefaultBody = async (idx, tpl) => {
+    const tid = tpl.templateId || tpl.id;
+    if (tpl.fullBody?.trim() && !window.confirm("This will replace your current Email Body text with the default. Continue?")) return;
+    setLoadingBodyIdx(idx);
+    try {
+      const r = await axios.get(`${API}/api/templates/default-body/${tid}`, { params: { company: "[Company]" } });
+      if (r.data.body) updateTpl(idx, "fullBody", r.data.body);
+      else addToast && addToast("No default text available for this template — write your own below.", "error");
+    } catch(e) { addToast && addToast("❌ Failed to load default text", "error"); }
+    finally { setLoadingBodyIdx(null); }
+  };
 
   const uploadResume = async (idx, file) => {
     if (!file) return;
@@ -7795,22 +7811,21 @@ ${profile.displayName || currentUser?.displayName || "Your Name"}`}
                       placeholder="Job Application — Your Name" />
                   </div>
 
-                  {/* Opening Intro Para */}
+                  {/* Email Body — full editable text, exactly as it goes out */}
                   <div className="form-group" style={{ marginBottom:0 }}>
-                    <label className="form-label" style={{ fontSize:11 }}>
-                      Opening Intro <span style={{ fontWeight:400, color:"var(--text-muted)" }}>(replaces default — leave blank to use default)</span>
-                    </label>
-                    <textarea className="form-textarea" rows={4} style={{ fontSize:12 }} value={tpl.intro || ""}
-                      onChange={e => updateTpl(idx,"intro",e.target.value)}
-                      placeholder="I am writing to express my strong interest in joining [Company]..." />
-                  </div>
-
-                  {/* Custom Note */}
-                  <div className="form-group" style={{ marginBottom:0 }}>
-                    <label className="form-label" style={{ fontSize:11 }}>Custom Note <span style={{ fontWeight:400, color:"var(--text-muted)" }}>(optional extra line)</span></label>
-                    <textarea className="form-textarea" rows={2} style={{ fontSize:13 }} value={tpl.customNote || ""}
-                      onChange={e => updateTpl(idx,"customNote",e.target.value)}
-                      placeholder="Why you're a great fit for this role..." />
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+                      <label className="form-label" style={{ fontSize:11, marginBottom:0 }}>
+                        Email Body <span style={{ fontWeight:400, color:"var(--text-muted)" }}>(full text, exactly as it's sent — blank line = new paragraph)</span>
+                      </label>
+                      <button type="button" className="btn-ghost btn-sm" style={{ fontSize:10.5, padding:"3px 9px" }}
+                        disabled={loadingBodyIdx===idx}
+                        onClick={() => loadDefaultBody(idx, tpl)}>
+                        {loadingBodyIdx===idx ? "Loading…" : "📋 Load Current Email Text"}
+                      </button>
+                    </div>
+                    <textarea className="form-textarea" rows={10} style={{ fontSize:12.5, lineHeight:1.6 }} value={tpl.fullBody || ""}
+                      onChange={e => updateTpl(idx,"fullBody",e.target.value)}
+                      placeholder="Click “Load Current Email Text” to see and edit exactly what this template currently sends — or leave blank to keep using the built-in default." />
                   </div>
 
                   {/* Highlights */}
