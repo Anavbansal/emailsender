@@ -376,7 +376,7 @@ function getUserConfig(user) {
     currentCompany:   user.currentCompany   || (isOwner ? "HCLTech Pvt. Ltd." : ""),
     currentCTC:       user.currentCTC       || (isOwner ? "₹9 LPA" : ""),
     expectedCTC:      user.expectedCTC      || (isOwner ? "₹15 LPA" : ""),
-    noticePeriod:     user.noticePeriod     || (isOwner ? "Serving Notice Period" : ""),
+    noticePeriod:     user.noticePeriod     || (isOwner ? "Immediate Joiner" : ""),
     currentLocation:  user.currentLocation  || (isOwner ? "Faridabad, Haryana" : ""),
     preferredLocation:user.preferredLocation|| (isOwner ? "PAN India" : ""),
     totalExp:         user.totalExp         || (isOwner ? "4.9+ Years" : ""),
@@ -1440,7 +1440,7 @@ function buildCRMHTML({ hrName, company, role, customNote, trackUrl = "", custom
      (ITSM, HRSD, CSM, Flow Designer, IntegrationHub, Virtual Agent, Scripted REST APIs, Marketplace Listing) and
      <strong>CTI integrations</strong> across Freshdesk, Salesforce, Zendesk, and MS Dynamics —
      delivering enterprise-grade solutions that automate ticket workflows, enable real-time telephony-to-CRM sync,
-     and measurably reduce agent handle time. I am currently serving my notice period at NovelVox and am available to join by late August 2026 or earlier for the right opportunity.`;
+     and measurably reduce agent handle time. I am currently with HCLTech and immediately available to join.`;
   const items     = (customHighlights && customHighlights.length) ? customHighlights : CRM_HIGHLIGHTS;
   const hlHtml    = items.map(h => `<li>${h}</li>`).join("");
 
@@ -1488,7 +1488,7 @@ function buildServiceNowHTML({ hrName, company, role, customNote, trackUrl = "",
      (ITSM, CSM, Flow Designer, IntegrationHub, Scripted REST APIs, Business Rules, ACLs, CMDB/Asset data) with working
      exposure to <strong>Security Operations concepts</strong> — Vulnerability Response lifecycle, CMDB/asset matching, and
      scanner data ingestion — alongside CRM integrations across Freshdesk, Salesforce, Zendesk, and MS Dynamics.
-     I am currently serving my notice period at NovelVox and am available to join by late August 2026 or earlier for the right opportunity.`;
+     I am currently with HCLTech and immediately available to join.`;
   const items     = (customHighlights && customHighlights.length) ? customHighlights : SERVICENOW_HIGHLIGHTS;
   const hlHtml    = items.map(h => `<li>${h}</li>`).join("");
 
@@ -1736,7 +1736,7 @@ function buildFullstackHTML({ hrName, company, role, customNote, trackUrl = "", 
     `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}.
      With <strong>4.9+ years of hands-on experience</strong> as a Senior Full-Stack Developer, I have architected and
      shipped production-grade applications across Node.js, AngularJS, Express.js, REST APIs, AWS Lambda, and DynamoDB/MySQL — with deep expertise
-     in CTI/Telephony integrations for enterprise platforms. I am currently serving my notice period with a 4.8-year tenure at NovelVox, and am available to join by late August 2026 or earlier for the right opportunity.`;
+     in CTI/Telephony integrations for enterprise platforms. I am currently with HCLTech and immediately available to join.`;
   const items     = (customHighlights && customHighlights.length) ? customHighlights : DEFAULT_HIGHLIGHTS;
   const hlHtml    = items.map(h => `<li>${h}</li>`).join("");
 
@@ -1776,7 +1776,7 @@ function buildCTIHTML({ hrName, company, role, customNote, trackUrl = "", custom
     `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}.
      With <strong>4.9+ years specializing in CTI/Telephony integrations</strong>, I have architected enterprise-grade solutions
      across Avaya AACC, Avaya AES, Genesys, Webex Contact Center, Zoom, and Amazon Connect — enabling seamless agent workflows,
-     real-time call controls, screen popups, and CRM synchronization at scale. I am currently serving my notice period with a 4.8-year tenure at NovelVox, and am available to join by late August 2026 or earlier for the right opportunity.`;
+     real-time call controls, screen popups, and CRM synchronization at scale. I am currently with HCLTech and immediately available to join.`;
   const items     = (customHighlights && customHighlights.length) ? customHighlights : CTI_HIGHLIGHTS;
   const hlHtml    = items.map(h => `<li>${h}</li>`).join("");
 
@@ -1817,7 +1817,7 @@ function buildFormalHTML({ hrName, company, role, customNote, trackUrl = "", cus
   const intro     = customIntro ||
     `I am respectfully submitting my application${roleText} at <strong>${company||"your organization"}</strong>.
      I am a Senior Software Developer with <strong>4.9+ years of professional experience</strong> in full-stack development,
-     cloud architecture, and enterprise system integrations. I am currently serving my notice period with a 4.8-year tenure at NovelVox, and am available to join by late August 2026 or earlier for the right opportunity.`;
+     cloud architecture, and enterprise system integrations. I am currently with HCLTech and immediately available to join.`;
   const items  = (customHighlights && customHighlights.length) ? customHighlights : DEFAULT_HIGHLIGHTS;
   const hlHtml = items.map(h => `<li>${h}</li>`).join("");
 
@@ -4373,7 +4373,7 @@ app.post("/api/auth/init-mohit", async (req, res) => {
         profileTitle:     "Senior Software Developer | CRM & CTI Integration Specialist",
         profileSummary:   "Senior Software Backend Engineer with 4.7 years of experience in Java, Spring Boot, REST APIs, Microservices, and CRM/CTI integrations including MS Dynamics 365, ServiceNow, HubSpot, Salesforce, and Cisco Finesse.",
         keySkills:        "Java, Spring Boot, Microservices, REST APIs, SQL, MySQL, CRM Integration, CTI Integration, Cisco Finesse, Salesforce, Microsoft Dynamics 365, ServiceNow, HubSpot, Git, CI/CD, Postman",
-        currentCompany:   "HCLTech Pvt Ltd",
+        currentCompany:   "NovelVox Pvt Ltd",
         totalExp:         "4.9+ Years",
         relevantExp:      "4.9+ Years",
         noticePeriod:     "Serving Notice Period",
@@ -4870,7 +4870,7 @@ app.post("/api/ai/chat", requireAuth, async (req, res) => {
       exp:       userCfg?.totalExp       || "4.9+",
       skills:    userCfg?.keySkills      || "Full Stack, CRM, CTI",
       company:   userCfg?.currentCompany || "HCLTech",
-      notice:    userCfg?.noticePeriod   || "Serving Notice Period",
+      notice:    userCfg?.noticePeriod   || "Immediate Joiner",
       curCTC:    userCfg?.currentCTC     || "",
       expCTC:    userCfg?.expectedCTC    || "",
       location:  userCfg?.currentLocation|| "Delhi NCR",
@@ -5240,7 +5240,7 @@ app.post("/api/ai/screening-reply", requireAuth, async (req, res) => {
     const exp       = userCfg.totalExp        || req.user.totalExp     || "";
     const currCTC   = userCfg.currentCTC      || req.user.currentCTC   || "";
     const expCTC    = userCfg.expectedCTC     || req.user.expectedCTC  || "";
-    const notice    = userCfg.noticePeriod    || req.user.noticePeriod || "Serving Notice Period";
+    const notice    = userCfg.noticePeriod    || req.user.noticePeriod || "Immediate Joiner";
     const location  = userCfg.currentLocation || req.user.currentLocation || "";
     const company   = userCfg.currentCompany  || req.user.currentCompany  || "";
 
