@@ -6388,71 +6388,71 @@ function AuthPage({ onAuth }) {
   return (
     <div style={{
       minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center",
-      background:"#0f172a",
+      background:"#0a0b0e",
+      backgroundImage:"radial-gradient(circle at 20% 20%, rgba(30,58,95,0.35) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(22,163,74,0.12) 0%, transparent 50%)",
       padding:16
     }}>
       <div style={{
         width:"100%", maxWidth:400,
-        background:"rgba(255,255,255,0.05)", backdropFilter:"blur(20px)",
-        border:"1px solid rgba(255,255,255,0.1)", borderRadius:20,
-        padding:40, boxShadow:"0 32px 80px rgba(0,0,0,0.4)"
+        background:"#141519",
+        border:"1px solid #292a30", borderRadius:14,
+        padding:40, boxShadow:"0 24px 64px rgba(0,0,0,0.5)"
       }}>
         {/* Logo */}
         <div style={{ textAlign:"center", marginBottom:32 }}>
           <div style={{
-            width:56, height:56, borderRadius:16, margin:"0 auto 12px",
-            background:"#3b82f6",
+            width:52, height:52, borderRadius:12, margin:"0 auto 14px",
+            background:"#1e3a5f",
             display:"flex", alignItems:"center", justifyContent:"center",
-            fontSize:28, boxShadow:"0 8px 24px rgba(59,130,246,0.4)"
-          }}>✉️</div>
-          <h1 style={{ color:"#fff", fontSize:24, fontWeight:800, margin:0 }}>Email Sender</h1>
-          <p style={{ color:"#94a3b8", fontSize:13, margin:"6px 0 0" }}>Job Hunt Automation</p>
+            fontSize:22, fontWeight:800, color:"#fff", letterSpacing:"-0.02em"
+          }}>A</div>
+          <h1 style={{ color:"#eaeaec", fontSize:22, fontWeight:700, margin:0, letterSpacing:"-0.01em" }}>AnavHQ</h1>
+          <p style={{ color:"#86878f", fontSize:13, margin:"6px 0 0" }}>Job outreach &amp; pipeline, automated</p>
         </div>
 
-        {/* Tab switcher */}
         <form onSubmit={submit}>
-
           <div style={{ marginBottom:14 }}>
-            <label style={{ color:"#94a3b8", fontSize:12, fontWeight:600, display:"block", marginBottom:6 }}>USERNAME</label>
+            <label style={{ color:"#86878f", fontSize:11, fontWeight:600, letterSpacing:"0.04em", display:"block", marginBottom:6 }}>USERNAME</label>
             <input name="username" value={form.username} onChange={handle}
-              placeholder="anav" required autoFocus
+              required autoFocus
               style={{
-                width:"100%", padding:"10px 14px", borderRadius:10, border:"1px solid rgba(255,255,255,0.1)",
-                background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:14, boxSizing:"border-box",
-                outline:"none"
-              }} />
+                width:"100%", padding:"10px 14px", borderRadius:8, border:"1.5px solid #292a30",
+                background:"#0e0f12", color:"#eaeaec", fontSize:14, boxSizing:"border-box",
+                outline:"none", transition:"border-color 0.15s"
+              }}
+              onFocus={e => e.target.style.borderColor="#7a9cc6"}
+              onBlur={e => e.target.style.borderColor="#292a30"} />
           </div>
 
-          <div style={{ marginBottom: 24 }}>
-            <label style={{ color:"#94a3b8", fontSize:12, fontWeight:600, display:"block", marginBottom:6 }}>PASSWORD</label>
+          <div style={{ marginBottom:24 }}>
+            <label style={{ color:"#86878f", fontSize:11, fontWeight:600, letterSpacing:"0.04em", display:"block", marginBottom:6 }}>PASSWORD</label>
             <input name="password" type="password" value={form.password} onChange={handle}
               placeholder="••••••••" required
               style={{
-                width:"100%", padding:"10px 14px", borderRadius:10, border:"1px solid rgba(255,255,255,0.1)",
-                background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:14, boxSizing:"border-box",
-                outline:"none"
-              }} />
+                width:"100%", padding:"10px 14px", borderRadius:8, border:"1.5px solid #292a30",
+                background:"#0e0f12", color:"#eaeaec", fontSize:14, boxSizing:"border-box",
+                outline:"none", transition:"border-color 0.15s"
+              }}
+              onFocus={e => e.target.style.borderColor="#7a9cc6"}
+              onBlur={e => e.target.style.borderColor="#292a30"} />
           </div>
-
-
 
           {error && (
             <div style={{
-              background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.3)",
+              background:"#291616", border:"1px solid #5c2b2d",
               borderRadius:8, padding:"10px 14px", marginBottom:16,
-              color:"#fca5a5", fontSize:13
-            }}>❌ {error}</div>
+              color:"#c96b6f", fontSize:13
+            }}>{error}</div>
           )}
 
           <button type="submit" disabled={loading}
             style={{
-              width:"100%", padding:"12px 0", borderRadius:10, border:"none",
-              background:"#2563eb", color:"#fff",
-              fontWeight:700, fontSize:15, cursor:"pointer", transition:"all 0.2s",
-              boxShadow:"0 4px 16px rgba(37,99,235,0.4)",
+              width:"100%", padding:"11px 0", borderRadius:8, border:"none",
+              background:"#1e3a5f", color:"#fff",
+              fontWeight:600, fontSize:14, cursor: loading ? "default" : "pointer", transition:"opacity 0.15s",
               opacity: loading ? 0.7 : 1
             }}>
-            {loading ? "⏳ Please wait…" : "🔑 Login"}
+            {loading ? "Signing in…" : "Sign In"}
           </button>
         </form>
       </div>
@@ -6704,6 +6704,14 @@ function App() {
   return (
     <div className="app-shell">
       <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""} ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+
+        {/* ── Product brand ── */}
+        {!sidebarCollapsed && (
+          <div style={{ display:"flex", alignItems:"center", gap:8, padding:"4px 4px 14px" }}>
+            <div style={{ width:24, height:24, borderRadius:7, background:"var(--sidebar-active)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800, color:"#fff", flexShrink:0 }}>A</div>
+            <span style={{ fontSize:14, fontWeight:700, color:"rgba(255,255,255,0.92)", letterSpacing:"-0.01em" }}>AnavHQ</span>
+          </div>
+        )}
 
         {/* ── Profile dropdown (click name to logout) ── */}
         <div className="sidebar-header" style={{ position:"relative" }}>

@@ -748,7 +748,7 @@ async function notifyDuplicateHoldBatch(jobUser, jobUserCfg, items) {
       </div>
     </div>`;
     const raw = [
-      `From: "Job Mailer" <${senderEmail}>`, `To: ${senderEmail}`,
+      `From: "AnavHQ" <${senderEmail}>`, `To: ${senderEmail}`,
       `Subject: ${encodedSubject}`, `MIME-Version: 1.0`,
       `Content-Type: text/html; charset="UTF-8"`, ``, html,
     ].join("\r\n");
@@ -776,7 +776,7 @@ async function notifyHeldReminder(jobUser, jobUserCfg, job) {
       </div>
     </div>`;
     const raw = [
-      `From: "Job Mailer" <${senderEmail}>`, `To: ${senderEmail}`,
+      `From: "AnavHQ" <${senderEmail}>`, `To: ${senderEmail}`,
       `Subject: ${encodedSubject}`, `MIME-Version: 1.0`,
       `Content-Type: text/html; charset="UTF-8"`, ``, html,
     ].join("\r\n");
@@ -812,7 +812,7 @@ async function notifyScheduledResult(jobUser, jobUserCfg, job, status, detail) {
       </div>
     </div>`;
     const raw = [
-      `From: "Job Mailer" <${senderEmail}>`, `To: ${senderEmail}`,
+      `From: "AnavHQ" <${senderEmail}>`, `To: ${senderEmail}`,
       `Subject: ${encodedSubject}`, `MIME-Version: 1.0`,
       `Content-Type: text/html; charset="UTF-8"`, ``, html,
     ].join("\r\n");
@@ -2435,7 +2435,7 @@ app.post("/api/gmail/draft", requireAuth, async (req, res) => {
     const fromEmail = userCfg.gmailUser || req.user.gmailUser || "";
 
     const headers = [
-      `From: "${userCfg.profileName || req.user.displayName || "Job Mailer"}" <${fromEmail}>`,
+      `From: "${userCfg.profileName || req.user.displayName || "AnavHQ"}" <${fromEmail}>`,
       `To: ${to}`,
       `Subject: =?UTF-8?B?${Buffer.from(subject).toString("base64")}?=`,
       `MIME-Version: 1.0`,
@@ -4732,7 +4732,7 @@ async function sendWelcomeEmail({ displayName, username, password, profileEmail,
 
   const boundary = "welcome_" + Date.now();
   const rawEmail = [
-    `From: "Job Mailer" <${from}>`,
+    `From: "AnavHQ" <${from}>`,
     `To: ${profileEmail}`,
     `Subject: ${subjectEncoded}`,
     `MIME-Version: 1.0`,
