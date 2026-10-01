@@ -7592,7 +7592,6 @@ function SettingsPage({ addToast }) {
     // Verify: re-fetch from the server and confirm what we sent actually
     // persisted — catches any silent save that "succeeded" but didn't stick.
     try {
-      await axios.post(`${API}/api/templates/dedupe`).catch(() => {});
       const r = await axios.get(`${API}/api/template-override`, { params: { _t: Date.now() } });
       const mismatches = [];
       const diagnostics = [];

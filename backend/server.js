@@ -6228,15 +6228,37 @@ app.get("/api/template-override", requireAuth, async (req, res) => {
 // this user (possible leftovers from before the unique index existed) ────────
 app.post("/api/templates/dedupe", requireAuth, async (req, res) => {
   try {
-    const all = await EmailTemplate.find({ userId: req.userId }).sort({ updatedAt: -1 }).lean();
-    const seen = new Set();
-    const toDelete = [];
+    const all = await EmailTemplate.find({ userId: req.userId }).lean();
+    // Group by templateId
+    const groups = {};
     for (const doc of all) {
-      if (seen.has(doc.templateId)) toDelete.push(doc._id);
-      else seen.add(doc.templateId);
+      (groups[doc.templateId] ||= []).push(doc);
+    }
+    const toDelete = [];
+    for (const templateId in groups) {
+      const docs = groups[templateId];
+      if (docs.length < 2) continue; // no duplicate, nothing to do
+      // Score each duplicate by how much real content it actually holds —
+      // NEVER trust updatedAt alone here: an empty/stale doc can easily have
+      // a later timestamp than the one with the real saved text, and picking
+      // by recency alone was silently throwing away genuine saves.
+      const score = (d) => (
+        (d.isOverride ? 1 : 0) +
+        (d.fullBody?.length ? 2 : 0) +
+        (d.intro?.length ? 1 : 0) +
+        (d.highlights?.filter(Boolean).length ? 1 : 0) +
+        (d.resumeData ? 1 : 0)
+      );
+      const sorted = [...docs].sort((a, b) => {
+        const sa = score(a), sb = score(b);
+        if (sa !== sb) return sb - sa; // higher score (more complete) first
+        return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0); // tie-break: most recent
+      });
+      const keep = sorted[0];
+      for (const d of sorted.slice(1)) toDelete.push(d._id);
     }
     if (toDelete.length) await EmailTemplate.deleteMany({ _id: { $in: toDelete } });
-    res.json({ success: true, removedDuplicates: toDelete.length, remaining: seen.size });
+    res.json({ success: true, removedDuplicates: toDelete.length, remaining: Object.keys(groups).length });
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
