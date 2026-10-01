@@ -7437,7 +7437,7 @@ function SettingsPage({ addToast }) {
 
   // Load user's permanent template overrides on mount
   useEffect(() => {
-    axios.get(`${API}/api/template-override`)
+    axios.get(`${API}/api/template-override`, { params: { _t: Date.now() } })
       .then(r => {
         if (r.data.overrides && Object.keys(r.data.overrides).length > 0) {
           const overrides = r.data.overrides;
@@ -7580,9 +7580,31 @@ function SettingsPage({ addToast }) {
     }
     if (failed.length) {
       addToast && addToast(`⚠️ ${failed.length} template(s) failed to save: ${failed.map(f=>f.name).join(", ")} — ${failed[0].message}`, "error");
-    } else {
-      addToast && addToast("✅ Templates saved permanently!");
+      setTplSaving(false);
+      return;
     }
+
+    // Verify: re-fetch from the server and confirm what we sent actually
+    // persisted — catches any silent save that "succeeded" but didn't stick.
+    try {
+      const r = await axios.get(`${API}/api/template-override`, { params: { _t: Date.now() } });
+      const mismatches = [];
+      for (const tpl of templates) {
+        if (tpl.isCustom) continue;
+        const tid = tpl.id || tpl.templateId;
+        const sentBody = tpl.fullBody || "";
+        if (!sentBody) continue; // nothing was supposed to be saved for this one
+        const savedBody = r.data.overrides?.[tid]?.fullBody || "";
+        if (savedBody !== sentBody) mismatches.push(tpl.name || tid);
+      }
+      if (mismatches.length) {
+        addToast && addToast(`⚠️ Save verification failed for: ${mismatches.join(", ")} — the text shown may not be what's on the server. Please try saving again.`, "error");
+        setTplSaving(false);
+        return;
+      }
+    } catch { /* verification is best-effort — don't block on it failing to even check */ }
+
+    addToast && addToast("✅ Templates saved permanently!");
     setTplSaving(false);
   };
 

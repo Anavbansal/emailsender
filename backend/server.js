@@ -6211,6 +6211,7 @@ app.post("/api/template-override", requireAuth, async (req, res) => {
 // ─── GET /api/template-override — get user's saved overrides ─────────────────
 app.get("/api/template-override", requireAuth, async (req, res) => {
   try {
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate");
     const overrides = await EmailTemplate.find({ userId: req.userId, isOverride: true }).lean();
     const map = {};
     overrides.forEach(o => { map[o.templateId] = o; });
