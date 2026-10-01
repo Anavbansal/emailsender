@@ -1555,7 +1555,7 @@ function BulkFollowUpModal({ contacts, onClose, addToast, isFiltered = false }) 
           <div className="modal-title-row">
             <span>📅</span>
             <h3 className="modal-title">Bulk Follow-up Scheduler</h3>
-            <span className="modal-hint" style={{ background:"#ede9fe", color:"#5b21b6" }}>
+            <span className="modal-hint" style={{ background:"var(--blue-50)", color:"var(--blue)" }}>
               {selected.size} selected · {eligible.length} eligible
             </span>
           </div>
@@ -1810,7 +1810,7 @@ function FollowUpModal({ contact, onClose, onSent }) {
         <div className="modal-header">
           <div className="modal-title-row">
             <span>🔁</span><h3 className="modal-title">Send Follow-up</h3>
-            <span className="modal-hint" style={{ background:"#ede9fe", color:"#5b21b6" }}>
+            <span className="modal-hint" style={{ background:"var(--blue-50)", color:"var(--blue)" }}>
               {contact.company || contact.hrEmail}
               {form.hrName && <span> · {form.hrName}</span>}
             </span>
@@ -1970,7 +1970,7 @@ function InterviewScheduleModal({ contact, onClose, onSaved, addToast }) {
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="modal-scroll">
-          <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:10,padding:"10px 14px",marginBottom:16}}>
+          <div style={{background:"var(--blue-50)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 14px",marginBottom:16}}>
             <div style={{fontWeight:700,fontSize:13}}>{contact.company||"Company"}</div>
             <div style={{fontSize:12,color:"var(--text-muted)",marginTop:2}}>{contact.hrEmail}{contact.hrName?` · ${contact.hrName}`:""}</div>
             {contact.role&&<div style={{fontSize:12,color:"var(--blue)",marginTop:2}}>📌 {contact.role}</div>}
@@ -3108,8 +3108,8 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
                   {c.replyCategory && c.replied && (() => {
                     const CAT = {
                       interested:  { label:"🌟 Interested",  bg:"var(--green-light)", fg:"var(--green)" },
-                      interview:   { label:"🎤 Interview",   bg:"#ede9fe", fg:"#5b21b6" },
-                      assessment:  { label:"📝 Assessment",  bg:"#dbeafe", fg:"#1e40af" },
+                      interview:   { label:"🎤 Interview",   bg:"var(--blue-50)", fg:"var(--blue)" },
+                      assessment:  { label:"📝 Assessment",  bg:"var(--blue-50)", fg:"var(--blue)" },
                       rejected:    { label:"❌ Rejected",    bg:"var(--red-light)", fg:"var(--red)" },
                       info_request:{ label:"❓ Info Asked",  bg:"var(--amber-light)", fg:"var(--amber)" },
                       other:       { label:"💬 Reply",       bg:"var(--surface-2)", fg:"var(--text-muted)" },
@@ -7205,7 +7205,7 @@ function AdminPage({ addToast }) {
                     {/* Resume upload */}
                     <label style={{
                       padding:"5px 10px", borderRadius:8, fontSize:11, fontWeight:600, cursor:"pointer",
-                      background:"#ede9fe", color:"#5b21b6", border:"1px solid #c4b5fd"
+                      background:"var(--blue-50)", color:"var(--blue)", border:"1px solid var(--border)"
                     }}>
                       📎 Resume
                       <input type="file" accept=".pdf" style={{ display:"none" }}
@@ -8250,7 +8250,7 @@ function TemplateManagerPage({ addToast }) {
                       <button key={ic} type="button"
                         onClick={() => h("icon", ic)}
                         style={{ width:34, height:34, borderRadius:8, border:`2px solid ${editing.icon===ic?"var(--blue)":"var(--border)"}`,
-                          background: editing.icon===ic?"#eff6ff":"var(--surface)", fontSize:18, cursor:"pointer" }}>
+                          background: editing.icon===ic?"var(--blue-50)":"var(--surface)", fontSize:18, cursor:"pointer" }}>
                         {ic}
                       </button>
                     ))}
@@ -9128,13 +9128,13 @@ function BulkSendPage({ addToast, contacts }) {
                 const isOwn = !!c.templateType;
                 return (
                   <span title={isOwn ? "Same template they got before" : "Default template (no previous send)"}
-                    style={{ fontSize:10, background: isOwn ? "#ede9fe" : "#f1f5f9", color: isOwn ? "#5b21b6" : "#64748b", padding:"2px 6px", borderRadius:99, fontWeight:600 }}>
+                    style={{ fontSize:10, background: isOwn ? "var(--blue-50)" : "var(--surface-2)", color: isOwn ? "var(--blue)" : "var(--text-muted)", padding:"2px 6px", borderRadius:99, fontWeight:600 }}>
                     {t?.icon || "⚡"} {t?.name || tid}
                   </span>
                 );
               })()}
-              {c.sent     && <span style={{ fontSize:10, background:"#dbeafe", color:"#1e40af", padding:"2px 6px", borderRadius:99 }}>Applied</span>}
-              {c.opened   && <span style={{ fontSize:10, background:"#ede9fe", color:"#5b21b6", padding:"2px 6px", borderRadius:99 }}>Opened</span>}
+              {c.sent     && <span style={{ fontSize:10, background:"var(--blue-50)", color:"var(--blue)", padding:"2px 6px", borderRadius:99 }}>Applied</span>}
+              {c.opened   && <span style={{ fontSize:10, background:"var(--blue-50)", color:"var(--blue)", padding:"2px 6px", borderRadius:99 }}>Opened</span>}
               {c.replied  && <span style={{ fontSize:10, background:"var(--green-light)", color:"var(--green)", padding:"2px 6px", borderRadius:99 }}>Replied</span>}
             </div>
           </div>
