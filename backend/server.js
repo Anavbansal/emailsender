@@ -167,7 +167,7 @@ const InterviewSchema = new mongoose.Schema({
   calendarEventId:{ type: String, default: "" },  // Google Calendar event ID once synced
 }, { timestamps: true });
 InterviewSchema.index({ userId: 1, hrEmail: 1 }, { unique: true });
-const Interview = mongoose.model("Interview", InterviewSchema);
+const Interview = mongoose.models.Interview || mongoose.model("Interview", InterviewSchema);
 
 // ─── CapturedCall Model — numbers captured via MacroDroid/Tasker webhook ──────
 // (pending manual review: add company/role, then it becomes a real contact)
@@ -225,7 +225,7 @@ const emailTemplateSchema = new mongoose.Schema({
   resumeData:       { type: Buffer, default: null }, // actual PDF bytes — persists across restarts, unlike a local disk path
 }, { timestamps: true });
 emailTemplateSchema.index({ userId: 1, templateId: 1 }, { unique: true });
-const EmailTemplate = mongoose.model("EmailTemplate", emailTemplateSchema);
+const EmailTemplate = mongoose.models.EmailTemplate || mongoose.model("EmailTemplate", emailTemplateSchema);
 
 // ── JWT helpers ───────────────────────────────────────────────────────────────
 const JWT_SECRET = process.env.JWT_SECRET || "emailsender_secret_2026";
@@ -623,7 +623,7 @@ const linkedInStatusSchema = new mongoose.Schema({
   ignored:   { type: Boolean, default: false },
 }, { timestamps: true });
 linkedInStatusSchema.index({ userId: 1, rowIndex: 1 }, { unique: true });
-const LinkedInStatus = mongoose.model("LinkedInStatus", linkedInStatusSchema);
+const LinkedInStatus = mongoose.models.LinkedInStatus || mongoose.model("LinkedInStatus", linkedInStatusSchema);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // GMAIL TOKEN HEALTH MONITORING
@@ -861,12 +861,13 @@ cron.schedule("* * * * *", async () => {
         // DON'T auto-send — instead hold the job and notify the user so they
         // can review and send manually if they still want to.
         if (mongoose.connection.readyState === 1 && job.emailData?.hrEmail && job.emailData?.jobType !== "reply") {
+          const resolvedUserId = job.userId && job.userId !== "default" ? job.userId : (jobUser?._id ? String(jobUser._id) : null);
           const escapedDup = job.emailData.hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          const existing = await SentEmailLog.findOne({
+          const existing = resolvedUserId ? await SentEmailLog.findOne({
             hrEmail: new RegExp("^" + escapedDup + "$", "i"),
-            userId: job.userId && job.userId !== "default" ? job.userId : (jobUser?._id ? String(jobUser._id) : undefined),
+            userId: resolvedUserId,
             type: "application",
-          }).sort({ sentAt: -1 }).lean();
+          }).sort({ sentAt: -1 }).lean() : null;
 
           if (existing) {
             await updateJobStatus(job.jobId, "held", null, "duplicate", { duplicateOriginalSentAt: existing.sentAt || null });
@@ -1301,15 +1302,18 @@ async function sendFollowUpEmail({ hrEmail, hrName="", company, role, customNote
   // Resolve thread: use what was passed, else look up from the original application
   let resolvedThreadId = originalThreadId || null;
   if (!resolvedThreadId && originalMessageId && mongoose.connection.readyState === 1) {
-    const prev = await SentEmailLog.findOne({ messageId: originalMessageId }).lean();
+    const prev = await SentEmailLog.findOne({
+      messageId: originalMessageId,
+      ...(user?._id ? { userId: String(user._id) } : {}),
+    }).lean();
     if (prev?.threadId) resolvedThreadId = prev.threadId;
   }
-  if (!resolvedThreadId && !originalMessageId && hrEmail && mongoose.connection.readyState === 1) {
+  if (!resolvedThreadId && !originalMessageId && hrEmail && user?._id && mongoose.connection.readyState === 1) {
     // No thread info at all — look up the most recent application to this hrEmail
     const escaped = hrEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const prevApp = await SentEmailLog.findOne({
       hrEmail: { $regex: new RegExp("^" + escaped + "$", "i") },
-      userId: user?._id ? String(user._id) : undefined,
+      userId: String(user._id),
       type: "application",
     }).sort({ sentAt: -1 }).lean();
     if (prevApp?.threadId) resolvedThreadId = prevApp.threadId;
