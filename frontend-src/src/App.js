@@ -7595,16 +7595,25 @@ function SettingsPage({ addToast }) {
       await axios.post(`${API}/api/templates/dedupe`).catch(() => {});
       const r = await axios.get(`${API}/api/template-override`, { params: { _t: Date.now() } });
       const mismatches = [];
+      const diagnostics = [];
       for (const tpl of templates) {
         if (tpl.isCustom) continue;
         const tid = tpl.id || tpl.templateId;
         const sentBody = tpl.fullBody || "";
         if (!sentBody) continue; // nothing was supposed to be saved for this one
         const savedBody = r.data.overrides?.[tid]?.fullBody || "";
-        if (savedBody !== sentBody) mismatches.push(tpl.name || tid);
+        if (savedBody !== sentBody) {
+          mismatches.push(tpl.name || tid);
+          diagnostics.push(
+            `${tpl.name || tid}:\n` +
+            `  Sent    (${sentBody.length} chars): "${sentBody.slice(0,80)}${sentBody.length>80?"…":""}"\n` +
+            `  On server (${savedBody.length} chars): "${savedBody.slice(0,80)}${savedBody.length>80?"…":""}"`
+          );
+        }
       }
       if (mismatches.length) {
-        addToast && addToast(`⚠️ Save verification failed for: ${mismatches.join(", ")} — the text shown may not be what's on the server. Please try saving again.`, "error");
+        addToast && addToast(`⚠️ Save verification failed for: ${mismatches.join(", ")} — see details popup.`, "error");
+        window.alert("Save verification diagnostic — please screenshot this:\n\n" + diagnostics.join("\n\n"));
         setTplSaving(false);
         return;
       }
