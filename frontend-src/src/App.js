@@ -847,7 +847,7 @@ function InterviewTrackerWidget({ onNavigate }) {
               <div key={iv.id} style={{
                 display:"flex", alignItems:"center", gap:10,
                 padding:"8px 12px", borderRadius:8,
-                background: isToday ? "#fef3c7" : "var(--surface-2,#f8fafc)",
+                background: isToday ? "var(--amber-light)" : "var(--surface-2,#f8fafc)",
                 border: `1px solid ${isToday ? "#fde068" : "var(--border,#e2e8f0)"}`,
               }}>
                 <div style={{ textAlign:"center", minWidth:44 }}>
@@ -913,13 +913,13 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
 
   const GmailAlert = () => !gmailAlert ? null : (
     <div style={{
-      background:"#fee2e2", border:"2px solid #fca5a5",
+      background:"var(--red-light)", border:"2px solid var(--red-border)",
       borderRadius:12, padding:"14px 20px", marginBottom:16,
       display:"flex", alignItems:"center", gap:14, flexWrap:"wrap"
     }}>
       <div style={{ fontSize:28 }}>⚠️</div>
       <div style={{ flex:1, minWidth:200 }}>
-        <div style={{ fontWeight:800, fontSize:14, color:"#991b1b" }}>Gmail Connection Lost!</div>
+        <div style={{ fontWeight:800, fontSize:14, color:"var(--red)" }}>Gmail Connection Lost!</div>
         <div style={{ fontSize:12, color:"#7f1d1d", marginTop:2 }}>
           Scheduled emails failing ({gmailAlert.count}x): {gmailAlert.error}
         </div>
@@ -929,7 +929,7 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
         style={{ padding:"8px 18px", borderRadius:8, background:"#dc2626", color:"#fff", fontWeight:700, fontSize:13, textDecoration:"none" }}>
         🔗 Reconnect Gmail
       </a>
-      <button onClick={dismissAlert} style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, color:"#991b1b" }}>✕</button>
+      <button onClick={dismissAlert} style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, color:"var(--red)" }}>✕</button>
     </div>
   );
 
@@ -1017,13 +1017,13 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
           : { icon:"🚀", msg:"Start strong — send 5 applications today to build momentum.", action:"send", btn:"Apply Now" };
         return (
           <div style={{
-            background:"#fef3c7", border:"1px solid #fde68a",
+            background:"var(--amber-light)", border:"1px solid var(--amber-border)",
             borderRadius:12, padding:"12px 16px", marginBottom:16,
             display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap"
           }}>
             <div style={{ display:"flex", gap:10, alignItems:"center" }}>
               <span style={{ fontSize:20 }}>{tip.icon}</span>
-              <span style={{ fontSize:13, color:"#92400e", fontWeight:500 }}>{tip.msg}</span>
+              <span style={{ fontSize:13, color:"var(--amber)", fontWeight:500 }}>{tip.msg}</span>
             </div>
             <button className="btn-ghost btn-sm"
               style={{ fontSize:12, color:"#d97706", borderColor:"#d97706", whiteSpace:"nowrap" }}
@@ -1069,7 +1069,7 @@ function DashboardPage({ contacts, replies, scheduledJobs, onNavigate }) {
               </div>
               <div className="activity-right">
                 <DaysBadge ts={c.lastSentAt} />
-                {c.replied       && <span className="badge" style={{ fontSize:10, background:"#d1fae5", color:"#065f46" }}>↩ Replied</span>}
+                {c.replied       && <span className="badge" style={{ fontSize:10, background:"var(--green-light)", color:"var(--green)" }}>↩ Replied</span>}
                 {c.opened && !c.replied && <span className="badge badge-opened" style={{ fontSize: 10 }}>👁 Opened</span>}
                 {c.needsFollowUp && !c.replied && <span className="badge badge-reminder" style={{ fontSize: 10 }}>⏰ Due</span>}
               </div>
@@ -2866,7 +2866,7 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
           <div>
             <strong>Google Sheet not syncing:</strong> {sheetError}
             <div className="sheet-error-hint">
-              Open <code>https://emailsender-v8a4.onrender.com/api/sheets/debug</code> to diagnose. Once fixed, click ↻ Refresh.
+              This is a secondary backup log — your contacts are safe. If this persists, check your Google connection in Settings, then click ↻ Refresh.
             </div>
           </div>
           <button className="btn-ghost btn-sm" onClick={onRefresh}>↻ Refresh</button>
@@ -3107,11 +3107,11 @@ function HRContactsPage({ contacts, replies, fetchedAt, sheetError, onViewEmail,
                 <div className="contact-meta" style={{ flexWrap:"wrap", gap:4 }}>
                   {c.replyCategory && c.replied && (() => {
                     const CAT = {
-                      interested:  { label:"🌟 Interested",  bg:"#d1fae5", fg:"#065f46" },
+                      interested:  { label:"🌟 Interested",  bg:"var(--green-light)", fg:"var(--green)" },
                       interview:   { label:"🎤 Interview",   bg:"#ede9fe", fg:"#5b21b6" },
                       assessment:  { label:"📝 Assessment",  bg:"#dbeafe", fg:"#1e40af" },
-                      rejected:    { label:"❌ Rejected",    bg:"#fee2e2", fg:"#991b1b" },
-                      info_request:{ label:"❓ Info Asked",  bg:"#fef3c7", fg:"#92400e" },
+                      rejected:    { label:"❌ Rejected",    bg:"var(--red-light)", fg:"var(--red)" },
+                      info_request:{ label:"❓ Info Asked",  bg:"var(--amber-light)", fg:"var(--amber)" },
                       other:       { label:"💬 Reply",       bg:"var(--surface-2)", fg:"var(--text-muted)" },
                     }[c.replyCategory];
                     return CAT ? (
@@ -6186,9 +6186,9 @@ function ScheduledPage({ addToast }) {
                   <div className="contact-top">
                     <span className="contact-company">{job.emailData.company}</span>
                     <span className={`badge ${tab==="failed"?"badge-failed":"badge-scheduled"}`}
-                      style={tab==="failed"?{background:"#fee2e2",color:"#991b1b"}
-                        : tab==="held" && job.holdReason==="duplicate" ? {background:"#fee2e2",color:"#991b1b"}
-                        : tab==="held" ? {background:"#fef3c7",color:"#92400e"} : {}}>
+                      style={tab==="failed"?{background:"var(--red-light)",color:"var(--red)"}
+                        : tab==="held" && job.holdReason==="duplicate" ? {background:"var(--red-light)",color:"var(--red)"}
+                        : tab==="held" ? {background:"var(--amber-light)",color:"var(--amber)"} : {}}>
                       {tab==="failed" ? "Failed" : tab==="held" ? (job.holdReason==="duplicate"?"Auto-paused":"Manual") : "Auto-send"}
                     </span>
                     {job.emailData?.templateType && (() => {
@@ -6208,7 +6208,7 @@ function ScheduledPage({ addToast }) {
                     {tab==="failed" ? (
                       <span style={{ color:"#dc2626", fontSize:12 }}>❌ {job.error || "Unknown error"}</span>
                     ) : tab==="held" && job.holdReason==="duplicate" ? (
-                      <span style={{ color:"#991b1b", fontSize:12 }}>
+                      <span style={{ color:"var(--red)", fontSize:12 }}>
                         📤 Originally applied: {job.duplicateOriginalSentAt
                           ? new Date(job.duplicateOriginalSentAt).toLocaleString("en-IN", { dateStyle:"medium", timeStyle:"short" })
                           : "date unknown"}
@@ -7096,7 +7096,7 @@ function AdminPage({ addToast }) {
     <div className="page">
       <div className="page-header">
         <h2 className="page-title">Admin Panel</h2>
-        <span style={{ fontSize:11, background:"#fef3c7", color:"#92400e", padding:"4px 10px", borderRadius:99, fontWeight:700 }}>
+        <span style={{ fontSize:11, background:"var(--amber-light)", color:"var(--amber)", padding:"4px 10px", borderRadius:99, fontWeight:700 }}>
           ADMIN ONLY
         </span>
       </div>
@@ -7186,7 +7186,7 @@ function AdminPage({ addToast }) {
                   <div style={{ flex:1 }}>
                     <div style={{ fontWeight:700, fontSize:13 }}>
                       {u.displayName || u.username}
-                      {u.isAdmin && <span style={{ marginLeft:6, fontSize:10, background:"#fef3c7", color:"#92400e", padding:"2px 8px", borderRadius:99, fontWeight:700 }}>ADMIN</span>}
+                      {u.isAdmin && <span style={{ marginLeft:6, fontSize:10, background:"var(--amber-light)", color:"var(--amber)", padding:"2px 8px", borderRadius:99, fontWeight:700 }}>ADMIN</span>}
                     </div>
                     <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>
                       @{u.username} · {u.profileEmail||"no email"}
@@ -7215,7 +7215,7 @@ function AdminPage({ addToast }) {
                       onClick={() => setEditUser({...u})}>✏️ Edit</button>
                     <button style={{
                       padding:"5px 10px", borderRadius:8, fontSize:11, fontWeight:600, cursor:"pointer",
-                      background:"#fee2e2", color:"#991b1b", border:"1px solid #fca5a5"
+                      background:"var(--red-light)", color:"var(--red)", border:"1px solid var(--red-border)"
                     }} onClick={() => deleteUser(u._id, u.displayName||u.username)}>
                       🗑 Delete
                     </button>
@@ -8027,8 +8027,8 @@ ${profile.displayName || currentUser?.displayName || "Your Name"}`}
           <Section title="📧 Gmail Connection">
             <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
               <div style={{
-                background: currentUser?.hasGmail ? "#d1fae5" : "#fee2e2",
-                color: currentUser?.hasGmail ? "#065f46" : "#991b1b",
+                background: currentUser?.hasGmail ? "var(--green-light)" : "var(--red-light)",
+                color: currentUser?.hasGmail ? "var(--green)" : "var(--red)",
                 padding:"6px 14px", borderRadius:99, fontSize:13, fontWeight:600
               }}>
                 {currentUser?.hasGmail ? "✅ Connected" : "❌ Not Connected"}
@@ -8547,8 +8547,8 @@ function AIAssistantPage({ addToast }) {
                 padding:"10px 14px", borderRadius:12,
                 borderTopLeftRadius: m.role==="ai"?4:12,
                 borderTopRightRadius: m.role==="user"?4:12,
-                background: m.role==="user" ? "#7c3aed" : m.isError ? "#fee2e2" : "var(--surface)",
-                color: m.role==="user" ? "#fff" : m.isError ? "#991b1b" : "var(--text-700,#374151)",
+                background: m.role==="user" ? "#7c3aed" : m.isError ? "var(--red-light)" : "var(--surface)",
+                color: m.role==="user" ? "#fff" : m.isError ? "var(--red)" : "var(--text-700,#374151)",
                 border: m.role==="ai" ? "1px solid var(--border)" : "none",
                 fontSize:13, lineHeight:1.7,
               }}>
@@ -8811,7 +8811,7 @@ function InterviewsPage({ addToast }) {
       {/* Upcoming banner */}
       {upcoming.length > 0 && (
         <div style={{
-          background:"#fef3c7",
+          background:"var(--amber-light)",
           border:"1.5px solid #fde047", borderRadius:12,
           padding:"12px 18px", marginBottom:16
         }}>
@@ -8824,10 +8824,10 @@ function InterviewsPage({ addToast }) {
                 {new Date(i.interviewDate).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})}
               </span>
               <strong>{i.company}</strong>
-              {i.interviewRound && <span style={{ fontSize:11, color:"#92400e" }}> — {i.interviewRound}</span>}
+              {i.interviewRound && <span style={{ fontSize:11, color:"var(--amber)" }}> — {i.interviewRound}</span>}
             </div>
           ))}
-          {upcoming.length > 3 && <div style={{ fontSize:11, color:"#92400e", marginTop:4 }}>+{upcoming.length-3} more…</div>}
+          {upcoming.length > 3 && <div style={{ fontSize:11, color:"var(--amber)", marginTop:4 }}>+{upcoming.length-3} more…</div>}
         </div>
       )}
 
@@ -9087,9 +9087,9 @@ function BulkSendPage({ addToast, contacts }) {
       </div>
 
       {result && (
-        <div style={{ background:result.failed>0?"#fef3c7":"#d1fae5", border:`1px solid ${result.failed>0?"#fde047":"#6ee7b7"}`, borderRadius:10, padding:"12px 16px", marginBottom:16 }}>
+        <div style={{ background:result.failed>0?"var(--amber-light)":"var(--green-light)", border:`1px solid ${result.failed>0?"var(--amber-border)":"var(--green-border)"}`, borderRadius:10, padding:"12px 16px", marginBottom:16 }}>
           ✅ <strong>{result.sent}</strong> sent
-          {result.skipped>0 && <span style={{color:"#92400e"}}> · ⏭ {result.skipped} skipped (already applied)</span>}
+          {result.skipped>0 && <span style={{color:"var(--amber)"}}> · ⏭ {result.skipped} skipped (already applied)</span>}
           {result.failed>0 && <span style={{color:"#dc2626"}}> · ❌ {result.failed} failed</span>}
         </div>
       )}
@@ -9135,7 +9135,7 @@ function BulkSendPage({ addToast, contacts }) {
               })()}
               {c.sent     && <span style={{ fontSize:10, background:"#dbeafe", color:"#1e40af", padding:"2px 6px", borderRadius:99 }}>Applied</span>}
               {c.opened   && <span style={{ fontSize:10, background:"#ede9fe", color:"#5b21b6", padding:"2px 6px", borderRadius:99 }}>Opened</span>}
-              {c.replied  && <span style={{ fontSize:10, background:"#d1fae5", color:"#065f46", padding:"2px 6px", borderRadius:99 }}>Replied</span>}
+              {c.replied  && <span style={{ fontSize:10, background:"var(--green-light)", color:"var(--green)", padding:"2px 6px", borderRadius:99 }}>Replied</span>}
             </div>
           </div>
         ))}
