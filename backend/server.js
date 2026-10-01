@@ -1093,25 +1093,14 @@ const SHEET_TAB = process.env.SHEET_TAB || "Candidate_Status_Log";
 let sheetsInitialized = false;
 
 async function getSheetsClient() {
-  const { google } = require("googleapis");
-  const tokenPath = path.join(__dirname, "tokens.json");
-
-  const auth = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI
-  );
-
-  if (fs.existsSync(tokenPath)) {
-    auth.setCredentials(JSON.parse(fs.readFileSync(tokenPath, "utf8")));
-  } else if (process.env.GMAIL_REFRESH_TOKEN) {
-    auth.setCredentials({
-      refresh_token: process.env.GMAIL_REFRESH_TOKEN,
-    });
-  } else {
-    throw new Error("No Gmail tokens — connect via /api/gmail/auth");
-  }
-
+  // Sheets logging is owner-only — reuse the SAME robust, MongoDB-persisted
+  // Gmail OAuth credentials (already has the spreadsheets scope granted)
+  // instead of the old tokens.json file, which is wiped on every Render
+  // deploy (ephemeral disk) and was silently falling back to a stale
+  // GMAIL_REFRESH_TOKEN env var that's no longer valid ("invalid_grant").
+  const ownerUser = await User.findOne({ username: process.env.OWNER_USERNAME || "anav" }).lean();
+  if (!ownerUser) throw new Error("Owner account not found — can't authenticate Sheets");
+  const auth = getUserGmailAuth(ownerUser);
   return google.sheets({ version: "v4", auth });
 }
 
@@ -1172,15 +1161,7 @@ app.get("/api/sheets/debug", async (req, res) => {
   if (!GOOGLE_SHEET_ID)
     return res.json({ ok: false, message: "GOOGLE_SHEET_ID not set" });
   try {
-    const { google } = require("googleapis");
-    const tokenPath = path.join(__dirname, "tokens.json");
-    if (!fs.existsSync(tokenPath))
-      return res.json({ ok: false, message: "No Gmail tokens — connect via /api/gmail/auth" });
-    const auth = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, process.env.GOOGLE_REDIRECT_URI
-    );
-    auth.setCredentials(JSON.parse(fs.readFileSync(tokenPath, "utf8")));
-    const sheets = google.sheets({ version: "v4", auth });
+    const sheets = await getSheetsClient();
 
     const meta = await sheets.spreadsheets.get({ spreadsheetId: GOOGLE_SHEET_ID });
     const tabs = meta.data.sheets.map(s => ({ name: s.properties.title, id: s.properties.sheetId }));
