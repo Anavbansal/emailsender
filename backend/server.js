@@ -6186,7 +6186,7 @@ app.post("/api/template-override", requireAuth, async (req, res) => {
     const { templateId, intro, highlights, subject, customNote, fullBody, resumeType, resumeUrl, resumeDriveUrl, resumeFileName, resumeData } = req.body;
     if (!templateId) return res.status(400).json({ success: false, message: "templateId required" });
 
-    await EmailTemplate.findOneAndUpdate(
+    const saved = await EmailTemplate.findOneAndUpdate(
       { userId: req.userId, templateId },
       { $set: {
         templateId,
@@ -6202,9 +6202,13 @@ app.post("/api/template-override", requireAuth, async (req, res) => {
         isOverride: true,  // flag: only override specific fields, don't replace full template
       }},
       { upsert: true, new: true }
-    );
+    ).lean();
 
-    res.json({ success: true, message: "Template customization saved permanently ✅" });
+    // Return what's ACTUALLY in the document right now — the caller can
+    // compare this directly instead of trusting a separate GET later, which
+    // eliminates any possible race/caching gap between save and verify.
+    res.json({ success: true, message: "Template customization saved permanently ✅",
+      saved: { templateId: saved.templateId, fullBody: saved.fullBody || "", _id: String(saved._id) } });
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
 

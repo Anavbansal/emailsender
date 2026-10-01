@@ -7535,8 +7535,22 @@ function SettingsPage({ addToast }) {
 
   const saveTemplates = async () => {
     setTplSaving(true);
+
+    // De-duplicate the LOCAL array by tid first — if two entries somehow
+    // share the same id (e.g. a stale one left over from an earlier load),
+    // processing both would let whichever saves LAST silently overwrite the
+    // other, even if the first one had the real edited text. Keep only the
+    // LAST occurrence of each id (assumed to be the current, edited state).
+    const byId = new Map();
+    for (const tpl of templates) byId.set(tpl.id || tpl.templateId, tpl);
+    const dedupedTemplates = [...byId.values()];
+    if (dedupedTemplates.length !== templates.length) {
+      console.warn(`saveTemplates: removed ${templates.length - dedupedTemplates.length} duplicate template(s) from local state before saving`);
+    }
+
     const failed = [];
-    for (const tpl of templates) {
+    const diagnostics = [];
+    for (const tpl of dedupedTemplates) {
       const tid = tpl.id || tpl.templateId;
       try {
         if (tpl.isCustom) {
@@ -7563,10 +7577,11 @@ function SettingsPage({ addToast }) {
           const hasCustom = tpl.intro || tpl.fullBody || tpl.highlights?.some(Boolean) || tpl.subject || tpl.customNote
             || tpl.resumeData || tpl.resumeDriveUrl || (tpl.resumeType && tpl.resumeType !== "default");
           if (!hasCustom) continue;
-          await axios.post(`${API}/api/template-override`, {
+          const sentBody = tpl.fullBody || "";
+          const r = await axios.post(`${API}/api/template-override`, {
             templateId: tid,
             intro:      tpl.intro      || "",
-            fullBody:   tpl.fullBody   || "",
+            fullBody:   sentBody,
             highlights: tpl.highlights || [],
             subject:    tpl.subject    || "",
             customNote: tpl.customNote || "",
@@ -7575,6 +7590,19 @@ function SettingsPage({ addToast }) {
             resumeFileName: tpl.resumeFileName   || undefined,
             ...(tpl.resumeData ? { resumeData: tpl.resumeData } : {}),
           });
+          // Verify using THIS SAME response — no separate GET call, no gap
+          // for anything else to race in between save and check.
+          if (sentBody) {
+            const savedBody = r.data?.saved?.fullBody || "";
+            if (savedBody !== sentBody) {
+              failed.push({ name: tpl.name || tid, message: "saved text doesn't match what was sent" });
+              diagnostics.push(
+                `${tpl.name || tid} (doc _id: ${r.data?.saved?._id || "?"}):\n` +
+                `  Sent      (${sentBody.length} chars): "${sentBody.slice(0,80)}${sentBody.length>80?"…":""}"\n` +
+                `  Returned by save (${savedBody.length} chars): "${savedBody.slice(0,80)}${savedBody.length>80?"…":""}"`
+              );
+            }
+          }
         }
       } catch(e) {
         // Don't let one template's failure (e.g. a stale/corrupt resumeData
@@ -7585,38 +7613,10 @@ function SettingsPage({ addToast }) {
     }
     if (failed.length) {
       addToast && addToast(`⚠️ ${failed.length} template(s) failed to save: ${failed.map(f=>f.name).join(", ")} — ${failed[0].message}`, "error");
+      if (diagnostics.length) window.alert("Save verification diagnostic — please screenshot this:\n\n" + diagnostics.join("\n\n"));
       setTplSaving(false);
       return;
     }
-
-    // Verify: re-fetch from the server and confirm what we sent actually
-    // persisted — catches any silent save that "succeeded" but didn't stick.
-    try {
-      const r = await axios.get(`${API}/api/template-override`, { params: { _t: Date.now() } });
-      const mismatches = [];
-      const diagnostics = [];
-      for (const tpl of templates) {
-        if (tpl.isCustom) continue;
-        const tid = tpl.id || tpl.templateId;
-        const sentBody = tpl.fullBody || "";
-        if (!sentBody) continue; // nothing was supposed to be saved for this one
-        const savedBody = r.data.overrides?.[tid]?.fullBody || "";
-        if (savedBody !== sentBody) {
-          mismatches.push(tpl.name || tid);
-          diagnostics.push(
-            `${tpl.name || tid}:\n` +
-            `  Sent    (${sentBody.length} chars): "${sentBody.slice(0,80)}${sentBody.length>80?"…":""}"\n` +
-            `  On server (${savedBody.length} chars): "${savedBody.slice(0,80)}${savedBody.length>80?"…":""}"`
-          );
-        }
-      }
-      if (mismatches.length) {
-        addToast && addToast(`⚠️ Save verification failed for: ${mismatches.join(", ")} — see details popup.`, "error");
-        window.alert("Save verification diagnostic — please screenshot this:\n\n" + diagnostics.join("\n\n"));
-        setTplSaving(false);
-        return;
-      }
-    } catch { /* verification is best-effort — don't block on it failing to even check */ }
 
     addToast && addToast("✅ Templates saved permanently!");
     setTplSaving(false);
