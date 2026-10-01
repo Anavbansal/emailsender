@@ -7437,25 +7437,30 @@ function SettingsPage({ addToast }) {
 
   // Load user's permanent template overrides on mount
   useEffect(() => {
-    axios.get(`${API}/api/template-override`, { params: { _t: Date.now() } })
-      .then(r => {
-        if (r.data.overrides && Object.keys(r.data.overrides).length > 0) {
-          const overrides = r.data.overrides;
-          setTemplates(prev => prev.map(tpl => {
-            const key = tpl.id || tpl.templateId;
-            const ov = overrides[key];
-            if (!ov) return tpl;
-            return {
-              ...tpl,
-              ...(ov.intro      && { intro:      ov.intro }),
-              ...(ov.fullBody   && { fullBody:   ov.fullBody }),
-              ...(ov.highlights?.length && { highlights: ov.highlights }),
-              ...(ov.subject    && { subject:    ov.subject }),
-              ...(ov.customNote && { customNote: ov.customNote }),
-            };
-          }));
-        }
-      }).catch(() => {});
+    // Silently clean up any leftover duplicate EmailTemplate docs first (from
+    // before the unique index existed) — a duplicate could cause the override
+    // GET to pick a stale document instead of the one just saved.
+    axios.post(`${API}/api/templates/dedupe`).catch(() => {}).finally(() => {
+      axios.get(`${API}/api/template-override`, { params: { _t: Date.now() } })
+        .then(r => {
+          if (r.data.overrides && Object.keys(r.data.overrides).length > 0) {
+            const overrides = r.data.overrides;
+            setTemplates(prev => prev.map(tpl => {
+              const key = tpl.id || tpl.templateId;
+              const ov = overrides[key];
+              if (!ov) return tpl;
+              return {
+                ...tpl,
+                ...(ov.intro      && { intro:      ov.intro }),
+                ...(ov.fullBody   && { fullBody:   ov.fullBody }),
+                ...(ov.highlights?.length && { highlights: ov.highlights }),
+                ...(ov.subject    && { subject:    ov.subject }),
+                ...(ov.customNote && { customNote: ov.customNote }),
+              };
+            }));
+          }
+        }).catch(() => {});
+    });
   }, []);
 
   // Load user's custom templates (created via "+ Add Template") and merge them in
@@ -7587,6 +7592,7 @@ function SettingsPage({ addToast }) {
     // Verify: re-fetch from the server and confirm what we sent actually
     // persisted — catches any silent save that "succeeded" but didn't stick.
     try {
+      await axios.post(`${API}/api/templates/dedupe`).catch(() => {});
       const r = await axios.get(`${API}/api/template-override`, { params: { _t: Date.now() } });
       const mismatches = [];
       for (const tpl of templates) {

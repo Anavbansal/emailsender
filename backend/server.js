@@ -6212,12 +6212,34 @@ app.post("/api/template-override", requireAuth, async (req, res) => {
 app.get("/api/template-override", requireAuth, async (req, res) => {
   try {
     res.set("Cache-Control", "no-store, no-cache, must-revalidate");
-    const overrides = await EmailTemplate.find({ userId: req.userId, isOverride: true }).lean();
+    // Sort oldest-first so that when multiple documents exist for the same
+    // templateId (possible leftover duplicates from before the unique index
+    // was added), the LAST one written into the map — the most recently
+    // updated — always wins, instead of a non-deterministic pick.
+    const overrides = await EmailTemplate.find({ userId: req.userId, isOverride: true })
+      .sort({ updatedAt: 1 }).lean();
     const map = {};
     overrides.forEach(o => { map[o.templateId] = o; });
     res.json({ success: true, overrides: map });
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 });
+
+// ─── POST /api/templates/dedupe — clean up duplicate EmailTemplate docs for
+// this user (possible leftovers from before the unique index existed) ────────
+app.post("/api/templates/dedupe", requireAuth, async (req, res) => {
+  try {
+    const all = await EmailTemplate.find({ userId: req.userId }).sort({ updatedAt: -1 }).lean();
+    const seen = new Set();
+    const toDelete = [];
+    for (const doc of all) {
+      if (seen.has(doc.templateId)) toDelete.push(doc._id);
+      else seen.add(doc.templateId);
+    }
+    if (toDelete.length) await EmailTemplate.deleteMany({ _id: { $in: toDelete } });
+    res.json({ success: true, removedDuplicates: toDelete.length, remaining: seen.size });
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 
 // ─── DELETE /api/template-override/:templateId — clear a saved customization,
 // reverting that template back to its built-in defaults ─────────────────────
