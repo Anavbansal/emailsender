@@ -7530,9 +7530,10 @@ function SettingsPage({ addToast }) {
 
   const saveTemplates = async () => {
     setTplSaving(true);
-    try {
-      for (const tpl of templates) {
-        const tid = tpl.id || tpl.templateId;
+    const failed = [];
+    for (const tpl of templates) {
+      const tid = tpl.id || tpl.templateId;
+      try {
         if (tpl.isCustom) {
           // Custom template — full save/create in the generic templates collection
           // so it's usable by Send Application / Bulk Send and the backend sender.
@@ -7570,10 +7571,19 @@ function SettingsPage({ addToast }) {
             ...(tpl.resumeData ? { resumeData: tpl.resumeData } : {}),
           });
         }
+      } catch(e) {
+        // Don't let one template's failure (e.g. a stale/corrupt resumeData
+        // from an earlier broken upload) block every OTHER template's save —
+        // keep going, then report exactly which ones failed.
+        failed.push({ name: tpl.name || tid, message: e.response?.data?.message || e.message });
       }
+    }
+    if (failed.length) {
+      addToast && addToast(`⚠️ ${failed.length} template(s) failed to save: ${failed.map(f=>f.name).join(", ")} — ${failed[0].message}`, "error");
+    } else {
       addToast && addToast("✅ Templates saved permanently!");
-    } catch(e) { addToast && addToast("❌ " + (e.response?.data?.message || e.message), "error"); }
-    finally { setTplSaving(false); }
+    }
+    setTplSaving(false);
   };
 
   const updateTpl = (idx, key, val) => setTemplates(prev =>
