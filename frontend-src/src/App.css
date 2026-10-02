@@ -209,7 +209,6 @@ input, textarea, select { font-family: var(--font); }
 .nav-item-active {
   background: var(--sidebar-active) !important;
   color: #fff !important;
-  box-shadow: 0 3px 14px rgba(139,124,246,0.35);
 }
 
 .nav-icon  { font-size: 14px; flex-shrink: 0; width: 18px; text-align: center; }
@@ -1724,18 +1723,11 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { backgrou
   background: var(--blue); transform: scaleY(0);
   transition: transform 0.2s ease;
 }
-.nav-item:hover::before { transform: scaleY(1); }
+.nav-item:hover::before, .nav-item-active::before { transform: scaleY(1); }
 .nav-item:hover {
   background: rgba(255,255,255,0.07) !important;
   color: #fff !important;
-  transform: translateX(2px);
 }
-.nav-item-active {
-  background: rgba(59, rgba(124,58,237,0.15)) !important;
-  border: 1px solid rgba(59,130,246,0.3) !important;
-  color: #60a5fa !important;
-}
-.nav-item-active::before { transform: scaleY(1) !important; }
 
 .nav-badge {
   animation: badge-pop 0.3s ease both;
