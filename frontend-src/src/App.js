@@ -31,11 +31,11 @@ const DRIVE_LINK = "https://drive.google.com/file/d/1LKc-w9Ggd5I1eZ3t7Wvm9psU-4I
 // ── HR Profile answers — edit these anytime ──────────────────────────────────
 const HR_PROFILE_ANAV = {
   keySkills:        "Node.js, Angular, AWS, ExpressJS, TypeScript, CTI Integrations, ServiceNow, Chatbot Development",
-  totalExp:         "4.9+ Years",
-  relevantExp:      "4.9+ Years",
-  currentCompany:   "NovelVox Pvt. Ltd.",
+  totalExp:         "5+ Years",
+  relevantExp:      "5+ Years",
+  currentCompany:   "HCLTech Pvt. Ltd.",
   reasonForChange:  "Personal and professional growth",
-  noticePeriod:     "Serving Notice Period",
+  noticePeriod:     "Immediate Joiner",
   currentCTC:       "₹9 LPA",
   offerInHand:      "No",
   expectedCTC:      "₹15 LPA",
@@ -186,15 +186,15 @@ const EMAIL_TEMPLATES_ANAV = [
   { id: "fullstack", name: "Full Stack", icon: "⚡", accent: "#2563eb",
     customNote: "I am excited to apply for this opportunity. My full-stack expertise in Node.js and AWS Lambda makes me an ideal candidate for building scalable, production-ready applications." },
   { id: "cti",      name: "CTI Expert", icon: "📞", accent: "#7c3aed",
-    customNote: "With 4.9+ years specializing in CTI/telephony integrations, I have architected enterprise-grade solutions across Avaya AACC, Genesys, Webex, and Amazon Connect." },
+    customNote: "With 5+ years specializing in CTI/telephony integrations, I have architected enterprise-grade solutions across Avaya AACC, Genesys, Webex, and Amazon Connect." },
   { id: "formal",   name: "Formal",     icon: "🎯", accent: "#1d4ed8",
     customNote: "I am respectfully submitting my application for this position. I am confident that my technical background aligns closely with your requirements." },
   { id: "startup",  name: "Startup",    icon: "🚀", accent: "#059669",
     customNote: "I build fast, ship quality, and love environments where impact matters. My Node.js + AWS stack has powered real-time enterprise solutions." },
   { id: "crm",      name: "CRM Expert", icon: "🏆", accent: "#0d9488",
-    customNote: "With 4.9+ years as a CRM Integration Expert, I specialize in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent) and Freshdesk CTI." },
+    customNote: "With 5+ years as a CRM Integration Expert, I specialize in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent) and Freshdesk CTI." },
   { id: "servicenow", name: "ServiceNow Expert", icon: "🟢", accent: "#16a34a",
-    customNote: "With 4.9+ years as a Senior ServiceNow Developer, I specialize in ITSM, CSM, Flow Designer, IntegrationHub, CMDB/Asset data, and Vulnerability Response concepts." },
+    customNote: "With 5+ years as a Senior ServiceNow Developer, I specialize in ITSM, CSM, Flow Designer, IntegrationHub, CMDB/Asset data, and Vulnerability Response concepts." },
 ];
 
 const EMAIL_TEMPLATES_PRIYAL = [
@@ -253,7 +253,7 @@ const DEFAULT_TEMPLATE_ANAV = {
   headerTheme: "blue",
   customIntro: "",
   highlights: [
-    "4.9+ years · Node.js, AngularJS, Express.js",
+    "5+ years · Node.js, AngularJS, Express.js",
     "AWS Lambda · DynamoDB · S3 · Amazon Connect",
     "10+ enterprise CTI integrations (Avaya, Genesys, Webex, Zoom)",
     "CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics, CDK Global",
@@ -284,35 +284,35 @@ const getDefaultTemplate = () => getUser()?.username === "anav" ? DEFAULT_TEMPLA
 // template was being edited entirely).
 const BUILTIN_HIGHLIGHTS_BY_TEMPLATE = {
   fullstack: [
-    "4.9+ years · Node.js, AngularJS, Express.js, REST APIs, AWS Lambda, DynamoDB/MySQL",
+    "5+ years · Node.js, AngularJS, Express.js, REST APIs, AWS Lambda, DynamoDB/MySQL",
     "Serverless Architecture: AWS Lambda · DynamoDB · S3 · Amazon Connect · Render · Vercel",
     "10+ enterprise CTI integrations (Avaya, Genesys, Webex, Zoom, Amazon Connect)",
     "CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics, CDK Global, COX Automotive",
     "AI-assisted development: Claude, GitHub Copilot, ChatGPT",
   ],
   cti: [
-    "4.9+ years · CTI/Telephony Integration Specialist",
+    "5+ years · CTI/Telephony Integration Specialist",
     "Avaya (AACC, AES, IPO) · Genesys · Webex · Zoom · Amazon Connect",
     "10+ enterprise CTI integrations delivered end-to-end",
     "CRM: ServiceNow, Salesforce, Freshdesk, Zendesk, CDK Global",
     "AWS Lambda · DynamoDB · IVR/ACD Design · Chatbot Development",
   ],
   crm: [
-    "4.9+ years · Senior CRM Integration Expert",
+    "5+ years · Senior CRM Integration Expert",
     "ServiceNow: ITSM · HRSD · CSM · Flow Designer · IntegrationHub · Virtual Agent · Scripted REST APIs · Marketplace Listing",
     "Freshdesk (FDK, Marketplace Apps, CTI API) · Salesforce Open CTI · Zendesk Apps Framework · MS Dynamics 365",
     "3 published enterprise marketplace apps: ServiceNow Store · Freshdesk · Webex App Hub",
     "CTI Screen Pop · Click-to-Dial · Real-Time Ticket Automation · CRM-Telephony Sync",
   ],
   servicenow: [
-    "4.9+ years · Senior ServiceNow Developer & CRM Integration Expert",
+    "5+ years · Senior ServiceNow Developer & CRM Integration Expert",
     "ServiceNow Platform: ITSM · CSM · CMDB/Asset · Flow Designer · IntegrationHub · Scripted REST APIs · Business Rules · ACLs · Virtual Agent",
     "SecOps exposure: CMDB/Asset matching & dedup, Vulnerability Response lifecycle (scan → triage → prioritize → remediate → verify), scanner ingestion (Qualys, Tenable, Rapid7)",
     "IntegrationHub spoke development cut ITSM ticket-creation time by 60%",
     "3 published marketplace apps: ServiceNow Store · Freshdesk Marketplace · Webex App Hub",
   ],
   formal: [
-    "4.9+ years · Senior Software Developer",
+    "5+ years · Senior Software Developer",
     "Full-stack development, CRM integrations, and CTI/Telephony systems",
     "10+ enterprise integrations delivered across contact center and CRM platforms",
     "AI-assisted development: Claude, GitHub Copilot, ChatGPT",
@@ -410,7 +410,7 @@ const MSG_TEMPLATES_ANAV = [
 
 Hope you're doing well! I came across your profile and wanted to reach out.
 
-I'm Anav Bansal — a Senior Full Stack Developer with 4.9+ years of experience building production-grade applications using Node.js, Angular, AWS Lambda, and DynamoDB. I've worked extensively on enterprise CTI integrations and serverless architectures.
+I'm Anav Bansal — a Senior Full Stack Developer with 5+ years of experience building production-grade applications using Node.js, Angular, AWS Lambda, and DynamoDB. I've worked extensively on enterprise CTI integrations and serverless architectures.
 
 I'm currently exploring a job switch and would love to connect with someone at ${c}. If there are any openings that might be a good fit, or if you'd be open to a referral, I'd really appreciate it!
 
@@ -436,7 +436,7 @@ Anav Bansal
 
 I hope this message finds you well!
 
-I'm Anav Bansal, a Senior Full Stack Developer with 4.9+ years of experience delivering scalable, end-to-end applications — Node.js, Angular, AWS, and enterprise CRM/CTI integrations across platforms like ServiceNow, Salesforce, and Freshdesk.
+I'm Anav Bansal, a Senior Full Stack Developer with 5+ years of experience delivering scalable, end-to-end applications — Node.js, Angular, AWS, and enterprise CRM/CTI integrations across platforms like ServiceNow, Salesforce, and Freshdesk.
 
 I'm at a stage in my career where I'm actively evaluating exciting new opportunities, and ${c} has caught my attention. I'd be grateful if you'd consider referring me, or simply connecting me with the right person on your team.
 
@@ -460,7 +460,7 @@ Anav Bansal
 
 Hope you're having a great week!
 
-I'm Anav Bansal — a Senior CRM Integration Expert with 4.9+ years of specialization in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent, Scripted REST APIs), Freshdesk, Salesforce, and Zendesk. I've published 3 enterprise marketplace apps and led CTI integrations for Fortune 500 contact centers.
+I'm Anav Bansal — a Senior CRM Integration Expert with 5+ years of specialization in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent, Scripted REST APIs), Freshdesk, Salesforce, and Zendesk. I've published 3 enterprise marketplace apps and led CTI integrations for Fortune 500 contact centers.
 
 I'm currently looking for a new challenge and exploring opportunities where I can make an impact with my CRM & ServiceNow expertise. If ${c} has any relevant openings or if you'd be open to referring me, I'd truly appreciate it!
 
@@ -5271,7 +5271,7 @@ function ReferralPage({ addToast }) {
 
 Hope you're doing well! I saw that ${company || "your company"} has an opening for ${role || "a relevant position"} and I'm really excited about it.
 
-I have 4.9+ years of experience as a Senior Full Stack Developer with expertise in:
+I have 5+ years of experience as a Senior Full Stack Developer with expertise in:
 • Node.js, AngularJS, AWS Lambda
 • CTI Integrations: Avaya, Genesys, Webex, Amazon Connect
 • CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics
@@ -5295,7 +5295,7 @@ Maine dekha ki *${company || "tumhari company"}* mein *${role || "ek role"}* ka 
 Kya tum mujhe refer kar sakte ho? Tumhare jaise *${relation.toLowerCase()}* ka referral bahut valuable hoga! 🙏
 
 *Meri profile:*
-• 4.9+ years — Node.js, AWS Lambda
+• 5+ years — Node.js, AWS Lambda
 • CTI Expert: Avaya, Genesys, Webex, Amazon Connect
 • CRM: ServiceNow, Salesforce, Freshdesk
 
@@ -7428,27 +7428,27 @@ function SettingsPage({ addToast }) {
     { id:"fullstack", name:"Full Stack",  icon:"⚡", accent:"#2563eb",
       subject:"Job Application — Anav Bansal",
       customNote:"I am excited to apply for this opportunity. My full-stack expertise in Node.js and AWS Lambda makes me an ideal candidate for building scalable, production-ready applications.",
-      highlights:["4.9+ years · Node.js, AngularJS, Express.js","AWS Lambda · DynamoDB · S3 · Amazon Connect","10+ enterprise CTI integrations (Avaya, Genesys, Webex, Zoom)","CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics"],
+      highlights:["5+ years · Node.js, AngularJS, Express.js","AWS Lambda · DynamoDB · S3 · Amazon Connect","10+ enterprise CTI integrations (Avaya, Genesys, Webex, Zoom)","CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics"],
       resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
     { id:"servicenow", name:"ServiceNow Expert", icon:"🟢", accent:"#16a34a",
       subject:"Job Application — Anav Bansal (Senior ServiceNow Developer)",
-      customNote:"With 4.9+ years as a Senior ServiceNow Developer, I specialize in ITSM, CSM, Flow Designer, IntegrationHub, CMDB/Asset data, and Vulnerability Response concepts.",
-      highlights:["4.9+ years · Senior ServiceNow Developer","ServiceNow: ITSM, CSM, Flow Designer, IntegrationHub, Scripted REST APIs","SecOps: CMDB/Asset matching, Vulnerability Response lifecycle","IntegrationHub spoke dev cut ITSM ticket time by 60%"],
+      customNote:"With 5+ years as a Senior ServiceNow Developer, I specialize in ITSM, CSM, Flow Designer, IntegrationHub, CMDB/Asset data, and Vulnerability Response concepts.",
+      highlights:["5+ years · Senior ServiceNow Developer","ServiceNow: ITSM, CSM, Flow Designer, IntegrationHub, Scripted REST APIs","SecOps: CMDB/Asset matching, Vulnerability Response lifecycle","IntegrationHub spoke dev cut ITSM ticket time by 60%"],
       resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
     { id:"cti", name:"CTI Expert", icon:"📞", accent:"#7c3aed",
       subject:"Job Application — Anav Bansal (CTI/Telephony Specialist)",
-      customNote:"With 4.9+ years specializing in CTI/telephony integrations, I have architected enterprise-grade solutions across Avaya AACC, Genesys, Webex, and Amazon Connect.",
-      highlights:["4.9+ years CTI/Telephony Integration Specialist","Avaya AACC/AES, Genesys Cloud, Webex, Amazon Connect","10+ enterprise contact center integrations","Node.js, AWS Lambda, REST APIs, WebSockets"],
+      customNote:"With 5+ years specializing in CTI/telephony integrations, I have architected enterprise-grade solutions across Avaya AACC, Genesys, Webex, and Amazon Connect.",
+      highlights:["5+ years CTI/Telephony Integration Specialist","Avaya AACC/AES, Genesys Cloud, Webex, Amazon Connect","10+ enterprise contact center integrations","Node.js, AWS Lambda, REST APIs, WebSockets"],
       resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
     { id:"crm", name:"CRM Expert", icon:"🏆", accent:"#0d9488",
       subject:"Job Application — Anav Bansal (Senior CRM & ServiceNow Expert)",
-      customNote:"With 4.9+ years as a CRM Integration Expert, I specialize in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent) and Freshdesk CTI.",
-      highlights:["4.9+ years CRM Integration Expert","ServiceNow: Flow Designer, IntegrationHub, Virtual Agent, Scripted REST","6+ enterprise CRM integrations (ServiceNow, Salesforce, Freshdesk, Zendesk)","3 marketplace apps published"],
+      customNote:"With 5+ years as a CRM Integration Expert, I specialize in ServiceNow (Flow Designer, IntegrationHub, Virtual Agent) and Freshdesk CTI.",
+      highlights:["5+ years CRM Integration Expert","ServiceNow: Flow Designer, IntegrationHub, Virtual Agent, Scripted REST","6+ enterprise CRM integrations (ServiceNow, Salesforce, Freshdesk, Zendesk)","3 marketplace apps published"],
       resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
     { id:"formal", name:"Formal", icon:"🎯", accent:"#1d4ed8",
       subject:"Job Application — Anav Bansal",
       customNote:"I am respectfully submitting my application for this position. I am confident that my technical background aligns closely with your requirements.",
-      highlights:["4.9+ years Full Stack Development","Node.js, Angular, AWS — production-grade applications","10+ enterprise integrations delivered","ServiceNow, Salesforce, Freshdesk expertise"],
+      highlights:["5+ years Full Stack Development","Node.js, Angular, AWS — production-grade applications","10+ enterprise integrations delivered","ServiceNow, Salesforce, Freshdesk expertise"],
       resumeType:"default", resumeDriveUrl:"", resumeFileName:"" },
   ];
 
@@ -7755,7 +7755,7 @@ function SettingsPage({ addToast }) {
               Used in screening replies and email body. Keep it 2-3 lines.
             </p>
             <Field k="profileSummary" label="Summary" area
-              ph="Senior Full Stack Developer with 4.9+ years of experience in Node.js, AWS, and CTI integrations..." />
+              ph="Senior Full Stack Developer with 5+ years of experience in Node.js, AWS, and CTI integrations..." />
             <SaveBtn />
           </Section>
         </div>
@@ -7767,8 +7767,8 @@ function SettingsPage({ addToast }) {
           <Section title="💼 Current Job">
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
               <Field k="currentCompany"    label="Current Company"     ph="NovelVox Pvt Ltd" />
-              <Field k="totalExp"          label="Total Experience"    ph="4.9+ Years" />
-              <Field k="relevantExp"       label="Relevant Experience" ph="4.9+ Years" />
+              <Field k="totalExp"          label="Total Experience"    ph="5+ Years" />
+              <Field k="relevantExp"       label="Relevant Experience" ph="5+ Years" />
               <Field k="currentCTC"        label="Current CTC"         ph="₹9 LPA" />
               <Field k="expectedCTC"       label="Expected CTC"        ph="₹15 LPA" />
               <Field k="noticePeriod"      label="Notice Period"       ph="Serving Notice Period" />
@@ -8346,7 +8346,7 @@ function TemplateManagerPage({ addToast }) {
                   </span>
                 </label>
                 <textarea className="form-textarea" rows={3} style={{ fontSize:13 }}
-                  placeholder={`I am writing to express my strong interest in joining [company]. With 4.9+ years of experience in...`}
+                  placeholder={`I am writing to express my strong interest in joining [company]. With 5+ years of experience in...`}
                   value={editing.intro} onChange={e=>h("intro",e.target.value)} />
               </div>
 
@@ -8370,7 +8370,7 @@ function TemplateManagerPage({ addToast }) {
                   <div key={i} style={{ display:"flex", gap:6, marginBottom:6 }}>
                     <span style={{ color:"var(--text-muted)", paddingTop:8, fontSize:12, minWidth:16 }}>{i+1}.</span>
                     <input className="form-input" style={{ fontSize:13 }}
-                      placeholder={`Highlight ${i+1} — e.g. 4.9+ years · Node.js, AWS Lambda`}
+                      placeholder={`Highlight ${i+1} — e.g. 5+ years · Node.js, AWS Lambda`}
                       value={hl} onChange={e=>hHighlight(i,e.target.value)} />
                     <button type="button" onClick={() => {
                       const hl2=[...(editing.highlights||[])]; hl2.splice(i,1); h("highlights",hl2);

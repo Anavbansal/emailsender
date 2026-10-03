@@ -382,8 +382,8 @@ function getUserConfig(user) {
     noticePeriod:     user.noticePeriod     || (isOwner ? "Immediate Joiner" : ""),
     currentLocation:  user.currentLocation  || (isOwner ? "Faridabad, Haryana" : ""),
     preferredLocation:user.preferredLocation|| (isOwner ? "PAN India" : ""),
-    totalExp:         user.totalExp         || (isOwner ? "4.9+ Years" : ""),
-    relevantExp:         user.relevantExp         || (isOwner ? "4.9+ Years" : ""),
+    totalExp:         user.totalExp         || (isOwner ? "5+ Years" : ""),
+    relevantExp:         user.relevantExp         || (isOwner ? "5+ Years" : ""),
     offerInHand:      user.offerInHand      || (isOwner ? "Yes — ₹12 LPA" : "No"),
     dateOfBirth:      user.dateOfBirth      || (isOwner ? "06 October 1999" : ""),
     yearOfPassing:    user.yearOfPassing    || (isOwner ? "2021" : ""),
@@ -1194,28 +1194,28 @@ const HEADER_THEMES = {
   emerald:"linear-gradient(135deg,#052e16 0%,#16a34a 100%)",
 };
 const DEFAULT_HIGHLIGHTS = [
-  "4.9+ years · Node.js, AngularJS, Express.js, REST APIs, AWS Lambda, DynamoDB/MySQL",
+  "5+ years · Node.js, AngularJS, Express.js, REST APIs, AWS Lambda, DynamoDB/MySQL",
   "Serverless Architecture: AWS Lambda · DynamoDB · S3 · Amazon Connect · Render · Vercel",
   "10+ enterprise CTI integrations (Avaya, Genesys, Webex, Zoom, Amazon Connect)",
   "CRM: ServiceNow, Salesforce, Freshdesk, MS Dynamics, CDK Global, COX Automotive",
   "AI-assisted development: Claude, GitHub Copilot, ChatGPT",
 ];
 const CTI_HIGHLIGHTS = [
-  "4.9+ years · CTI/Telephony Integration Specialist",
+  "5+ years · CTI/Telephony Integration Specialist",
   "Avaya (AACC, AES, IPO) · Genesys · Webex · Zoom · Amazon Connect",
   "10+ enterprise CTI integrations delivered end-to-end",
   "CRM: ServiceNow, Salesforce, Freshdesk, Zendesk, CDK Global",
   "AWS Lambda · DynamoDB · IVR/ACD Design · Chatbot Development",
 ];
 const CRM_HIGHLIGHTS = [
-  "4.9+ years · Senior CRM Integration Expert",
+  "5+ years · Senior CRM Integration Expert",
   "ServiceNow: ITSM · HRSD · CSM · Flow Designer · IntegrationHub · Virtual Agent · Scripted REST APIs · Marketplace Listing",
   "Freshdesk (FDK, Marketplace Apps, CTI API) · Salesforce Open CTI · Zendesk Apps Framework · MS Dynamics 365",
   "3 published enterprise marketplace apps: ServiceNow Store · Freshdesk · Webex App Hub",
   "CTI Screen Pop · Click-to-Dial · Real-Time Ticket Automation · CRM-Telephony Sync",
 ];
 const SERVICENOW_HIGHLIGHTS = [
-  "4.9+ years · Senior ServiceNow Developer & CRM Integration Expert",
+  "5+ years · Senior ServiceNow Developer & CRM Integration Expert",
   "ServiceNow Platform: ITSM · CSM · CMDB/Asset · Flow Designer · IntegrationHub · Scripted REST APIs · Business Rules · ACLs · Virtual Agent",
   "SecOps exposure: CMDB/Asset matching & dedup, Vulnerability Response lifecycle (scan → triage → prioritize → remediate → verify), scanner ingestion (Qualys, Tenable, Rapid7)",
   "IntegrationHub spoke development cut ITSM ticket-creation time by 60%",
@@ -1449,7 +1449,7 @@ function buildCRMHTML({ hrName, company, role, customNote, trackUrl = "", custom
   const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
   const intro     = customIntro ||
     `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}.
-     With <strong>4.9+ years as a CRM Integration Expert</strong>, I specialize in <strong>ServiceNow platform development</strong>
+     With <strong>5+ years as a CRM Integration Expert</strong>, I specialize in <strong>ServiceNow platform development</strong>
      (ITSM, HRSD, CSM, Flow Designer, IntegrationHub, Virtual Agent, Scripted REST APIs, Marketplace Listing) and
      <strong>CTI integrations</strong> across Freshdesk, Salesforce, Zendesk, and MS Dynamics —
      delivering enterprise-grade solutions that automate ticket workflows, enable real-time telephony-to-CRM sync,
@@ -1500,7 +1500,7 @@ function buildServiceNowHTML({ hrName, company, role, customNote, trackUrl = "",
   const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
   const intro     = customIntro ||
     `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}.
-     With <strong>4.9+ years as a Senior ServiceNow Developer</strong>, I specialize in the <strong>ServiceNow platform</strong>
+     With <strong>5+ years as a Senior ServiceNow Developer</strong>, I specialize in the <strong>ServiceNow platform</strong>
      (ITSM, CSM, Flow Designer, IntegrationHub, Scripted REST APIs, Business Rules, ACLs, CMDB/Asset data) with working
      exposure to <strong>Security Operations concepts</strong> — Vulnerability Response lifecycle, CMDB/asset matching, and
      scanner data ingestion — alongside CRM integrations across Freshdesk, Salesforce, Zendesk, and MS Dynamics.
@@ -1757,7 +1757,7 @@ function buildFullstackHTML({ hrName, company, role, customNote, trackUrl = "", 
   const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
   const intro     = customIntro ||
     `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}.
-     With <strong>4.9+ years of hands-on experience</strong> as a Senior Full-Stack Developer, I have architected and
+     With <strong>5+ years of hands-on experience</strong> as a Senior Full-Stack Developer, I have architected and
      shipped production-grade applications across Node.js, AngularJS, Express.js, REST APIs, AWS Lambda, and DynamoDB/MySQL — with deep expertise
      in CTI/Telephony integrations for enterprise platforms. I am currently with HCLTech and immediately available to join.`;
   const items     = (customHighlights && customHighlights.length) ? customHighlights : DEFAULT_HIGHLIGHTS;
@@ -1800,7 +1800,7 @@ function buildCTIHTML({ hrName, company, role, customNote, trackUrl = "", custom
   const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
   const intro     = customIntro ||
     `I am writing to express my strong interest in joining <strong>${company||"your organization"}</strong>${roleText}.
-     With <strong>4.9+ years specializing in CTI/Telephony integrations</strong>, I have architected enterprise-grade solutions
+     With <strong>5+ years specializing in CTI/Telephony integrations</strong>, I have architected enterprise-grade solutions
      across Avaya AACC, Avaya AES, Genesys, Webex Contact Center, Zoom, and Amazon Connect — enabling seamless agent workflows,
      real-time call controls, screen popups, and CRM synchronization at scale. I am currently with HCLTech and immediately available to join.`;
   const items     = (customHighlights && customHighlights.length) ? customHighlights : CTI_HIGHLIGHTS;
@@ -1845,7 +1845,7 @@ function buildFormalHTML({ hrName, company, role, customNote, trackUrl = "", cus
   const pixel     = trackUrl   ? `<img src="${trackUrl}" width="1" height="1" style="display:none;" alt=""/>` : "";
   const intro     = customIntro ||
     `I am respectfully submitting my application${roleText} at <strong>${company||"your organization"}</strong>.
-     I am a Senior Software Developer with <strong>4.9+ years of professional experience</strong> in full-stack development,
+     I am a Senior Software Developer with <strong>5+ years of professional experience</strong> in full-stack development,
      cloud architecture, and enterprise system integrations. I am currently with HCLTech and immediately available to join.`;
   const items  = (customHighlights && customHighlights.length) ? customHighlights : DEFAULT_HIGHLIGHTS;
   const hlHtml = items.map(h => `<li>${h}</li>`).join("");
@@ -1864,7 +1864,7 @@ function buildFormalHTML({ hrName, company, role, customNote, trackUrl = "", cus
   <div style="background:${gradient};padding:36px 40px;">
     <p style="margin:0 0 6px;color:#bfdbfe;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Senior Software Developer</p>
     <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Anav Bansal</h1>
-    <p style="margin:6px 0 0;color:#bfdbfe;font-size:14px;">B.Tech Computer Science · 4.9+ Years Experience</p>
+    <p style="margin:6px 0 0;color:#bfdbfe;font-size:14px;">B.Tech Computer Science · 5+ Years Experience</p>
   </div>
   <div style="padding:36px 40px;">
     <p style="color:#374151;line-height:1.8;margin:0 0 16px;">${greeting}</p>
@@ -1903,11 +1903,11 @@ function buildFollowUpHTML({ hrName, company, role, originalDate, customNote, tr
   let theme = THEMES[templateType] || THEMES.fullstack;
   let senderTitle = theme.title;
   const BODY_TEXT = {
-    crm:       `I remain very enthusiastic and confident that my <strong>4.9+ years of experience</strong> architecting CRM integrations across ServiceNow, Salesforce, Freshdesk, and Zendesk — with deep ServiceNow platform development (Flow Designer, Scripted REST APIs, IntegrationHub) — would be a strong fit for your team.`,
-    cti:       `I remain very enthusiastic and confident that my <strong>4.9+ years of experience</strong> architecting CTI/Telephony integrations across Avaya, Genesys Cloud, Webex Contact Center, and Amazon Connect — real-time screen-pop and CRM sync for enterprise contact centers — would be a strong fit for your team.`,
-    formal:    `I remain very enthusiastic and confident that my <strong>4.9+ years of experience</strong> across full-stack development, CRM integrations, and CTI/Telephony systems would be a strong fit for your team.`,
-    fullstack: `I remain very enthusiastic and confident that my <strong>4.9+ years of experience</strong> in full-stack development, Node.js, AngularJS, and AWS Lambda serverless architectures would be a strong fit for your team.`,
-    servicenow:`I remain very enthusiastic and confident that my <strong>4.9+ years of experience</strong> on the ServiceNow platform — ITSM, CSM, Flow Designer, IntegrationHub, CMDB/Asset, and Vulnerability Response concepts — would be a strong fit for your team.`,
+    crm:       `I remain very enthusiastic and confident that my <strong>5+ years of experience</strong> architecting CRM integrations across ServiceNow, Salesforce, Freshdesk, and Zendesk — with deep ServiceNow platform development (Flow Designer, Scripted REST APIs, IntegrationHub) — would be a strong fit for your team.`,
+    cti:       `I remain very enthusiastic and confident that my <strong>5+ years of experience</strong> architecting CTI/Telephony integrations across Avaya, Genesys Cloud, Webex Contact Center, and Amazon Connect — real-time screen-pop and CRM sync for enterprise contact centers — would be a strong fit for your team.`,
+    formal:    `I remain very enthusiastic and confident that my <strong>5+ years of experience</strong> across full-stack development, CRM integrations, and CTI/Telephony systems would be a strong fit for your team.`,
+    fullstack: `I remain very enthusiastic and confident that my <strong>5+ years of experience</strong> in full-stack development, Node.js, AngularJS, and AWS Lambda serverless architectures would be a strong fit for your team.`,
+    servicenow:`I remain very enthusiastic and confident that my <strong>5+ years of experience</strong> on the ServiceNow platform — ITSM, CSM, Flow Designer, IntegrationHub, CMDB/Asset, and Vulnerability Response concepts — would be a strong fit for your team.`,
   };
   let bodyText = BODY_TEXT[templateType] || BODY_TEXT.fullstack;
   let resumeNote = theme.resumeName;
@@ -1980,7 +1980,7 @@ function buildReferralHTML({ employeeName, company, role, customNote, trackUrl =
     </p>
     ${noteBlock}
     <p style="color:#374151;line-height:1.8;margin:0 0 16px;">
-      A quick background — I have <strong>4.9+ years of experience</strong> in full-stack development
+      A quick background — I have <strong>5+ years of experience</strong> in full-stack development
       with Node.js, Angular, AWS serverless, and enterprise CTI/Telephony integrations. I'd love the
       opportunity to contribute to your team.
     </p>
@@ -3531,27 +3531,27 @@ app.get("/api/templates/default-body/:templateType", requireAuth, async (req, re
 
   const DEFAULT_BODIES = {
     servicenow:
-`I am writing to express my strong interest in joining ${company}${roleText}. With 4.9+ years as a Senior ServiceNow Developer, I specialize in the ServiceNow platform (ITSM, CSM, Flow Designer, IntegrationHub, Scripted REST APIs, Business Rules, ACLs, CMDB/Asset data) with working exposure to Security Operations concepts — Vulnerability Response lifecycle, CMDB/asset matching, and scanner data ingestion — alongside CRM integrations across Freshdesk, Salesforce, Zendesk, and MS Dynamics. I am currently with HCLTech and immediately available to join.
+`I am writing to express my strong interest in joining ${company}${roleText}. With 5+ years as a Senior ServiceNow Developer, I specialize in the ServiceNow platform (ITSM, CSM, Flow Designer, IntegrationHub, Scripted REST APIs, Business Rules, ACLs, CMDB/Asset data) with working exposure to Security Operations concepts — Vulnerability Response lifecycle, CMDB/asset matching, and scanner data ingestion — alongside CRM integrations across Freshdesk, Salesforce, Zendesk, and MS Dynamics. I am currently with HCLTech and immediately available to join.
 
 At Novelvox PVT Ltd, I led ServiceNow IntegrationHub spoke development that cut ITSM ticket-creation time by 60%, published 3 enterprise marketplace apps (ServiceNow Store, Freshdesk Marketplace, Webex App Hub), and delivered 6+ CRM/ServiceNow integrations — each reducing manual agent effort by 30–40%. Nominated for Performance of the Year and received three 'Pat on the Back' awards.`,
 
     crm:
-`I am writing to express my strong interest in joining ${company}${roleText}. With 4.9+ years as a CRM Integration Expert, I specialize in ServiceNow platform development (ITSM, HRSD, CSM, Flow Designer, IntegrationHub, Virtual Agent, Scripted REST APIs, Marketplace Listing) and CTI integrations across Freshdesk, Salesforce, Zendesk, and MS Dynamics — delivering enterprise-grade solutions that automate ticket workflows, enable real-time telephony-to-CRM sync, and measurably reduce agent handle time. I am currently with HCLTech and immediately available to join.
+`I am writing to express my strong interest in joining ${company}${roleText}. With 5+ years as a CRM Integration Expert, I specialize in ServiceNow platform development (ITSM, HRSD, CSM, Flow Designer, IntegrationHub, Virtual Agent, Scripted REST APIs, Marketplace Listing) and CTI integrations across Freshdesk, Salesforce, Zendesk, and MS Dynamics — delivering enterprise-grade solutions that automate ticket workflows, enable real-time telephony-to-CRM sync, and measurably reduce agent handle time. I am currently with HCLTech and immediately available to join.
 
 At Novelvox PVT Ltd, I published 3 enterprise marketplace apps (ServiceNow Store, Freshdesk Marketplace, Webex App Hub) and delivered CRM integrations across 6+ platforms — each reducing manual agent effort by 30–40%. Nominated for Performance of the Year and received three 'Pat on the Back' awards.`,
 
     cti:
-`I am writing to express my strong interest in joining ${company}${roleText}. With 4.9+ years specializing in CTI/Telephony integrations, I have architected enterprise-grade solutions across Avaya AACC, Avaya AES, Genesys, Webex Contact Center, Zoom, and Amazon Connect — enabling seamless agent workflows, real-time call controls, screen popups, and CRM synchronization at scale. I am currently with HCLTech and immediately available to join.
+`I am writing to express my strong interest in joining ${company}${roleText}. With 5+ years specializing in CTI/Telephony integrations, I have architected enterprise-grade solutions across Avaya AACC, Avaya AES, Genesys, Webex Contact Center, Zoom, and Amazon Connect — enabling seamless agent workflows, real-time call controls, screen popups, and CRM synchronization at scale. I am currently with HCLTech and immediately available to join.
 
 At Novelvox PVT Ltd, I engineered serverless AWS Lambda pipelines for Amazon Connect, built multi-channel campaign automation, and delivered CTI integrations across 6+ CRM platforms. Nominated for Performance of the Year and received three 'Pat on the Back' awards.`,
 
     formal:
-`I am respectfully submitting my application${roleText} at ${company}. I am a Senior Software Developer with 4.9+ years of professional experience in full-stack development, cloud architecture, and enterprise system integrations. I am currently with HCLTech and immediately available to join.
+`I am respectfully submitting my application${roleText} at ${company}. I am a Senior Software Developer with 5+ years of professional experience in full-stack development, cloud architecture, and enterprise system integrations. I am currently with HCLTech and immediately available to join.
 
 Throughout my career at Novelvox PVT Ltd, I consistently delivered high-quality software for enterprise clients. Recognised with three 'Pat on the Back' awards and nominated for Performance of the Year.`,
 
     fullstack:
-`I am writing to express my strong interest in joining ${company}${roleText}. With 4.9+ years of hands-on experience as a Senior Full-Stack Developer, I have architected and shipped production-grade applications across Node.js, AngularJS, Express.js, REST APIs, AWS Lambda, and DynamoDB/MySQL — with deep expertise in CTI/Telephony integrations for enterprise platforms. I am currently with HCLTech and immediately available to join.
+`I am writing to express my strong interest in joining ${company}${roleText}. With 5+ years of hands-on experience as a Senior Full-Stack Developer, I have architected and shipped production-grade applications across Node.js, AngularJS, Express.js, REST APIs, AWS Lambda, and DynamoDB/MySQL — with deep expertise in CTI/Telephony integrations for enterprise platforms. I am currently with HCLTech and immediately available to join.
 
 At Novelvox PVT Ltd, I delivered 10+ full-stack products across contact center ecosystems, published apps on ServiceNow, Freshdesk, and Webex marketplaces, and received three 'Pat on the Back' awards.`,
   };
@@ -4936,7 +4936,7 @@ app.post("/api/ai/chat", requireAuth, async (req, res) => {
     const userCfg = getUserConfig(req.user);
     const pf = {
       name:      userCfg?.profileName    || req.user.displayName || "Candidate",
-      exp:       userCfg?.totalExp       || "4.9+",
+      exp:       userCfg?.totalExp       || "5+",
       skills:    userCfg?.keySkills      || "Full Stack, CRM, CTI",
       company:   userCfg?.currentCompany || "HCLTech",
       notice:    userCfg?.noticePeriod   || "Immediate Joiner",
